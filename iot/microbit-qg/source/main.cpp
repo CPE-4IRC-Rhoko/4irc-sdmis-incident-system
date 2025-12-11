@@ -1,27 +1,47 @@
+
 #include "MicroBit.h"
-#include "bme280.h"
-#include "ssd1306.h"
-#include "tsl256x.h"
+#include "nrf.h"  // Nécessaire pour les définitions NVIC
 extern "C" {
     #include "aes.h"
 }
 
+
 MicroBit uBit;
-MicroBitI2C i2c(I2C_SDA0,I2C_SCL0);
-MicroBitPin P0(MICROBIT_ID_IO_P0, MICROBIT_PIN_P0, PIN_CAPABILITY_DIGITAL_OUT);
-ManagedString ordreAffichage = "THPL";
-int id = 2; // ID de l’émetteur
+ManagedString clePartagee = "VincentLePluBo";  // Clé partagée
 uint8_t cleAES[16] = { 'V','i','n','c','e','n','t','L','e','P','l','u','B','o','1','2' };
 
-// Chiffre un message clair de 32 octets en AES-ECB 128
+void serialPrint(ManagedString data)
+{
+    //uBit.display.print("SP");
+    //uBit.serial.send(data);
+    uBit.serial.send(ManagedString(data+"\n"));
+    //uBit.serial.send("BONJOUR\n");
+
+}
+
+// Fonction de chiffrement XOR
+ManagedString chiffrer(ManagedString texte, ManagedString cle) {
+    int len = texte.length();
+    int klen = cle.length();
+    char result[len + 1];
+
+    for (int i = 0; i < len; i++) {
+        result[i] = texte.charAt(i) ^ cle.charAt(i % klen);
+    }
+    result[len] = '\0';
+    return ManagedString(result);
+}
+
+
+// Chiffre un message clair de 32 octets
 ManagedString chiffrerAES32(ManagedString message) {
     uint8_t buffer[32] = {0};
     int len = message.length();
-    if (len > 32) len = 32; // Bloque à 32 si dépasse
+    if (len > 32) len = 32; // Tronque à 32 si dépasse
 
     memcpy(buffer, message.toCharArray(), len);
 
-    // Complête avec " " si message < 32
+    // Padding (ex: avec `~`) si message < 32
     for (int i = len; i < 32; i++) {
         buffer[i] = ' ';
     }
@@ -46,7 +66,7 @@ ManagedString dechiffrerAES32(ManagedString data) {
     AES_ECB_decrypt(&ctx, buffer);
     AES_ECB_decrypt(&ctx, buffer + 16);
 
-    // Supprime le(s) caractère ' ' utilisé(s) pour completer
+    // Supprime le padding (caractère '~' utilisé)
     int realLen = 32;
     while (realLen > 0 && buffer[realLen - 1] == ' ') {
         realLen--;
@@ -55,86 +75,58 @@ ManagedString dechiffrerAES32(ManagedString data) {
     return ManagedString((const char*)buffer, realLen);
 }
 
-void onData(MicroBitEvent)
-{
-    ManagedString s = dechiffrerAES32(uBit.radio.datagram.recv());
 
-    if (s.length() == 4)
-        ordreAffichage = s;  // Met à jour l’ordre d'affichage de l'écren OLED
-    else
-        ordreAffichage = "THPL"; // Ordre d'affichage par défaut
+void receive_from_microbit(MicroBitEvent)
+{
+    //serialPrint("RX");
+    ManagedString s = dechiffrerAES32(uBit.radio.datagram.recv());
+    serialPrint(s);
+}
+
+void Send_to_microbit(ManagedString data_to_send)
+{
+    serialPrint("TX");
+    uBit.radio.datagram.send(chiffrerAES32(data_to_send));   
+
+    //serialPrint(data_to_send); 
+}
+
+void receive_from_serial(MicroBitEvent)
+{
+    ManagedString received = uBit.serial.readUntil('\n'); // ou '\r' ou autre
+    Send_to_microbit(received);
 }
 
 int main()
 {
-    // Initialise micro:bit.
+    // Initialise the micro:bit runtime.
     uBit.init();
+    //serialPrint("READY");
+    uBit.display.print("MB-SERVER");
 
-    // Initialise le module radio de la micro:bit
+    
+
+    
+    uBit.messageBus.listen(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, receive_from_microbit);
     uBit.radio.enable();
     uBit.radio.setGroup(16);
-    uBit.messageBus.listen(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, onData);
 
-    // Déclaration des capteurs et des valeurs associées par défaut
-    bme280 bme(&uBit,&i2c);
-    ssd1306 screen(&uBit, &i2c, &P0);
-    tsl256x tsl(&uBit,&i2c);
-    uint32_t pressure = 0;
-    int32_t temp = 0;
-    uint16_t humidite = 0;
-    uint16_t comb=0, ir=0;
-    uint32_t lux = 0;
 
-    while (true)
+    uBit.serial.setTxBufferSize(64);
+    uBit.serial.setRxBufferSize(64);
+    uBit.serial.baud(115200);
+    uBit.serial.eventOn(MicroBitSerialMode::ASYNC);
+    //uBit.messageBus.listen(MICROBIT_ID_SERIAL, MICROBIT_SERIAL_EVT_DELIM_MATCH, receive_from_serial);
+
+    while(1) 
     {
-        // Lecture brute des données
-        bme.sensor_read(&pressure, &temp, &humidite);
-        tsl.sensor_read(&comb, &ir, &lux);
-
-        // Compensation des valeurs
-        int tmp = bme.compensate_temperature(temp); // En centièmes de degré
-        int pres = bme.compensate_pressure(pressure) / 100; // En hPa
-        int hum = bme.compensate_humidity(humidite); // En centièmes de %
-
-        // Conversion en chaînes de caractères à afficher
-        ManagedString lineT = ManagedString(tmp / 100) + "." + ManagedString(tmp > 0 ? tmp % 100 : (-tmp) % 100);
-        ManagedString lineH = ManagedString(hum / 100) + "." + ManagedString(hum % 100);
-        ManagedString lineP = ManagedString(pres);
-        ManagedString lineL = ManagedString((int)lux);
-
-        screen.update_screen();
-        screen.clear(); // Réinitialise l'écran avant d'écrire dessus
-
-        // Affiche selon ordre reçu sur l'écran OLED
-        for (int i = 0; i < 4; i++)
+        uBit.display.print("W");
+        ManagedString received = uBit.serial.readUntil('\n'); // ou '\r' ou autre
+        if (received.length() != 0)
         {
-            char capteur = ordreAffichage.charAt(i);
-            switch (capteur)
-            {
-                case 'T':
-                    screen.display_line(i, 0, (ManagedString("Temp: ") + lineT + " C").toCharArray());
-                    break;
-                case 'H':
-                    screen.display_line(i, 0, (ManagedString("Hum: ") + lineH + " %").toCharArray());
-                    break;
-                case 'P':
-                    screen.display_line(i, 0, (ManagedString("Pres: ") + lineP + " hPa").toCharArray());
-                    break;
-                case 'L':
-                    screen.display_line(i, 0, (ManagedString("Lumi: ") + lineL + " lux").toCharArray());
-                    break;
-                default:
-                    screen.display_line(i, 0, "Invalide");
-                    break;
-            }
+            Send_to_microbit(received);
         }
-
-        // Envoie les valeurs par radio avec chiffrement
-        ManagedString message = "T:"+ lineT + ";" + "H:"+ lineH + ";" + "P:"+ lineP + ";" + "L:" + lineL + ";ID:" + id;
-        uBit.radio.datagram.send(chiffrerAES32(message));
-
-        uBit.sleep(1000);
+        //serialPrint("TEST");
     }
-
-    release_fiber();
 }
+
