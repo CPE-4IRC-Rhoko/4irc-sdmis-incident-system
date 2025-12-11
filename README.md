@@ -51,4 +51,3 @@ Objectif : concevoir et développer un **système intégré** permettant le suiv
   - Gitleaks pour la détection de secrets dans le code.
   - Respect des bonnes pratiques OWASP (authentification, gestion des entrées, logs, ...)
 
-  
