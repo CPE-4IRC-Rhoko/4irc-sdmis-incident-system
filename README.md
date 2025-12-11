@@ -1,3 +1,4 @@
+
 # Système de gestion et suivi des incidents – SDMIS Lyon
 
 ## 1. Contexte
