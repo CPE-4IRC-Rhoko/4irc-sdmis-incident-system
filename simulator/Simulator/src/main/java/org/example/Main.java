@@ -1,17 +1,29 @@
 package org.example;
 
-//TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
-// click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
-public class Main {
-    static void main() {
-        //TIP Press <shortcut actionId="ShowIntentionActions"/> with your caret at the highlighted text
-        // to see how IntelliJ IDEA suggests fixing it.
-        IO.println(String.format("Hello and welcome!"));
+import java.util.Arrays;
+import java.util.List;
+import java.util.Random;
 
-        for (int i = 1; i <= 5; i++) {
-            //TIP Press <shortcut actionId="Debug"/> to start debugging your code. We have set one <icon src="AllIcons.Debugger.Db_set_breakpoint"/> breakpoint
-            // for you, but you can always add more by pressing <shortcut actionId="ToggleLineBreakpoint"/>.
-            IO.println("i = " + i);
+public class Main {
+    public static void main(String[] args) {
+
+        // Création d'une instance Random pour sélectionner un type aléatoire
+        List<String> typesIncidents = Arrays.asList(
+                "Accident de voiture",
+                "Blessure sportive",
+                "Chute accidentelle",
+                "Incendie domestique",
+                "Malaises médicaux"
+        );
+        Random random = new Random();
+        // Choisir un type d'incident aléatoire dans la liste
+        String typeDeLIncident = typesIncidents.get(random.nextInt(typesIncidents.size()));
+
+        try {
+            Incident incident = new Incident(typeDeLIncident, 5, 48.8566, 2.3522, "F");
+            System.out.println(incident);
+        } catch (IllegalArgumentException e) {
+            System.err.println("Erreur : " + e.getMessage());
         }
     }
 }
