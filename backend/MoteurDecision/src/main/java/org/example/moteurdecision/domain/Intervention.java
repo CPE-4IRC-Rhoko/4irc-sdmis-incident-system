@@ -15,9 +15,7 @@ public class Intervention {
     private Instant dateFin;
     private StatutIntervention statut;
 
-    public Intervention(Evenement evenement,
-                        Vehicule vehicule,
-                        StatutIntervention statut) {
+    public Intervention(Evenement evenement, Vehicule vehicule, StatutIntervention statut) {
         Objects.requireNonNull(evenement, "evenement");
         Objects.requireNonNull(vehicule, "vehicule");
         this.idEvenement = evenement.getId();
