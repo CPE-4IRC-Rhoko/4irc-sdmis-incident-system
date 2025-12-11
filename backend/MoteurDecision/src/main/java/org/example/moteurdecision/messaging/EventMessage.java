@@ -1,9 +1,5 @@
 package org.example.moteurdecision.messaging;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
 /**
  * Représente le message envoyé par l'API via RabbitMQ.
  */
@@ -13,7 +9,6 @@ public class EventMessage {
     private String description;
     private double latitude;
     private double longitude;
-    private final List<Integer> vehiculesDisponibles = new ArrayList<>();
 
     public int getIdEvenement() {
         return idEvenement;
@@ -47,14 +42,4 @@ public class EventMessage {
         this.longitude = longitude;
     }
 
-    public List<Integer> getVehiculesDisponibles() {
-        return Collections.unmodifiableList(vehiculesDisponibles);
-    }
-
-    public void setVehiculesDisponibles(List<Integer> vehicules) {
-        this.vehiculesDisponibles.clear();
-        if (vehicules != null) {
-            this.vehiculesDisponibles.addAll(vehicules);
-        }
-    }
 }

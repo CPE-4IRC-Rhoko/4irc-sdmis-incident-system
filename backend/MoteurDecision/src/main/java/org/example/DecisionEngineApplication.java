@@ -11,7 +11,6 @@ import org.example.moteurdecision.messaging.InterventionMessage;
 import org.example.moteurdecision.service.SimpleDecisionService;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
@@ -51,6 +50,7 @@ public final class DecisionEngineApplication {
         DeliverCallback deliverCallback = (consumerTag, delivery) -> {
             try {
                 EventMessage eventMessage = OBJECT_MAPPER.readValue(delivery.getBody(), EventMessage.class);
+
                 System.out.printf("Evenement reçu (id=%d)%n", eventMessage.getIdEvenement());
                 InterventionMessage intervention = DECISION_SERVICE.creerIntervention(eventMessage);
                 byte[] payload = OBJECT_MAPPER.writeValueAsBytes(intervention);
