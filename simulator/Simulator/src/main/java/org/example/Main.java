@@ -3,10 +3,20 @@ package org.example;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
+import java.io.IOException;
 
 public class Main {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
 
+        IncidentGPS generateur = new IncidentGPS();
+        double[] bboxCoords = generateur.getBbox();
+        double lat = bboxCoords[0];
+        double lon = bboxCoords[1];
+
+        System.out.println("Latitude (Min/Max) : " + lat);
+        System.out.println("Longitude (Min/Max): " + lon);
+
+        /*
         // Création d'une instance Random pour sélectionner un type aléatoire
         List<String> typesIncidents = Arrays.asList(
                 "Accident de voiture",
@@ -25,5 +35,7 @@ public class Main {
         } catch (IllegalArgumentException e) {
             System.err.println("Erreur : " + e.getMessage());
         }
+        */
+
     }
 }
