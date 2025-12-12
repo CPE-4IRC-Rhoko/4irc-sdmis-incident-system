@@ -14,7 +14,7 @@ public class Evenement implements IGeolocated {
     private double longitude;
     private TypeEvenement type;
     private StatutEvenement statut;
-    private Gravite gravite;
+    private Severite severite;
     private Intervention intervention;
 
     public Evenement(int idEvenement,
@@ -23,14 +23,14 @@ public class Evenement implements IGeolocated {
                      double longitude,
                      TypeEvenement type,
                      StatutEvenement statut,
-                     Gravite gravite) {
+                     Severite severite) {
         this.idEvenement = idEvenement;
         this.description = Objects.requireNonNull(description, "description");
         this.latitude = latitude;
         this.longitude = longitude;
         this.type = Objects.requireNonNull(type, "type");
         this.statut = Objects.requireNonNull(statut, "statut");
-        this.gravite = Objects.requireNonNull(gravite, "gravite");
+        this.severite = Objects.requireNonNull(severite, "gravite");
     }
 
     public Integer getId() {
@@ -59,8 +59,8 @@ public class Evenement implements IGeolocated {
         return statut;
     }
 
-    public Gravite getGravite() {
-        return gravite;
+    public Severite getGravite() {
+        return severite;
     }
 
     public Optional<Intervention> getIntervention() {
@@ -84,8 +84,8 @@ public class Evenement implements IGeolocated {
         this.statut = Objects.requireNonNull(statut, "statut");
     }
 
-    public void changerGravite(Gravite gravite) {
-        this.gravite = Objects.requireNonNull(gravite, "gravite");
+    public void changerGravite(Severite severite) {
+        this.severite = Objects.requireNonNull(severite, "gravite");
     }
 
     public void lierIntervention(Intervention intervention) {

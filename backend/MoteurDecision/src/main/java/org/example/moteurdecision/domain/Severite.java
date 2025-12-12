@@ -2,14 +2,14 @@ package org.example.moteurdecision.domain;
 
 import java.util.Objects;
 
-public class Gravite {
+public class Severite {
 
     private final int idGravite;
     private String nomGravite;
     private String valeurEchelle;
     private int nbVehiculesNecessaires;
 
-    public Gravite(int idGravite, String nomGravite, String valeurEchelle, int nbVehiculesNecessaires) {
+    public Severite(int idGravite, String nomGravite, String valeurEchelle, int nbVehiculesNecessaires) {
         this.idGravite = idGravite;
         this.nomGravite = Objects.requireNonNull(nomGravite, "nomGravite");
         this.valeurEchelle = Objects.requireNonNull(valeurEchelle, "valeurEchelle");
