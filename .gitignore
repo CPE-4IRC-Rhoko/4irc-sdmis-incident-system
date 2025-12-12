@@ -5,6 +5,7 @@ iot/microbit-qg/yotta_targets/
 iot/microbit-terrain/yotta_targets/
 iot/microbit-qg/build/
 iot/microbit-terrain/build/
+# Ignorer les fichiers de configuration sensibles
 .env
 KEYCLOAK/WEB/
 PG_ADMIN/
