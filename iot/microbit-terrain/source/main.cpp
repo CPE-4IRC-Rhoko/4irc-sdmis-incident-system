@@ -1,140 +1,130 @@
 #include "MicroBit.h"
-#include "bme280.h"
-#include "ssd1306.h"
-#include "tsl256x.h"
+#include <string.h> // Nécessaire pour les manipulations de texte
 extern "C" {
-    #include "aes.h"
+#include "aes.h"
 }
 
 MicroBit uBit;
-MicroBitI2C i2c(I2C_SDA0,I2C_SCL0);
-MicroBitPin P0(MICROBIT_ID_IO_P0, MICROBIT_PIN_P0, PIN_CAPABILITY_DIGITAL_OUT);
-ManagedString ordreAffichage = "THPL";
-int id = 2; // ID de l’émetteur
+
+// --- CONFIGURATION ---
+int MY_ID = 2; 
 uint8_t cleAES[16] = { 'V','i','n','c','e','n','t','L','e','P','l','u','B','o','1','2' };
 
-// Chiffre un message clair de 32 octets en AES-ECB 128
-ManagedString chiffrerAES32(ManagedString message) {
-    uint8_t buffer[32] = {0};
+bool ackReceived = false;
+int currentSequence = 0;
+
+ManagedString chiffrerAES64(ManagedString message) {
+    uint8_t buffer[64] = {0};
     int len = message.length();
-    if (len > 32) len = 32; // Bloque à 32 si dépasse
-
+    if (len > 64) len = 64;
     memcpy(buffer, message.toCharArray(), len);
-
-    // Complête avec " " si message < 32
-    for (int i = len; i < 32; i++) {
-        buffer[i] = ' ';
-    }
+    for (int i = len; i < 64; i++) buffer[i] = ' '; 
 
     AES_ctx ctx;
     AES_init_ctx(&ctx, cleAES);
-    AES_ECB_encrypt(&ctx, buffer);       // Bloc 1
-    AES_ECB_encrypt(&ctx, buffer + 16);  // Bloc 2
-
-    return ManagedString((const char*)buffer, 32);
+    for (int i = 0; i < 4; i++) AES_ECB_encrypt(&ctx, buffer + (i * 16));
+    return ManagedString((const char*)buffer, 64);
 }
 
-// Déchiffre une chaîne hexadécimale AES-ECB 128
-ManagedString dechiffrerAES32(ManagedString data) {
+ManagedString dechiffrerAES64(ManagedString data) {
+    if (data.length() < 64) return ManagedString("");
     const char* raw = data.toCharArray();
-    uint8_t buffer[32] = {0};
-    int len = data.length() > 32 ? 32 : data.length();
-    memcpy(buffer, raw, len);
+    uint8_t buffer[64];
+    memcpy(buffer, raw, 64);
 
     AES_ctx ctx;
     AES_init_ctx(&ctx, cleAES);
-    AES_ECB_decrypt(&ctx, buffer);
-    AES_ECB_decrypt(&ctx, buffer + 16);
+    for (int i = 0; i < 4; i++) AES_ECB_decrypt(&ctx, buffer + (i * 16));
 
-    // Supprime le(s) caractère ' ' utilisé(s) pour completer
-    int realLen = 32;
-    while (realLen > 0 && buffer[realLen - 1] == ' ') {
-        realLen--;
-    }
-
+    int realLen = 64;
+    while (realLen > 0 && buffer[realLen - 1] == ' ') realLen--;
     return ManagedString((const char*)buffer, realLen);
 }
 
-void onData(MicroBitEvent)
-{
-    ManagedString s = dechiffrerAES32(uBit.radio.datagram.recv());
-
-    if (s.length() == 4)
-        ordreAffichage = s;  // Met à jour l’ordre d'affichage de l'écren OLED
-    else
-        ordreAffichage = "THPL"; // Ordre d'affichage par défaut
+// --- RECEPTION ACK ---
+void onData(MicroBitEvent) {
+    ManagedString raw = uBit.radio.datagram.recv();
+    ManagedString msg = dechiffrerAES64(raw);
+    
+    // On vérifie manuellement si ça commence par ACK:
+    if (msg.substring(0, 4) == "ACK:") {
+        
+        // CORRECTION : Recherche manuelle du point virgule ';'
+        int pVirgule = -1;
+        for(int i = 0; i < msg.length(); i++) {
+            if(msg.charAt(i) == ';') {
+                pVirgule = i;
+                break;
+            }
+        }
+        
+        if (pVirgule > 4) { 
+            // Extraction ID
+            ManagedString idStr = msg.substring(4, pVirgule - 4);
+            int idRecu = atoi(idStr.toCharArray());
+            
+            // Extraction Sequence
+            ManagedString seqStr = msg.substring(pVirgule + 1, msg.length() - pVirgule - 1);
+            int seqRecu = atoi(seqStr.toCharArray());
+            
+            if (idRecu == MY_ID && seqRecu == currentSequence) {
+                ackReceived = true;
+            }
+        }
+    }
 }
 
-int main()
-{
-    // Initialise micro:bit.
-    uBit.init();
+ManagedString getGeolocation() {
+    return "+45.76440,+170.83557";
+}
 
-    // Initialise le module radio de la micro:bit
+int main() {
+    uBit.init();
+    // CORRECTION : Pas de uBit.seed(), le random est déjà initialisé
+    
     uBit.radio.enable();
     uBit.radio.setGroup(16);
+    uBit.radio.setTransmitPower(7);
     uBit.messageBus.listen(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, onData);
 
-    // Déclaration des capteurs et des valeurs associées par défaut
-    bme280 bme(&uBit,&i2c);
-    ssd1306 screen(&uBit, &i2c, &P0);
-    tsl256x tsl(&uBit,&i2c);
-    uint32_t pressure = 0;
-    int32_t temp = 0;
-    uint16_t humidite = 0;
-    uint16_t comb=0, ir=0;
-    uint32_t lux = 0;
+    uBit.io.P0.setPull(PullDown); 
 
-    while (true)
-    {
-        // Lecture brute des données
-        bme.sensor_read(&pressure, &temp, &humidite);
-        tsl.sensor_read(&comb, &ir, &lux);
+    while (true) {
+        ManagedString geo = getGeolocation();
+        int valEau = uBit.io.P1.getAnalogValue();
+        int pctEau = (valEau * 100) / 1023;
+        int btnState = uBit.io.P0.getDigitalValue();
 
-        // Compensation des valeurs
-        int tmp = bme.compensate_temperature(temp); // En centièmes de degré
-        int pres = bme.compensate_pressure(pressure) / 100; // En hPa
-        int hum = bme.compensate_humidity(humidite); // En centièmes de %
+        ManagedString payload = "ID:" + ManagedString(MY_ID) +
+                                ";Geo:" + geo + 
+                                ";Eau:" + ManagedString(pctEau) + 
+                                ";Btn:" + ManagedString(btnState) + 
+                                ";Seq:" + ManagedString(currentSequence);
 
-        // Conversion en chaînes de caractères à afficher
-        ManagedString lineT = ManagedString(tmp / 100) + "." + ManagedString(tmp > 0 ? tmp % 100 : (-tmp) % 100);
-        ManagedString lineH = ManagedString(hum / 100) + "." + ManagedString(hum % 100);
-        ManagedString lineP = ManagedString(pres);
-        ManagedString lineL = ManagedString((int)lux);
-
-        screen.update_screen();
-        screen.clear(); // Réinitialise l'écran avant d'écrire dessus
-
-        // Affiche selon ordre reçu sur l'écran OLED
-        for (int i = 0; i < 4; i++)
-        {
-            char capteur = ordreAffichage.charAt(i);
-            switch (capteur)
-            {
-                case 'T':
-                    screen.display_line(i, 0, (ManagedString("Temp: ") + lineT + " C").toCharArray());
-                    break;
-                case 'H':
-                    screen.display_line(i, 0, (ManagedString("Hum: ") + lineH + " %").toCharArray());
-                    break;
-                case 'P':
-                    screen.display_line(i, 0, (ManagedString("Pres: ") + lineP + " hPa").toCharArray());
-                    break;
-                case 'L':
-                    screen.display_line(i, 0, (ManagedString("Lumi: ") + lineL + " lux").toCharArray());
-                    break;
-                default:
-                    screen.display_line(i, 0, "Invalide");
-                    break;
+        ackReceived = false;
+        
+        // Boucle d'envoi jusqu'à réception de l'ACK
+        while (!ackReceived) {
+            uBit.radio.datagram.send(chiffrerAES64(payload));
+            uBit.display.print("T"); 
+            
+            // Attente aléatoire (Backoff)
+            int attente = 300 + uBit.random(500);
+            uBit.sleep(attente); 
+            
+            if (ackReceived) {
+                uBit.display.print(MY_ID); 
+                uBit.sleep(200);
+            } else {
+                uBit.display.print("R"); 
             }
         }
 
-        // Envoie les valeurs par radio avec chiffrement
-        ManagedString message = "T:"+ lineT + ";" + "H:"+ lineH + ";" + "P:"+ lineP + ";" + "L:" + lineL + ";ID:" + id;
-        uBit.radio.datagram.send(chiffrerAES32(message));
-
-        uBit.sleep(1000);
+        currentSequence++;
+        if (currentSequence > 999) currentSequence = 0; 
+        
+        // --- C'EST ICI QU'ON CHANGE LA VITESSE ---
+        // Pause de 15 secondes (15000 ms) avant la prochaine mesure
+        uBit.sleep(15000); 
     }
-
-    release_fiber();
 }
