@@ -1,4 +1,5 @@
 services:
+  
   keycloak:
     container_name: "keycloak"
     image: quay.io/keycloak/keycloak:latest
@@ -16,19 +17,18 @@ services:
       interval: 15s
       timeout: 2s
       retries: 15
-    command: ["start-dev", "--http-port", "7080", "--https-port", "7443"]
+    command: ["start-dev", "--http-port", "${PORT_KEYCLOAK}", "--https-port", "7443"]
     ports:
-      - "7080:7080"
-      - "7443:7443"
-      - "9000:9000"
+      - "${PORT_KEYCLOAK}:7080"
     networks:
       - bridge_network
+  
   db:
     user: "root"
     container_name: "db"
     image: postgres:15.15
     volumes:
-      - data_db:/var/lib/postgresql/data
+      - db_data:/var/lib/postgresql/data
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -36,49 +36,76 @@ services:
     networks:
       - bridge_network
     ports:
-      - "5432:5432"
+      - "${PORT_PG}:5432"
+
+  api:
+    build:
+      context: ./backend/api
+      dockerfile: Dockerfile
+    container_name: sdmis-api
+    depends_on:
+      - db
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_PROFILES_ACTIVE: ""
+    ports:
+      - "8080:8080"
+    networks:
+      - bridge_network
+  
   pgadmin:
     image: dpage/pgadmin4:9.11.0
     container_name: pgadmin
     restart: always
     ports:
-      - "8080:80"
+      - "${PORT_PGADMIN}:80"
       - "8443:443"
     environment:
-      PGADMIN_DEFAULT_EMAIL: user-name@domain-name.com
-      PGADMIN_DEFAULT_PASSWORD: strong-password
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_EMAIL}
     volumes:
       - pgadmin-data:/var/lib/pgadmin
     networks:
       - bridge_network
+  
   rabbitmq:
+    container_name: rabbitmq
     image: rabbitmq:3.13-management
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "${PORT_RABBITMQ_TECHNIQUE}:5672"
+      - "${PORT_RABBITMQ_ADMIN}:15672"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
       RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_DEFAULT_VHOST}
+    volumes:
+      - rmq-data:/var/lib/rabbitmq/mnesia/
+    networks:
+      - bridge_network
+
+  decision-engine:
+    build: ./backend/MoteurDecision
+    depends_on:
+      rabbitmq:
+        condition: service_started
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_DEFAULT_VHOST}
+      DECISION_EVENT_QUEUE: decision.events
+      DECISION_INTERVENTION_QUEUE: decision.interventions
+    networks:
+      - bridge_network
+
 volumes:
   keycloak:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ./KEYCLOAK/WEB
-  data_db:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ./PG
+  db_data:
   pgadmin-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ./PG_ADMIN
+  rmq-data:
 networks:
   bridge_network:
     driver: bridge
