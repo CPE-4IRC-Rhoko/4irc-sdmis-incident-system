@@ -7,3 +7,7 @@ iot/microbit-qg/build/
 iot/microbit-terrain/build/
 **/target/
 .idea/
+# Ignorer les fichiers de configuration sensibles
+.env
+KEYCLOAK/WEB/
+PG_ADMIN/
