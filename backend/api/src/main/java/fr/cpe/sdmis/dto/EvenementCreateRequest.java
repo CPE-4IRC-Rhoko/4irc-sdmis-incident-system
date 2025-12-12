@@ -1,12 +1,13 @@
 package fr.cpe.sdmis.dto;
 
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 public record EvenementCreateRequest(
-        @NotBlank String type,
-        @Min(1) @Max(5) int severite,
-        double lat,
-        double lon
+        @NotBlank String description,
+        @NotNull Double latitude,
+        @NotNull Double longitude,
+        @NotNull Integer idTypeEvenement,
+        @NotNull Integer idStatut,
+        @NotNull Integer idSeverite
 ) { }

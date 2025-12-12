@@ -1,6 +1,7 @@
 package fr.cpe.sdmis.repository;
 
 import fr.cpe.sdmis.domain.model.Evenement;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
 import java.util.ArrayList;
@@ -11,18 +12,35 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Repository
+@Profile("inmemory")
 public class InMemoryEvenementRepository implements EvenementRepository {
     private final Map<UUID, Evenement> store = new ConcurrentHashMap<>();
 
     @Override
     public Evenement save(Evenement evenement) {
-        store.put(evenement.id(), evenement);
-        return evenement;
+        UUID key = UUID.randomUUID();
+        Evenement persisted = new Evenement(
+                evenement.id() != null ? evenement.id() : Math.abs(key.hashCode()),
+                evenement.description(),
+                evenement.latitude(),
+                evenement.longitude(),
+                evenement.dateEvenement(),
+                evenement.idTypeEvenement(),
+                evenement.idStatut(),
+                evenement.idSeverite(),
+                evenement.nomTypeEvenement(),
+                evenement.nomStatut(),
+                evenement.nomSeverite(),
+                evenement.valeurEchelle(),
+                evenement.nbVehiculesNecessaire()
+        );
+        store.put(key, persisted);
+        return persisted;
     }
 
     @Override
-    public Optional<Evenement> findById(UUID id) {
-        return Optional.ofNullable(store.get(id));
+    public Optional<Evenement> findById(Integer id) {
+        return store.values().stream().filter(e -> e.id().equals(id)).findFirst();
     }
 
     @Override
