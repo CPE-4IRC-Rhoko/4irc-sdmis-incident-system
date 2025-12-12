@@ -5,3 +5,7 @@ iot/microbit-qg/yotta_targets/
 iot/microbit-terrain/yotta_targets/
 iot/microbit-qg/build/
 iot/microbit-terrain/build/
+
+.env
+KEYCLOAK/WEB/
+PG_ADMIN/
