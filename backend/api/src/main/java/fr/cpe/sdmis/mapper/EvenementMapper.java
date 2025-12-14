@@ -5,7 +5,7 @@ import fr.cpe.sdmis.dto.EvenementCreateRequest;
 import fr.cpe.sdmis.dto.EvenementResponse;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
+import java.util.UUID;
 
 @Component
 public class EvenementMapper {
@@ -15,7 +15,6 @@ public class EvenementMapper {
             req.description(),
             req.latitude(),
             req.longitude(),
-            Instant.now(),
             req.idTypeEvenement(),
             req.idStatut(),
             req.idSeverite(),
@@ -33,7 +32,6 @@ public class EvenementMapper {
             evenement.description(),
             evenement.latitude(),
             evenement.longitude(),
-            evenement.dateEvenement(),
             evenement.idTypeEvenement(),
             evenement.idStatut(),
             evenement.idSeverite(),

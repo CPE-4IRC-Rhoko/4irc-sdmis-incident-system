@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.UUID;
 
 @Repository
 public class TypeEvenementRepository {
@@ -28,7 +29,7 @@ public class TypeEvenementRepository {
         @Override
         public TypeEvenementResponse mapRow(ResultSet rs, int rowNum) throws SQLException {
             return new TypeEvenementResponse(
-                    rs.getInt("id_type_evenement"),
+                    rs.getObject("id_type_evenement", UUID.class),
                     rs.getString("nom")
             );
         }

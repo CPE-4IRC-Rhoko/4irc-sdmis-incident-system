@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.UUID;
 
 @Repository
 public class SeveriteRepository {
@@ -20,14 +21,14 @@ public class SeveriteRepository {
 
     public List<SeveriteResponse> findAll() {
         return jdbcTemplate.query(
-                "SELECT id_severite, nom_severite, valeur_echelle, nb_vehicules_necessaire FROM severite ORDER BY id_severite",
+                "SELECT id_severite, nom_severite, valeur_échelle AS valeur_echelle, nb_vehicules_necessaire FROM severite ORDER BY id_severite",
                 new SeveriteRowMapper()
         );
     }
 
     public List<SeveriteEchelleResponse> findEchelles() {
         return jdbcTemplate.query(
-                "SELECT id_severite, valeur_echelle FROM severite ORDER BY id_severite",
+                "SELECT id_severite, valeur_échelle AS valeur_echelle FROM severite ORDER BY id_severite",
                 new SeveriteEchelleRowMapper()
         );
     }
@@ -36,9 +37,9 @@ public class SeveriteRepository {
         @Override
         public SeveriteResponse mapRow(ResultSet rs, int rowNum) throws SQLException {
             return new SeveriteResponse(
-                    rs.getInt("id_severite"),
+                    rs.getObject("id_severite", UUID.class),
                     rs.getString("nom_severite"),
-                    rs.getInt("valeur_echelle"),
+                    rs.getString("valeur_echelle"),
                     rs.getInt("nb_vehicules_necessaire")
             );
         }
@@ -48,8 +49,8 @@ public class SeveriteRepository {
         @Override
         public SeveriteEchelleResponse mapRow(ResultSet rs, int rowNum) throws SQLException {
             return new SeveriteEchelleResponse(
-                    rs.getInt("id_severite"),
-                    rs.getInt("valeur_echelle")
+                    rs.getObject("id_severite", UUID.class),
+                    rs.getString("valeur_echelle")
             );
         }
     }

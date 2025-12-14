@@ -18,13 +18,12 @@ public class InMemoryEvenementRepository implements EvenementRepository {
 
     @Override
     public Evenement save(Evenement evenement) {
-        UUID key = UUID.randomUUID();
+        UUID key = evenement.id() != null ? evenement.id() : UUID.randomUUID();
         Evenement persisted = new Evenement(
-                evenement.id() != null ? evenement.id() : Math.abs(key.hashCode()),
+                key,
                 evenement.description(),
                 evenement.latitude(),
                 evenement.longitude(),
-                evenement.dateEvenement(),
                 evenement.idTypeEvenement(),
                 evenement.idStatut(),
                 evenement.idSeverite(),
@@ -39,8 +38,8 @@ public class InMemoryEvenementRepository implements EvenementRepository {
     }
 
     @Override
-    public Optional<Evenement> findById(Integer id) {
-        return store.values().stream().filter(e -> e.id().equals(id)).findFirst();
+    public Optional<Evenement> findById(UUID id) {
+        return Optional.ofNullable(store.get(id));
     }
 
     @Override

@@ -1,8 +1,10 @@
 package fr.cpe.sdmis.dto;
 
+import java.util.UUID;
+
 public record SeveriteResponse(
-        Integer id,
+        UUID id,
         String nomSeverite,
-        Integer valeurEchelle,
+        String valeurEchelle,
         Integer nbVehiculesNecessaire
 ) { }

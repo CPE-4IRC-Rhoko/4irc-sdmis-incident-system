@@ -4,15 +4,13 @@ import fr.cpe.sdmis.domain.model.Evenement;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.jdbc.support.GeneratedKeyHolder;
-import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 public class JdbcEvenementRepository implements EvenementRepository {
@@ -25,28 +23,23 @@ public class JdbcEvenementRepository implements EvenementRepository {
     @Override
     public Evenement save(Evenement evenement) {
         MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("id", evenement.id())
                 .addValue("description", evenement.description())
                 .addValue("latitude", evenement.latitude())
                 .addValue("longitude", evenement.longitude())
-                .addValue("date_evenement", evenement.dateEvenement())
                 .addValue("id_type_evenement", evenement.idTypeEvenement())
                 .addValue("id_statut", evenement.idStatut())
                 .addValue("id_severite", evenement.idSeverite());
 
-        KeyHolder keyHolder = new GeneratedKeyHolder();
-        jdbcTemplate.update("""
-                INSERT INTO evenement (description, latitude, longitude, date_evenement, id_type_evenement, id_statut, id_severite)
-                VALUES (:description, :latitude, :longitude, :date_evenement, :id_type_evenement, :id_statut, :id_severite)
-                """, params, keyHolder, new String[]{"id_evenement"});
-
-        Number generatedId = keyHolder.getKey();
+        UUID generatedId = jdbcTemplate.queryForObject("""
+                INSERT INTO evenement (description, latitude, longitude, id_type_evenement, id_statut, id_severite)
+                VALUES (:description, :latitude, :longitude, :id_type_evenement, :id_statut, :id_severite)
+                RETURNING id_evenement
+                """, params, UUID.class);
         return new Evenement(
-                generatedId != null ? generatedId.intValue() : evenement.id(),
+                generatedId,
                 evenement.description(),
                 evenement.latitude(),
                 evenement.longitude(),
-                evenement.dateEvenement(),
                 evenement.idTypeEvenement(),
                 evenement.idStatut(),
                 evenement.idSeverite(),
@@ -59,14 +52,14 @@ public class JdbcEvenementRepository implements EvenementRepository {
     }
 
     @Override
-    public Optional<Evenement> findById(Integer id) {
+    public Optional<Evenement> findById(UUID id) {
         List<Evenement> results = jdbcTemplate.query(
                 """
-                SELECT e.id_evenement, e.description, e.latitude, e.longitude, e.date_evenement,
+                SELECT e.id_evenement, e.description, e.latitude, e.longitude,
                        e.id_type_evenement, e.id_statut, e.id_severite,
                        te.nom AS nom_type_evenement,
                        se.nom_statut,
-                       sv.nom_severite, sv.valeur_echelle, sv.nb_vehicules_necessaire
+                       sv.nom_severite, sv.valeur_échelle AS valeur_echelle, sv.nb_vehicules_necessaire
                 FROM evenement e
                 JOIN type_evenement te ON te.id_type_evenement = e.id_type_evenement
                 JOIN statut_evenement se ON se.id_statut = e.id_statut
@@ -83,16 +76,16 @@ public class JdbcEvenementRepository implements EvenementRepository {
     public List<Evenement> findAll() {
         return jdbcTemplate.query(
                 """
-                SELECT e.id_evenement, e.description, e.latitude, e.longitude, e.date_evenement,
+                SELECT e.id_evenement, e.description, e.latitude, e.longitude,
                        e.id_type_evenement, e.id_statut, e.id_severite,
                        te.nom AS nom_type_evenement,
                        se.nom_statut,
-                       sv.nom_severite, sv.valeur_echelle, sv.nb_vehicules_necessaire
+                       sv.nom_severite, sv.valeur_échelle AS valeur_echelle, sv.nb_vehicules_necessaire
                 FROM evenement e
                 JOIN type_evenement te ON te.id_type_evenement = e.id_type_evenement
                 JOIN statut_evenement se ON se.id_statut = e.id_statut
                 JOIN severite sv ON sv.id_severite = e.id_severite
-                ORDER BY e.date_evenement DESC
+                ORDER BY e.id_evenement DESC
                 """,
                 new EvenementRowMapper()
         );
@@ -102,18 +95,17 @@ public class JdbcEvenementRepository implements EvenementRepository {
         @Override
         public Evenement mapRow(ResultSet rs, int rowNum) throws SQLException {
             return new Evenement(
-                    rs.getInt("id_evenement"),
+                    rs.getObject("id_evenement", UUID.class),
                     rs.getString("description"),
                     rs.getDouble("latitude"),
                     rs.getDouble("longitude"),
-                    rs.getTimestamp("date_evenement").toInstant(),
-                    rs.getInt("id_type_evenement"),
-                    rs.getInt("id_statut"),
-                    rs.getInt("id_severite"),
+                    rs.getObject("id_type_evenement", UUID.class),
+                    rs.getObject("id_statut", UUID.class),
+                    rs.getObject("id_severite", UUID.class),
                     rs.getString("nom_type_evenement"),
                     rs.getString("nom_statut"),
                     rs.getString("nom_severite"),
-                    rs.getInt("valeur_echelle"),
+                    rs.getString("valeur_echelle"),
                     rs.getInt("nb_vehicules_necessaire")
             );
         }
