@@ -37,6 +37,14 @@ public class DecisionMessagingService {
                 interventionMessage.getIdEvenement(),
                 interventionMessage.isSucces(),
                 interventionMessage.getVehiculeId());
+        if (!interventionMessage.isSucces() || interventionMessage.getVehiculeId() == null) {
+            LOGGER.warn("Intervention ignorée (succès={}, vehiculeId={}) pour évènement {}. Cause : {}",
+                    interventionMessage.isSucces(),
+                    interventionMessage.getVehiculeId(),
+                    interventionMessage.getIdEvenement(),
+                    interventionMessage.getCauseEchec());
+            return;
+        }
         interventionRepository.saveFromMessage(interventionMessage);
     }
 }

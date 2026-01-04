@@ -32,6 +32,9 @@ public class VehiculeRepository {
                 FROM vehicule v
                 JOIN statut_vehicule sv ON sv.id_statut = v.id_statut
                 WHERE lower(sv.nom_statut) = lower(:nom_statut)
+                  AND NOT EXISTS (
+                      SELECT 1 FROM intervention i WHERE i.id_vehicule = v.id_vehicule
+                  )
                 ORDER BY v.id_vehicule
                 """,
                 new MapSqlParameterSource("nom_statut", STATUT_DISPONIBLE),

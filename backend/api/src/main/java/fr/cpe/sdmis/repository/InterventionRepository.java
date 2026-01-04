@@ -2,6 +2,9 @@ package fr.cpe.sdmis.repository;
 
 import fr.cpe.sdmis.dto.InterventionResponse;
 import fr.cpe.sdmis.messaging.InterventionMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -17,6 +20,7 @@ import java.util.UUID;
 
 @Repository
 public class InterventionRepository {
+    private static final Logger LOGGER = LoggerFactory.getLogger(InterventionRepository.class);
     private static final String STATUT_EN_ATTENTE = "En attente";
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
@@ -34,12 +38,21 @@ public class InterventionRepository {
                 .addValue("id_vehicule", message.getVehiculeId())
                 .addValue("id_statut_intervention", statutInterventionId);
 
-        jdbcTemplate.update("""
-                INSERT INTO intervention (id_evenement, date_debut, date_fin, id_vehicule, id_statut_intervention)
-                VALUES (:id_evenement, :date_debut, :date_fin, :id_vehicule, :id_statut_intervention)
-                ON CONFLICT (id_evenement) DO NOTHING
-                ON CONFLICT ON CONSTRAINT intervention_id_vehicule_key DO NOTHING
-                """, params);
+        try {
+            int rows = jdbcTemplate.update("""
+                    INSERT INTO intervention (id_evenement, date_debut, date_fin, id_vehicule, id_statut_intervention)
+                    VALUES (:id_evenement, :date_debut, :date_fin, :id_vehicule, :id_statut_intervention)
+                    ON CONFLICT DO NOTHING
+                    """, params);
+            if (rows > 0) {
+                LOGGER.info("Intervention insérée pour évènement {} avec véhicule {}", message.getIdEvenement(), message.getVehiculeId());
+            } else {
+                LOGGER.warn("Intervention non insérée (conflit probablement dû à un doublon) pour évènement {} et véhicule {}", message.getIdEvenement(), message.getVehiculeId());
+            }
+        } catch (DataAccessException e) {
+            LOGGER.error("Echec d'insertion intervention pour évènement {} et véhicule {} : {}", message.getIdEvenement(), message.getVehiculeId(), e.getMessage());
+            throw e;
+        }
     }
 
     public List<InterventionResponse> findAll() {
