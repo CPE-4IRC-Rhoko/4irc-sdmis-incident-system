@@ -1,13 +1,12 @@
-package org.example.moteurdecision.messaging;
+package fr.cpe.sdmis.messaging;
 
 import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Message renvoyé à l'API pour confirmer (ou non) l'intervention créée.
+ * Message reçu depuis RabbitMQ lorsque le moteur de décision crée (ou non) une intervention.
  */
 public class InterventionMessage {
-
     private UUID idEvenement;
     private UUID vehiculeId;
     private boolean succes;

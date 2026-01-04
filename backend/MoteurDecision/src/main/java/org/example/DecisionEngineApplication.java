@@ -15,24 +15,26 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * Implémentation minimale : consomme une file RabbitMQ et renvoie une intervention factice.
+ * Implémentation minimale : consomme une file RabbitMQ et renvoie une intervention.
  */
 public final class DecisionEngineApplication {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().findAndRegisterModules();
-    private static final SimpleDecisionService DECISION_SERVICE = new SimpleDecisionService();
 
     private DecisionEngineApplication() {
     }
 
     public static void main(String[] args) throws Exception {
         Map<String, String> env = System.getenv();
-        String host = env.getOrDefault("RABBITMQ_HOST", "localhost");
-        int port = Integer.parseInt(env.getOrDefault("RABBITMQ_PORT", "5672"));
-        String username = env.getOrDefault("RABBITMQ_USERNAME", "guest");
-        String password = env.getOrDefault("RABBITMQ_PASSWORD", "guest");
-        String eventQueue = env.getOrDefault("DECISION_EVENT_QUEUE", "decision.events");
-        String interventionQueue = env.getOrDefault("DECISION_INTERVENTION_QUEUE", "decision.interventions");
+        String host = requireEnv(env, "RABBITMQ_HOST");
+        int port = Integer.parseInt(requireEnv(env, "RABBITMQ_PORT"));
+        String username = requireEnv(env, "RABBITMQ_USERNAME");
+        String password = requireEnv(env, "RABBITMQ_PASSWORD");
+        String eventQueue = requireEnv(env, "DECISION_EVENT_QUEUE");
+        String interventionQueue = requireEnv(env, "DECISION_INTERVENTION_QUEUE");
+        String apiBaseUrl = requireEnv(env, "SDMIS_API_URL");
+
+        SimpleDecisionService decisionService = new SimpleDecisionService(apiBaseUrl, OBJECT_MAPPER);
 
         ConnectionFactory factory = new ConnectionFactory();
         factory.setHost(host);
@@ -40,7 +42,7 @@ public final class DecisionEngineApplication {
         factory.setUsername(username);
         factory.setPassword(password);
 
-        Connection connection = factory.newConnection("decision-engine");
+        Connection connection = createConnectionWithRetry(factory);
         Channel consumerChannel = connection.createChannel();
         Channel producerChannel = connection.createChannel();
 
@@ -51,12 +53,12 @@ public final class DecisionEngineApplication {
             try {
                 EventMessage eventMessage = OBJECT_MAPPER.readValue(delivery.getBody(), EventMessage.class);
 
-                System.out.printf("Evenement reçu (id=%d)%n", eventMessage.getIdEvenement());
-                InterventionMessage intervention = DECISION_SERVICE.creerIntervention(eventMessage);
+                System.out.printf("Evenement reçu (id=%s)%n", eventMessage.getIdEvenement());
+                InterventionMessage intervention = decisionService.creerIntervention(eventMessage);
                 byte[] payload = OBJECT_MAPPER.writeValueAsBytes(intervention);
                 producerChannel.basicPublish("", interventionQueue, null, payload);
                 consumerChannel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
-                System.out.printf("Intervention envoyée pour l'évènement %d vers %s%n",
+                System.out.printf("Intervention envoyée pour l'évènement %s vers %s%n",
                         intervention.getIdEvenement(), interventionQueue);
             }
             catch (IOException e) {
@@ -82,5 +84,26 @@ public final class DecisionEngineApplication {
             latch.countDown();
         }));
         latch.await();
+    }
+
+    private static String requireEnv(Map<String, String> env, String key) {
+        String value = env.get(key);
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException("Variable d'environnement manquante : " + key);
+        }
+        return value;
+    }
+
+    private static Connection createConnectionWithRetry(ConnectionFactory factory) throws Exception {
+        int attempt = 0;
+        while (true) {
+            attempt++;
+            try {
+                return factory.newConnection("decision-engine");
+            } catch (IOException e) {
+                System.err.printf("Connexion RabbitMQ impossible (tentative %d) : %s%n", attempt, e.getMessage());
+                Thread.sleep(2000L);
+            }
+        }
     }
 }

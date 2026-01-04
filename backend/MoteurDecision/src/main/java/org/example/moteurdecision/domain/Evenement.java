@@ -5,10 +5,11 @@ import org.example.moteurdecision.domain.status.StatutEvenement;
 
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
 public class Evenement implements IGeolocated {
 
-    private final int idEvenement;
+    private final UUID idEvenement;
     private String description;
     private double latitude;
     private double longitude;
@@ -17,7 +18,7 @@ public class Evenement implements IGeolocated {
     private Severite severite;
     private Intervention intervention;
 
-    public Evenement(int idEvenement,
+    public Evenement(UUID idEvenement,
                      String description,
                      double latitude,
                      double longitude,
@@ -33,7 +34,7 @@ public class Evenement implements IGeolocated {
         this.severite = Objects.requireNonNull(severite, "gravite");
     }
 
-    public Integer getId() {
+    public UUID getId() {
         return idEvenement;
     }
 

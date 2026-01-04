@@ -50,6 +50,13 @@ services:
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       SPRING_PROFILES_ACTIVE: ""
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "${PORT_RABBITMQ_TECHNIQUE}"
+      RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_DEFAULT_VHOST}
+      DECISION_EVENT_QUEUE: decision.events
+      DECISION_INTERVENTION_QUEUE: decision.interventions
     ports:
       - "${PORT_SDMIS_API}:8080"
     networks:
@@ -84,12 +91,17 @@ services:
       - rmq-data:/var/lib/rabbitmq/mnesia/
     networks:
       - bridge_network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   decision-engine:
     build: ./backend/MoteurDecision
     depends_on:
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
     environment:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: "${PORT_RABBITMQ_TECHNIQUE}"
@@ -98,6 +110,7 @@ services:
       RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_DEFAULT_VHOST}
       DECISION_EVENT_QUEUE: decision.events
       DECISION_INTERVENTION_QUEUE: decision.interventions
+      SDMIS_API_URL: http://sdmis-api:8080
     networks:
       - bridge_network
 

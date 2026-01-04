@@ -8,10 +8,11 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 public class Vehicule implements IGeolocated {
 
-    private final int idVehicule;
+    private final UUID idVehicule;
     private Caserne caserne;
     private StatutVehicule statut;
     private final Set<Equipement> equipements = new HashSet<>();
@@ -20,14 +21,14 @@ public class Vehicule implements IGeolocated {
     private double latitude;
     private double longitude;
 
-    public Vehicule(int idVehicule, double latitude, double longitude, StatutVehicule statut) {
+    public Vehicule(UUID idVehicule, double latitude, double longitude, StatutVehicule statut) {
         this.idVehicule = idVehicule;
         this.latitude = Objects.requireNonNull(latitude, "latitude doit être non null");
         this.longitude = Objects.requireNonNull(longitude, "longitude doit être non null");
         this.statut = Objects.requireNonNull(statut, "statut");
     }
 
-    public Integer getId() {
+    public UUID getId() {
         return idVehicule;
     }
 

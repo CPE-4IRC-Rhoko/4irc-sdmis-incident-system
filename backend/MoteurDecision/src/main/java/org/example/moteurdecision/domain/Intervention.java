@@ -5,10 +5,11 @@ import org.example.moteurdecision.domain.status.StatutIntervention;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
 public class Intervention {
 
-    private final int idEvenement;
+    private final UUID idEvenement;
     private Evenement evenement;
     private Vehicule vehicule;
     private Instant dateDebut;
@@ -24,7 +25,7 @@ public class Intervention {
         associerVehicule(vehicule);
     }
 
-    public Integer getId() {
+    public UUID getId() {
         return idEvenement;
     }
 

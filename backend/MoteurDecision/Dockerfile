@@ -7,4 +7,4 @@ RUN mvn -q -DskipTests package
 FROM eclipse-temurin:23-jre
 WORKDIR /app
 COPY --from=build /workspace/target/MoteurDecision-1.0-SNAPSHOT.jar app.jar
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+ENTRYPOINT ["java", "-cp", "/app/app.jar", "org.example.DecisionEngineApplication"]

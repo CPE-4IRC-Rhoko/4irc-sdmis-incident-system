@@ -1,11 +1,10 @@
-package org.example.moteurdecision.messaging;
+package fr.cpe.sdmis.messaging;
 import java.util.UUID;
 
 /**
- * Représente le message envoyé par l'API via RabbitMQ.
+ * Payload envoyé vers RabbitMQ pour signaler un nouvel événement.
  */
 public class EventMessage {
-
     private UUID idEvenement;
     private String description;
     private double latitude;
@@ -69,5 +68,4 @@ public class EventMessage {
     public void setIdSeverite(UUID idSeverite) {
         this.idSeverite = idSeverite;
     }
-
 }

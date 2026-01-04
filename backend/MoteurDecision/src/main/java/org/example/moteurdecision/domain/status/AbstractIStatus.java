@@ -3,21 +3,22 @@ package org.example.moteurdecision.domain.status;
 import org.example.moteurdecision.domain.interfaces.IStatus;
 
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * Base class that centralises shared behaviour between the different status entities.
  */
 public abstract class AbstractIStatus implements IStatus {
 
-    private final int idStatut;
+    private final UUID idStatut;
     private String nomStatut;
 
-    protected AbstractIStatus(int idStatut, String nomStatut) {
+    protected AbstractIStatus(UUID idStatut, String nomStatut) {
         this.idStatut = idStatut;
         this.nomStatut = Objects.requireNonNull(nomStatut, "nomStatut");
     }
 
-    public Integer getIdStatut() {
+    public UUID getIdStatut() {
         return  idStatut;
     }
 
