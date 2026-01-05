@@ -113,6 +113,7 @@ services:
       SDMIS_API_URL: http://sdmis-api:8080
     networks:
       - bridge_network
+    
 
 volumes:
   keycloak:
