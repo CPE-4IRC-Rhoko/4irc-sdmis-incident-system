@@ -167,6 +167,6 @@ volumes:
   sonarqube_data:
   sonarqube_extensions:
   sonarqube_logs:
-  sonarqube_postgres::
+  sonarqube_postgres:
 networks:
   LAN:
