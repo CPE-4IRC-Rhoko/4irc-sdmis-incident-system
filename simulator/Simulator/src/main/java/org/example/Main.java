@@ -8,13 +8,19 @@ import java.io.IOException;
 public class Main {
     public static void main(String[] args) throws IOException {
 
-        IncidentGPS generateur = new IncidentGPS();
-        double[] bboxCoords = generateur.getBbox();
-        double lat = bboxCoords[0];
-        double lon = bboxCoords[1];
+       VehiculeGPS generateur = new VehiculeGPS();
+       double[] bboxCoords = generateur.getBbox();
+       double lat = bboxCoords[0];
+       double lon = bboxCoords[1];
+       System.out.println("Position vehicule Latitude (Min/Max) : " + lat);
+       System.out.println("Position vehicule Longitude (Min/Max): " + lon);
 
-        System.out.println("Latitude (Min/Max) : " + lat);
-        System.out.println("Longitude (Min/Max): " + lon);
+        IncidentGPS generateur2 = new IncidentGPS();
+        double[] bboxCoords2 = generateur2.getBbox();
+        double lat2 = bboxCoords2[0];
+        double lon2 = bboxCoords2[1];
+        System.out.println("Position Incident Latitude (Min/Max) : " + lat2);
+        System.out.println("Position Incident Longitude (Min/Max): " + lon2);
 
         /*
         // Création d'une instance Random pour sélectionner un type aléatoire

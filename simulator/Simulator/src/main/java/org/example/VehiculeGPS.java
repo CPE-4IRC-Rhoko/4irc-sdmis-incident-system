@@ -4,12 +4,9 @@ import okhttp3.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
-public class IncidentGPS {
+public class VehiculeGPS {
     private static final String GEO_API_URL = "https://geo.api.gouv.fr/communes?nom=Lyon&fields=code,nom,bbox";
     private final OkHttpClient client = new OkHttpClient();
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -82,11 +79,29 @@ public class IncidentGPS {
 
             double randomLat = minLat + (maxLat - minLat) * rand.nextDouble();
             double randomLon = minLon + (maxLon - minLon) * rand.nextDouble();
+
             /*
             System.out.println("\n=== Point GPS aléatoire ===");
             System.out.printf("Point aléatoire = lat= %.5f, lon= %.5f\n", randomLat, randomLon);
             */
-            return new double[]{randomLat, randomLon};
+
+            String url = String.format(
+                    Locale.US,
+                    "https://router.project-osrm.org/nearest/v1/driving/%.8f,%.8f",
+                    randomLon, randomLat
+            );
+
+            Request snapRequest = new Request.Builder().url(url).build();
+
+            try (Response snapResponse = client.newCall(snapRequest).execute()) {
+                JsonNode snapJson = objectMapper.readTree(snapResponse.body().string());
+                JsonNode location = snapJson.path("waypoints").get(0).path("location");
+
+                double roadLon = location.get(0).asDouble();
+                double roadLat = location.get(1).asDouble();
+
+                return new double[]{roadLat, roadLon};
+            }
         }
     }
 }
