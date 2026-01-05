@@ -8,7 +8,7 @@ import com.rabbitmq.client.ConnectionFactory;
 import com.rabbitmq.client.DeliverCallback;
 import org.example.moteurdecision.messaging.EventMessage;
 import org.example.moteurdecision.messaging.InterventionMessage;
-import org.example.moteurdecision.service.SimpleDecisionService;
+import org.example.moteurdecision.service.DecisionService;
 
 import java.io.IOException;
 import java.util.Map;
@@ -34,7 +34,7 @@ public final class DecisionEngineApplication {
         String interventionQueue = requireEnv(env, "DECISION_INTERVENTION_QUEUE");
         String apiBaseUrl = requireEnv(env, "SDMIS_API_URL");
 
-        SimpleDecisionService decisionService = new SimpleDecisionService(apiBaseUrl, OBJECT_MAPPER);
+        DecisionService decisionService = new DecisionService(apiBaseUrl, OBJECT_MAPPER);
 
         ConnectionFactory factory = new ConnectionFactory();
         factory.setHost(host);

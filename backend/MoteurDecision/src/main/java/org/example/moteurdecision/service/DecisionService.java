@@ -10,10 +10,10 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-public class SimpleDecisionService {
+public class DecisionService {
     private final VehiculeApiClient vehiculeApiClient;
 
-    public SimpleDecisionService(String apiBaseUrl, ObjectMapper objectMapper) {
+    public DecisionService(String apiBaseUrl, ObjectMapper objectMapper) {
         this.vehiculeApiClient = new VehiculeApiClient(apiBaseUrl, objectMapper);
     }
 
