@@ -146,6 +146,8 @@ services:
       - sonarqube_extensions:/opt/sonarqube/extensions
       - sonarqube_logs:/opt/sonarqube/logs
     restart: unless-stopped
+    networks:
+      - LAN
 
   sonarqube_db:
     image: postgres:15
@@ -157,6 +159,8 @@ services:
     volumes:
       - sonarqube_postgres:/var/lib/postgresql/data
     restart: unless-stopped
+    networks:
+      - LAN
 
 volumes:
   keycloak:
