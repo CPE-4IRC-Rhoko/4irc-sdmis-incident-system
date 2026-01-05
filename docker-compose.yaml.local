@@ -1,5 +1,5 @@
 
-##Docker compose for VPS usage (opened ports on internet by reverse-proxy nginx)
+##Docker compose for local usage (opened ports on localhost)
 
 services:
   
@@ -21,8 +21,10 @@ services:
       timeout: 2s
       retries: 15
     command: ["start-dev", "--http-port", "${PORT_EXT_KEYCLOAK}", "--https-port", "7443"]
+    ports:
+      - "${PORT_EXT_KEYCLOAK}:${PORT_INT_KEYCLOAK}"
     networks:
-      - LAN
+      - bridge_network
   
   db:
     user: "root"
@@ -35,7 +37,9 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     networks:
-      - LAN
+      - bridge_network
+    ports:
+      - "${PORT_PG}:5432"
 
   api:
     build:
@@ -56,25 +60,32 @@ services:
       RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_DEFAULT_VHOST}
       DECISION_EVENT_QUEUE: decision.events
       DECISION_INTERVENTION_QUEUE: decision.interventions
+    ports:
+      - "${PORT_SDMIS_API}:8080"
     networks:
-      - LAN
+      - bridge_network
   
   pgadmin:
     image: dpage/pgadmin4:9.11.0
     container_name: pgadmin
     restart: always
+    ports:
+      - "${PORT_PGADMIN}:80"
+      - "8443:443"
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
     volumes:
       - pgadmin-data:/var/lib/pgadmin
     networks:
-      - LAN
+      - bridge_network
   
   rabbitmq:
     container_name: rabbitmq
     image: rabbitmq:3.13-management
-    restart: always
+    ports:
+      - "${PORT_RABBITMQ_TECHNIQUE}:5672"
+      - "${PORT_RABBITMQ_ADMIN}:15672"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
@@ -82,7 +93,7 @@ services:
     volumes:
       - rmq-data:/var/lib/rabbitmq/mnesia/
     networks:
-      - LAN
+      - bridge_network
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s
@@ -104,37 +115,13 @@ services:
       DECISION_INTERVENTION_QUEUE: decision.interventions
       SDMIS_API_URL: http://sdmis-api:8080
     networks:
-      - LAN
-
-  nginx:
-    image: nginx:latest
-    container_name: nginx
-    restart: always
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - nginx:/etc/nginx/conf.d
-      - certbot_cert:/var/www/certbot
-      - certbot_conf:/etc/letsencrypt
-    networks:
-      - LAN
-
-  certbot:
-    image: certbot/certbot
-    container_name: certbot    
-    restart: always
-    volumes:
-      - certbot_cert:/var/www/certbot
-      - certbot_conf:/etc/letsencrypt
+      - bridge_network
 
 volumes:
   keycloak:
   db_data:
   pgadmin-data:
   rmq-data:
-  certbot_conf:
-  certbot_cert:
-  nginx:
 networks:
-  LAN:
+  bridge_network:
+    driver: bridge
