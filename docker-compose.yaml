@@ -132,6 +132,7 @@ services:
 
   sonarqube:
     image: sonarqube:lts-community
+    container_name: sonarqube
     depends_on:
       - sonarqube_db
     ports:
@@ -148,6 +149,7 @@ services:
 
   sonarqube_db:
     image: postgres:15
+    container_name: sonarqube_db 
     environment:
       POSTGRES_USER: "${SONAR_DB_USERNAME}"
       POSTGRES_PASSWORD: "${SONAR_DB_PASSWORD}"
