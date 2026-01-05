@@ -116,9 +116,9 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - nginx:/etc/nginx/conf.d
-      - certbot_cert:/var/www/certbot
-      - certbot_conf:/etc/letsencrypt
+      - /srv/reverse-proxy/conf:/etc/nginx/conf.d
+      - /srv/reverse-proxy/certbot/www:/var/www/certbot
+      - /srv/reverse-proxy/certbot/conf:/etc/letsencrypt
     networks:
       - LAN
 
@@ -127,8 +127,8 @@ services:
     container_name: certbot    
     restart: always
     volumes:
-      - certbot_cert:/var/www/certbot
-      - certbot_conf:/etc/letsencrypt
+      - /srv/reverse-proxy/certbot/www:/var/www/certbot
+      - /srv/reverse-proxy/certbot/conf:/etc/letsencrypt
 
   sonarqube:
     image: sonarqube:lts-community
