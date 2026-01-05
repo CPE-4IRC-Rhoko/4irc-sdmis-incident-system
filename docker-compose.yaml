@@ -9,7 +9,7 @@ services:
     volumes:
       - keycloak:/opt/keycloak/
     environment:
-      KC_HOSTNAME: localhost
+      KC_HOSTNAME: ${KC_HOSTNAME}
       KC_HOSTNAME_PORT: ${PORT_INT_KEYCLOAK}
       KC_HOSTNAME_STRICT_BACKCHANNEL: "false"
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME}
