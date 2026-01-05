@@ -1,0 +1,32 @@
+on:
+  #  Niveau 2 : scan à chaque push sur toutes les branches dev et main 
+  push:
+    branches:
+      - dev
+      - main 
+
+  #  Niveau 3 : scan sur les PR vers main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  gitleaks:
+    name: Gitleaks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Gitleaks 
+          # Scan l’historique complet si nécessaire
+          fetch-depth: 0
+
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          args: detect --verbose
+        env:
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }} 
