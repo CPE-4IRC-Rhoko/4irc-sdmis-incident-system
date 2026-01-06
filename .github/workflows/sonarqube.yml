@@ -4,23 +4,43 @@ on:
   push:
     branches:
       - main
-
+  pull_request:
 
 jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v2
+      # 🔹 1. Récupération du code
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
-      - uses: sonarsource/sonarqube-scan-action@master
+          fetch-depth: 0  # nécessaire pour SonarQube
+
+      # 🔹 2. Installer Java
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 🔹 3. Compiler les fichiers Java
+      - name: Compile Java
+        run: |
+          mkdir -p build/classes
+          javac -d build/classes $(find . -name "*.java")
+
+      # 🔹 4. Analyse SonarQube
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v3
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-      # If you wish to fail your job when the Quality Gate is red, uncomment the
-      # following lines. This would typically be used to fail a deployment.
-      # - uses: sonarsource/sonarqube-quality-gate-action@master
+
+      # 🔹 5. (Optionnel) Bloquer si Quality Gate KO
+      # - name: SonarQube Quality Gate
+      #   uses: SonarSource/sonarqube-quality-gate-action@v1.1.0
       #   timeout-minutes: 5
       #   env:
       #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
