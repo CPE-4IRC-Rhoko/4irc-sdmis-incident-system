@@ -2,12 +2,14 @@
 ##Docker compose for local usage (opened ports on localhost)
 
 ## COMMANDE A FAIRE : docker compose -f docker-compose.yaml.local up -d
+## TEST_SONAR
 
 services:
   
+
   keycloak:
     container_name: "keycloak"
-    image: quay.io/keycloak/keycloak:latest
+    image: quay.io/keycloak/keycloak:latest 
     volumes:
       - keycloak:/opt/keycloak/
     environment:
