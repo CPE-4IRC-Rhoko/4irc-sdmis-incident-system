@@ -12,14 +12,13 @@ services:
       - keycloak:/opt/keycloak/
     environment:
       KC_HOSTNAME: ${KC_HOSTNAME}
-      KC_HOSTNAME_PORT: ${PORT_INT_KEYCLOAK}
       KC_HOSTNAME_STRICT_BACKCHANNEL: "false"
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
       KC_LOG_LEVEL: info
       KC_HOSTNAME_STRICT: "false"
-      KC_PROXY_HEADERS: forwarded
-      KC_HTTP_ENABLED : "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: "true"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${PORT_INT_KEYCLOAK}/health/ready"]
       interval: 15s
