@@ -17,6 +17,9 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
       KC_LOG_LEVEL: info
+      KC_PROXY: edge
+      KC_HOSTNAME_STRICT: "false"
+      KC_PROXY_HEADERS: forwarded
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${PORT_INT_KEYCLOAK}/health/ready"]
       interval: 15s
