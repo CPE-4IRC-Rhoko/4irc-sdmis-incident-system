@@ -25,7 +25,6 @@ public class SendAPI
         String description = evenement.getDescription();
 
         // Récupération coordonnées GPS
-
         double[] coordonnees = incidentGPS.getBbox();
         double latitude = coordonnees[0];
         double longitude = coordonnees[1];
