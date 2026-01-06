@@ -15,16 +15,22 @@ services:
       KC_HOSTNAME_STRICT_BACKCHANNEL: "false"
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
-      KC_LOG_LEVEL: debug
+      KC_LOG_LEVEL: info
       KC_HOSTNAME_STRICT: "false"
       KC_PROXY_HEADERS: xforwarded
       KC_HTTP_ENABLED: "true"
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://db:5432/KC_DB
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      - db
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${PORT_EXT_KEYCLOAK}/health/ready"]
+      test: ["CMD-SHELL", "curl -f http://localhost:7080/health/ready || exit 1"]
       interval: 15s
-      timeout: 2s
+      timeout: 5s
       retries: 15
-    command: ["start-dev", "--http-port", "${PORT_EXT_KEYCLOAK}", "--https-port", "7443"]
+    command: ["start", "--http-port", "7080", "--https-port", "7443"]
     networks:
       - LAN
   
