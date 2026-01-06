@@ -3,7 +3,10 @@ package org.example;
 import com.fazecast.jSerialComm.SerialPort;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Locale;
+import java.time.Instant;
 
 public class MicrobitSender {
 
@@ -35,11 +38,19 @@ public class MicrobitSender {
         if (out == null) return;
 
         try {
+
+            // On récupère le Timestamp actuel (en secondes)
+            String heure = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy:MM:dd:HH:mm:ss"));
+
+            System.err.println("Heure : " + heure );
+
             // 1. Formatage de la trame
             // Locale.US force l'utilisation du POINT (.) pour les décimales et non la virgule
             // Le '\n' à la fin est OBLIGATOIRE pour que la Micro:bit détecte la fin du message
-            String trame = String.format(Locale.US, "ID:%d;Geo:%.5f,%.5f;Eau:%d;\n",
-                    id, latitude, longitude, niveauEau);
+            // Trame
+            String trame = String.format(Locale.US, "ID:%d;Geo:%.5f,%.5f;Eau:%d;Time:%s;\n", id, latitude, longitude, niveauEau, heure);
+
+
 
             // 2. Envoi sur le port série
             out.write(trame.getBytes());
