@@ -12,19 +12,19 @@ services:
       - keycloak:/opt/keycloak/
     environment:
       KC_HOSTNAME: ${KC_HOSTNAME}
-      KC_HOSTNAME_STRICT_BACKCHANNEL: "false"
+      KC_HOSTNAME_STRICT_BACKCHANNEL: ${KC_HOSTNAME_STRICT_BACKCHANNEL}
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
       KC_LOG_LEVEL: info
       KC_HOSTNAME_STRICT: "false"
       KC_PROXY_HEADERS: xforwarded
-      KC_HTTP_ENABLED: "true"
+      KC_HTTP_ENABLED: ${KC_HTTP_ENABLED}
       KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://db:5432/KC_DB
-      KC_DB_USERNAME: ${POSTGRES_USER}
-      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_DB_URL: jdbc:postgresql://${KC_CONTAINER_NAME}:5432/${KC_DB}
+      KC_DB_USERNAME: ${KC_USER}
+      KC_DB_PASSWORD: ${KC_PASSWORD}
     depends_on:
-      - db
+      - ${KC_CONTAINER_NAME}
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:7080/health/ready || exit 1"]
       interval: 15s
@@ -33,7 +33,19 @@ services:
     command: ["start", "--http-port", "7080", "--https-port", "7443"]
     networks:
       - LAN
-  
+
+  kc_db:
+    user: "root"
+    container_name: "${KC_CONTAINER_NAME}"
+    image: postgres:15.15
+    volumes:
+      - kc_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${KC_DB}
+      POSTGRES_USER: ${KC_USER}
+      POSTGRES_PASSWORD: ${KC_PASSWORD}
+    networks:
+      - LAN
   db:
     user: "root"
     container_name: "db"
@@ -46,6 +58,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     networks:
       - LAN
+
 
   api:
     build:
@@ -172,6 +185,7 @@ services:
 
 volumes:
   keycloak:
+  kc_db_data:
   db_data:
   pgadmin-data:
   rmq-data:
