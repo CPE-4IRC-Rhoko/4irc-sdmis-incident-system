@@ -2,9 +2,6 @@ package org.example.moteurdecision.service.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.example.moteurdecision.domain.Vehicule;
-import org.example.moteurdecision.domain.status.StatutVehicule;
-
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -15,7 +12,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Client HTTP minimal pour récupérer les véhicules operationnels auprès de l'API.
+ * Client HTTP minimal pour récupérer les véhicules sélectionnés pour un évènement auprès de l'API.
  */
 public class VehiculeApiClient {
 
@@ -31,8 +28,8 @@ public class VehiculeApiClient {
                 .build();
     }
 
-    public List<Vehicule> recupererVehiculesOperationnels() throws Exception {
-        URI uri = URI.create(baseUrl + "/api/vehicules/operationnels");
+    public List<UUID> recupererVehiculesSelectionnes(UUID eventId) throws Exception {
+        URI uri = URI.create(baseUrl + "/api/evenements/" + eventId + "/vehicules-selectionnes");
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(uri)
                 .timeout(Duration.ofSeconds(5))
@@ -41,31 +38,21 @@ public class VehiculeApiClient {
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() >= 200 && response.statusCode() < 300) {
             JsonNode root = objectMapper.readTree(response.body());
-            return toVehicules(root);
+            return toVehiculeIds(root);
         }
-        throw new IllegalStateException("Appel API vehicules/operationnels renvoie " + response.statusCode());
+        throw new IllegalStateException("Appel API vehicules-selectionnes renvoie " + response.statusCode());
     }
 
-    private List<Vehicule> toVehicules(JsonNode root) {
+    private List<UUID> toVehiculeIds(JsonNode root) {
         if (root == null || !root.isArray()) {
             return List.of();
         }
-        List<Vehicule> builder = new ArrayList<>();
+        List<UUID> builder = new ArrayList<>();
         for (JsonNode node : root) {
-            builder.add(toVehicule(node));
+            if (node.hasNonNull("idVehicule")) {
+                builder.add(UUID.fromString(node.get("idVehicule").asText()));
+            }
         }
         return builder;
-    }
-
-    private Vehicule toVehicule(JsonNode node) {
-        UUID id = UUID.fromString(node.path("id").asText());
-        double latitude = node.path("latitude").asDouble();
-        double longitude = node.path("longitude").asDouble();
-        UUID idStatut = UUID.fromString(node.path("idStatut").asText());
-        String nomStatut = node.path("nomStatut").asText();
-        boolean operationnel = node.path("operationnel").asBoolean();
-
-        StatutVehicule statut = new StatutVehicule(idStatut, nomStatut, operationnel);
-        return new Vehicule(id, latitude, longitude, statut);
     }
 }

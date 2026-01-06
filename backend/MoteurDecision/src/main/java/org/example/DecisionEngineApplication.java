@@ -54,12 +54,14 @@ public final class DecisionEngineApplication {
                 EventMessage eventMessage = OBJECT_MAPPER.readValue(delivery.getBody(), EventMessage.class);
 
                 System.out.printf("Evenement reçu (id=%s)%n", eventMessage.getIdEvenement());
-                InterventionMessage intervention = decisionService.creerIntervention(eventMessage);
-                byte[] payload = OBJECT_MAPPER.writeValueAsBytes(intervention);
-                producerChannel.basicPublish("", interventionQueue, null, payload);
+                var interventions = decisionService.creerInterventions(eventMessage);
+                for (InterventionMessage intervention : interventions) {
+                    byte[] payload = OBJECT_MAPPER.writeValueAsBytes(intervention);
+                    producerChannel.basicPublish("", interventionQueue, null, payload);
+                    System.out.printf("Intervention envoyée pour l'évènement %s vers %s (vehicule=%s)%n",
+                            intervention.getIdEvenement(), interventionQueue, intervention.getVehiculeId());
+                }
                 consumerChannel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
-                System.out.printf("Intervention envoyée pour l'évènement %s vers %s%n",
-                        intervention.getIdEvenement(), interventionQueue);
             }
             catch (IOException e) {
                 consumerChannel.basicNack(delivery.getEnvelope().getDeliveryTag(), false, false);
