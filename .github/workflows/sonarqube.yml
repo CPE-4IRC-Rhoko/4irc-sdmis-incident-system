@@ -32,7 +32,7 @@ jobs:
           restore-keys: ${{ runner.os }}-m2
 
       - name: Build & SonarQube analysis
-        working-directory: ./4irc-sdmis-incident-system
+        #working-directory: ./4irc-sdmis-incident-system
         run: mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=ProjetTransverse -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} -Dsonar.login=${{ secrets.SONAR_TOKEN }}
       
       #- name: Build and analyze
