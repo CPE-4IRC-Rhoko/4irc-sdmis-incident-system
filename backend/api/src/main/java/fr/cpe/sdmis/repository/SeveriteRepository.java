@@ -3,12 +3,14 @@ package fr.cpe.sdmis.repository;
 import fr.cpe.sdmis.dto.SeveriteResponse;
 import fr.cpe.sdmis.dto.SeveriteEchelleResponse;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -31,6 +33,16 @@ public class SeveriteRepository {
                 "SELECT id_severite, valeur_échelle AS valeur_echelle FROM severite ORDER BY id_severite",
                 new SeveriteEchelleRowMapper()
         );
+    }
+
+    public Optional<UUID> findIdByNom(String nomSeverite) {
+        return jdbcTemplate.query("""
+                        SELECT id_severite FROM severite
+                        WHERE lower(nom_severite) = lower(:nom)
+                        LIMIT 1
+                        """,
+                new MapSqlParameterSource("nom", nomSeverite),
+                rs -> rs.next() ? Optional.of(rs.getObject(1, UUID.class)) : Optional.empty());
     }
 
     private static class SeveriteRowMapper implements RowMapper<SeveriteResponse> {
