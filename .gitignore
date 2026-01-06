@@ -7,6 +7,8 @@ iot/microbit-qg/build/
 iot/microbit-terrain/build/
 **/target/
 .idea/
+frontend/.vite/
+**/.vite/
 # Ignorer les fichiers de configuration sensibles
 .env
 KEYCLOAK/WEB/
