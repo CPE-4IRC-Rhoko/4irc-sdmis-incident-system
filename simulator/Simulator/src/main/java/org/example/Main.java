@@ -22,6 +22,29 @@ public class Main {
        System.out.println("Position Incident Latitude (Min/Max) : " + lat2);
        System.out.println("Position Incident Longitude (Min/Max): " + lon2);
 
+
+       // 1. Initialisation (à faire une seule fois au début)
+       // Remplace "COM3" par le bon port de ta Micro:bit Terrain
+       MicrobitSender emetteur = new MicrobitSender("COM3");
+
+       // Attendre 2 secondes que le port soit prêt (recommandé)
+       try { Thread.sleep(2000); } catch (Exception e) {}
+
+       // Tes calculs actuels...
+       int monId = 30;
+       int monEau = 50;
+
+       // 2. Envoi des données
+       emetteur.envoyerDonnees(monId, lat, lon, monEau);
+
+       // IMPORTANT : Faire une petite pause si tu as plusieurs camions
+       // pour ne pas saturer le tampon de réception de la Micro:bit
+       try { Thread.sleep(50); } catch (Exception e) {}
+
+       // 3. Fermeture à la fin
+       emetteur.close();
+    }
+
         /*
         // Création d'une instance Random pour sélectionner un type aléatoire
         List<String> typesIncidents = Arrays.asList(
@@ -43,5 +66,4 @@ public class Main {
         }
         */
 
-    }
 }
