@@ -22,16 +22,16 @@ public class DecisionService {
         intervention.setIdEvenement(eventMessage.getIdEvenement());
         intervention.setDateCreation(Instant.now());
 
-        var vehiculesDisponibles = getVehiculesDisponibles();
-        if (vehiculesDisponibles.isEmpty()) {
+        var vehiculesOperationnels = getVehiculesOperationnels();
+        if (vehiculesOperationnels.isEmpty()) {
             intervention.setVehiculeId(null);
             intervention.setSucces(false);
             intervention.setMessage("Aucune intervention créée");
-            intervention.setCauseEchec("Aucun véhicule disponible pour l'évènement " + eventMessage.getIdEvenement());
+            intervention.setCauseEchec("Aucun véhicule operationnel pour l'évènement " + eventMessage.getIdEvenement());
             return intervention;
         }
 
-        UUID vehiculeId = vehiculesDisponibles.getFirst().getId();
+        UUID vehiculeId = vehiculesOperationnels.getFirst().getId();
         intervention.setVehiculeId(vehiculeId);
         intervention.setSucces(true);
         intervention.setMessage("Intervention créée pour l'évènement " + eventMessage.getIdEvenement());
@@ -39,11 +39,11 @@ public class DecisionService {
         return intervention;
     }
 
-    private List<Vehicule> getVehiculesDisponibles() {
+    private List<Vehicule> getVehiculesOperationnels() {
         try {
-            return vehiculeApiClient.recupererVehiculesDisponibles();
+            return vehiculeApiClient.recupererVehiculesOperationnels();
         } catch (Exception e) {
-            System.err.println("Impossible de récupérer les véhicules disponibles : " + e.getMessage());
+            System.err.println("Impossible de récupérer les véhicules operationnels : " + e.getMessage());
             return List.of();
         }
     }

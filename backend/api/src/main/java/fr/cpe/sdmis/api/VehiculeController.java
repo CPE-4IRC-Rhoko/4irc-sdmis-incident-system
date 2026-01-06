@@ -1,6 +1,6 @@
 package fr.cpe.sdmis.api;
 
-import fr.cpe.sdmis.dto.VehiculeDisponibleResponse;
+import fr.cpe.sdmis.dto.VehiculeOperationnelResponse;
 import fr.cpe.sdmis.repository.VehiculeRepository;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,8 +18,8 @@ public class VehiculeController {
         this.vehiculeRepository = vehiculeRepository;
     }
 
-    @GetMapping("/disponibles")
-    public List<VehiculeDisponibleResponse> disponibles() {
-        return vehiculeRepository.findDisponibles();
+    @GetMapping("/operationnels")
+    public List<VehiculeOperationnelResponse> operationnels() {
+        return vehiculeRepository.findOperationnels();
     }
 }

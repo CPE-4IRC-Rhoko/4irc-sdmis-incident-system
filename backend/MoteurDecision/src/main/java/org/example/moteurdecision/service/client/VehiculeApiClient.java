@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Client HTTP minimal pour récupérer les véhicules disponibles auprès de l'API.
+ * Client HTTP minimal pour récupérer les véhicules operationnels auprès de l'API.
  */
 public class VehiculeApiClient {
 
@@ -31,8 +31,8 @@ public class VehiculeApiClient {
                 .build();
     }
 
-    public List<Vehicule> recupererVehiculesDisponibles() throws Exception {
-        URI uri = URI.create(baseUrl + "/api/vehicules/disponibles");
+    public List<Vehicule> recupererVehiculesOperationnels() throws Exception {
+        URI uri = URI.create(baseUrl + "/api/vehicules/operationnels");
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(uri)
                 .timeout(Duration.ofSeconds(5))
@@ -43,7 +43,7 @@ public class VehiculeApiClient {
             JsonNode root = objectMapper.readTree(response.body());
             return toVehicules(root);
         }
-        throw new IllegalStateException("Appel API vehicules/disponibles renvoie " + response.statusCode());
+        throw new IllegalStateException("Appel API vehicules/operationnels renvoie " + response.statusCode());
     }
 
     private List<Vehicule> toVehicules(JsonNode root) {

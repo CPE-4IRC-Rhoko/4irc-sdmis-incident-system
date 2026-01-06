@@ -1,6 +1,6 @@
 package fr.cpe.sdmis.repository;
 
-import fr.cpe.sdmis.dto.VehiculeDisponibleResponse;
+import fr.cpe.sdmis.dto.VehiculeOperationnelResponse;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -14,14 +14,13 @@ import java.util.UUID;
 @Repository
 public class VehiculeRepository {
 
-    private static final String STATUT_DISPONIBLE = "Disponible";
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
     public VehiculeRepository(NamedParameterJdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public List<VehiculeDisponibleResponse> findDisponibles() {
+    public List<VehiculeOperationnelResponse> findOperationnels() {
         return jdbcTemplate.query("""
                 SELECT v.id_vehicule,
                        v.latitude,
@@ -31,20 +30,19 @@ public class VehiculeRepository {
                        sv.operationnel
                 FROM vehicule v
                 JOIN statut_vehicule sv ON sv.id_statut = v.id_statut
-                WHERE lower(sv.nom_statut) = lower(:nom_statut)
+                WHERE sv.operationnel
                   AND NOT EXISTS (
                       SELECT 1 FROM intervention i WHERE i.id_vehicule = v.id_vehicule
                   )
                 ORDER BY v.id_vehicule
                 """,
-                new MapSqlParameterSource("nom_statut", STATUT_DISPONIBLE),
-                new VehiculeDisponibleRowMapper());
+                new VehiculeOperationnelRowMapper());
     }
 
-    private static class VehiculeDisponibleRowMapper implements RowMapper<VehiculeDisponibleResponse> {
+    private static class VehiculeOperationnelRowMapper implements RowMapper<VehiculeOperationnelResponse> {
         @Override
-        public VehiculeDisponibleResponse mapRow(ResultSet rs, int rowNum) throws SQLException {
-            return new VehiculeDisponibleResponse(
+        public VehiculeOperationnelResponse mapRow(ResultSet rs, int rowNum) throws SQLException {
+            return new VehiculeOperationnelResponse(
                     rs.getObject("id_vehicule", UUID.class),
                     rs.getDouble("latitude"),
                     rs.getDouble("longitude"),
