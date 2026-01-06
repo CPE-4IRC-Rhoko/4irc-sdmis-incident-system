@@ -33,10 +33,7 @@ jobs:
 
       - name: Build & SonarQube analysis
         working-directory: backend/api
-        run: mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
-          -Dsonar.projectKey=ProjetTransverse \
-          -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
-          -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+        run: mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=ProjetTransverse -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} -Dsonar.login=${{ secrets.SONAR_TOKEN }}
       
       #- name: Build and analyze
       #  env:
