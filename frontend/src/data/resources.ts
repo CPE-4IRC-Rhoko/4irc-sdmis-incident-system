@@ -1,0 +1,58 @@
+import type { Ressource } from '../models/resource'
+
+export const ressourcesInitiales: Ressource[] = [
+  {
+    id: 'RES-001',
+    nom: 'Véhicule incendie 12',
+    type: 'FPT',
+    categorie: 'POMPIERS',
+    disponibilite: 'DISPONIBLE',
+    latitude: 45.7322,
+    longitude: 4.835,
+  },
+  {
+    id: 'RES-002',
+    nom: 'Ambulance Croix-Rousse',
+    type: 'VSAV',
+    categorie: 'SAMU',
+    disponibilite: 'OCCUPE',
+    latitude: 45.7769,
+    longitude: 4.8329,
+  },
+  {
+    id: 'RES-003',
+    nom: 'Drones d’observation',
+    type: 'Drone',
+    categorie: 'TECHNIQUE',
+    disponibilite: 'DISPONIBLE',
+    latitude: 45.748,
+    longitude: 4.855,
+  },
+  {
+    id: 'RES-004',
+    nom: 'Equipe maintenance',
+    type: 'Technique',
+    categorie: 'TECHNIQUE',
+    disponibilite: 'HORS_LIGNE',
+    latitude: 45.751,
+    longitude: 4.81,
+  },
+  {
+    id: 'RES-005',
+    nom: 'Patrouille Police Centre',
+    type: 'Police',
+    categorie: 'POLICE',
+    disponibilite: 'DISPONIBLE',
+    latitude: 45.764,
+    longitude: 4.84,
+  },
+  {
+    id: 'RES-006',
+    nom: 'Fourgon Pompiers 18',
+    type: 'FPT',
+    categorie: 'POMPIERS',
+    disponibilite: 'OCCUPE',
+    latitude: 45.754,
+    longitude: 4.82,
+  },
+]

@@ -1,0 +1,81 @@
+#root {
+  min-height: 100vh;
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: radial-gradient(circle at 20% 20%, #f4f6ff, #f7f8fb 42%);
+  color: #0f172a;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #dfe3eb;
+  background: #ffffff;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brand-mark {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #2f6fed, #3bb3f3);
+  color: #ffffff;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  font-size: 1.2rem;
+  box-shadow: 0 12px 30px rgba(48, 119, 237, 0.25);
+}
+
+.brand-title {
+  margin: 0;
+  line-height: 1.1;
+  font-size: 1.3rem;
+}
+
+.brand-kicker {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #6b7285;
+}
+
+.role-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.role-switcher select {
+  border-radius: 10px;
+  border: 1px solid #d7dce6;
+  padding: 0.4rem 0.65rem;
+  background: #f8faff;
+  font-weight: 600;
+}
+
+.app-main {
+  padding: 0 1.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.page-surface {
+  flex: 1;
+}
