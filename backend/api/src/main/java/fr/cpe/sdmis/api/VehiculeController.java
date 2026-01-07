@@ -51,9 +51,4 @@ public class VehiculeController {
     public List<VehiculeEnRouteResponse> vehiculesEnRoute() {
         return vehiculeService.getVehiculesEnRoute();
     }
-
-    @PostMapping("/mise-a-jour")
-    public void miseAJour(@Valid @RequestBody VehiculeUpdateRequest request) {
-        vehiculeRepository.updateVehicule(request);
-    }
 }
