@@ -32,6 +32,12 @@
   box-shadow: 0 10px 26px rgba(15, 31, 64, 0.06);
 }
 
+.resources-toolbar .toolbar-input {
+  flex: 1;
+  min-width: 400px;
+  max-width: 540px;
+}
+
 .resources-table-card {
   background: #ffffff;
   border: 1px solid #dfe3eb;
@@ -41,6 +47,10 @@
   display: flex;
   flex-direction: column;
   min-height: 360px;
+}
+
+.resources-table-card .pagination {
+  margin-top: auto;
 }
 
 .resources-table {

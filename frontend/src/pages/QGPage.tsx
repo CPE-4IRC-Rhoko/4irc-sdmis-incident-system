@@ -20,6 +20,7 @@ import {
 } from '../services/evenements'
 import { getVehiculesOperationnels } from '../services/vehicules'
 import { getInterventions } from '../services/interventions'
+import { withBaseUrl } from '../services/api'
 import EvenementsPage from './EvenementsPage'
 import RessourcesPage from './RessourcesPage'
 import './QGPage.css'
@@ -366,6 +367,52 @@ function QGPage() {
 
     void charger()
     return () => controller.abort()
+  }, [])
+
+  useEffect(() => {
+    const url = withBaseUrl('/api/vehicules/sse')
+    const es = new EventSource(url)
+    es.addEventListener('vehicules', (event) => {
+      try {
+        const data = JSON.parse((event as MessageEvent).data) as Array<{
+          id: string
+          latitude: number
+          longitude: number
+          statut: string
+          caserne?: string
+          equipements?: Array<{ nomEquipement: string; contenanceCourante: number }>
+        }>
+        setRessources((prev) => {
+          const map = new Map(prev.map((r) => [r.id, r]))
+          data.forEach((veh) => {
+            const dispo =
+              veh.statut.toLowerCase().includes('intervention')
+                ? 'OCCUPE'
+                : veh.statut.toLowerCase().includes('dispon')
+                  ? 'DISPONIBLE'
+                  : 'HORS_LIGNE'
+            map.set(veh.id, {
+              id: veh.id,
+              nom: veh.caserne ? `Véhicule ${veh.caserne}` : `Véhicule ${veh.id.slice(0, 6)}`,
+              type: 'Véhicule',
+              categorie: 'POMPIERS',
+              disponibilite: dispo,
+              latitude: veh.latitude,
+              longitude: veh.longitude,
+            })
+          })
+          return Array.from(map.values())
+        })
+      } catch (error) {
+        console.error('Erreur SSE vehicules', error)
+      }
+    })
+    es.onerror = (err) => {
+      console.error('SSE vehicules erreur', err)
+    }
+    return () => {
+      es.close()
+    }
   }, [])
 
   const derniereMiseAJour = useMemo(
