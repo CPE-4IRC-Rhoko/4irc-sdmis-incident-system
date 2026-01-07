@@ -50,7 +50,7 @@ public class Main {
          try { Thread.sleep(2000); } catch (Exception e) {}
 
          // Tes calculs actuels...
-         String monId = "AA102AA";
+         String monId = "AA105AA";
          double maLat = 777; // Valeur calculée par ton simu
          double maLon = 777;  // Valeur calculée par ton simu
          int monEau = 85;
