@@ -13,3 +13,6 @@ frontend/.vite/
 .env
 KEYCLOAK/WEB/
 PG_ADMIN/
+
+#Ignorer les fichiers simu carte
+simulator/donnees/
