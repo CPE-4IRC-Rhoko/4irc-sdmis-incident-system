@@ -1,34 +1,15 @@
-name: CodeQL Advanced
-
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-
 jobs:
   analyze:
-    name: CodeQL Analyze (${{ matrix.language }})
+    name: CodeQL Analyze (c-cpp)
     runs-on: ubuntu-latest
+
+    container:
+      image: schoumi/yotta:latest
+      options: --user 1001:1001
 
     permissions:
       security-events: write
-      packages: read
-      actions: read
       contents: read
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - language: actions
-            build-mode: none
-          - language: c-cpp
-            build-mode: manual
-          - language: java-kotlin
-            build-mode: none
 
     steps:
       - name: Checkout repository
@@ -36,44 +17,21 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Setup Python 3.8
-        if: matrix.language == 'c-cpp'
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.8"
-
-      - name: Install system dependencies
-        if: matrix.language == 'c-cpp'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential gcc-arm-none-eabi
-
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
-          languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
+          languages: c-cpp
+          build-mode: manual
 
-      - name: Build microbit-qg in Docker
-        if: matrix.language == 'c-cpp'
+      - name: Build microbit-qg
         run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspaces \
-            -w /workspaces/iot/microbit-qg \
-            --user 1001:1001 \
-            schoumi/yotta:latest \
-            bash -c "ls -al && make"
-      
-      - name: Build microbit-terrain in Docker
-        if: matrix.language == 'c-cpp'
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspaces \
-            -w /workspaces/iot/microbit-terrain \
-            --user 1001:1001 \
-            schoumi/yotta:latest \
-            bash -c "ls -al && make"
+          cd iot/microbit-qg
+          make
 
+      - name: Build microbit-terrain
+        run: |
+          cd ../microbit-terrain
+          make
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
