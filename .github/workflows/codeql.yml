@@ -9,6 +9,8 @@ on:
 permissions:
   security-events: write
   contents: read
+  packages: read
+
 
 jobs:
   # ==========================
@@ -44,6 +46,8 @@ jobs:
         uses: github/codeql-action/analyze@v4
         with:
           category: "/language:c-cpp"
+          output: codeql-results/cpp.sarif
+
 
   # ==========================================
   # PYTHON / JAVA / JAVASCRIPT ANALYSIS
@@ -60,6 +64,9 @@ jobs:
           languages: python, javascript-typescript
 
       - uses: github/codeql-action/analyze@v4
+        with:
+          output: codeql-results/python-JS.sarif
+
 
   codeql-JAVA-api:
     name: CodeQL Analyze (JAVA-API)
@@ -89,6 +96,8 @@ jobs:
         uses: github/codeql-action/analyze@v4
         with:
           category: "/language:java"
+          output: codeql-results/java-api.sarif
+
 
   codeql-MoteurDecision:
     name: CodeQL Analyze (JAVA-MoteurDecision)
@@ -118,4 +127,5 @@ jobs:
         uses: github/codeql-action/analyze@v4
         with:
           category: "/language:java"
+          output: codeql-results/java-MoteurDecision.sarif
 
