@@ -60,7 +60,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspaces \
             -w /workspaces/iot/microbit-qg \
-            --user vscode
+            --user vscode \
             schoumi/yotta:latest \
             bash -c "make"
       
@@ -70,7 +70,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspaces \
             -w /workspaces/iot/microbit-terrain \                        
-            --user vscode
+            --user vscode \
             schoumi/yotta:latest \
             bash -c "make"
 
