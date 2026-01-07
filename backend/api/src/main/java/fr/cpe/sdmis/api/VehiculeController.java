@@ -2,13 +2,15 @@ package fr.cpe.sdmis.api;
 
 import fr.cpe.sdmis.dto.VehiculeOperationnelResponse;
 import fr.cpe.sdmis.dto.VehiculeUpdateRequest;
-import fr.cpe.sdmis.repository.VehiculeRepository;
-import jakarta.validation.Valid;
+import fr.cpe.sdmis.dto.VehiculeSnapshotResponse;
+import fr.cpe.sdmis.service.VehiculeService;
 import org.springframework.web.bind.annotation.GetMapping;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 
@@ -16,19 +18,25 @@ import java.util.List;
 @RequestMapping("/api/vehicules")
 public class VehiculeController {
 
-    private final VehiculeRepository vehiculeRepository;
+    private final VehiculeService vehiculeService;
 
-    public VehiculeController(VehiculeRepository vehiculeRepository) {
-        this.vehiculeRepository = vehiculeRepository;
+    public VehiculeController(VehiculeService vehiculeService) {
+        this.vehiculeService = vehiculeService;
     }
 
     @GetMapping("/operationnels")
     public List<VehiculeOperationnelResponse> operationnels() {
-        return vehiculeRepository.findOperationnels();
+        return vehiculeService.findOperationnels();
     }
 
     @PostMapping("/mise-a-jour")
     public void miseAJour(@Valid @RequestBody VehiculeUpdateRequest request) {
-        vehiculeRepository.updateVehicule(request);
+        vehiculeService.updateVehicule(request);
+    }
+
+    @GetMapping(value = "/sse", produces = "text/event-stream")
+    public SseEmitter sseVehicules() {
+        List<VehiculeSnapshotResponse> snapshots = vehiculeService.snapshots();
+        return vehiculeService.subscribeSnapshots(snapshots);
     }
 }

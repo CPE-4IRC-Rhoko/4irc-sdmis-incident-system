@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.UUID;
 
 public record VehiculeUpdateRequest(
-        @NotNull UUID id,
+        @NotNull String plaqueImmat,
         @NotNull Double lat,
         @NotNull Double lon,
         OffsetDateTime timestamp,
