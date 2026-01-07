@@ -60,15 +60,62 @@ jobs:
           languages: python, javascript-typescript
 
       - uses: github/codeql-action/analyze@v4
-  codeql-Java:
-    name: CodeQL Analyze (Java)
+
+codeql-JAVA-api:
+    name: CodeQL Analyze (JAVA-API)
     runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v4
+    container:
+      image: maven:3.9.9-eclipse-temurin-17
 
-      - uses: github/codeql-action/init@v4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Initialize CodeQL (JAVA-API)
+        uses: github/codeql-action/init@v4
         with:
           languages: java
-          build-mode: autobuild
-      - uses: github/codeql-action/analyze@v4
+          build-mode: manual
+
+      - name: Build java_api
+        working-directory: backend/api
+        run: mvn -q -DskipTests package
+
+
+      - name: Perform CodeQL Analysis (C/C++)
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:java"
+
+codeql-MoteurDecision:
+    name: CodeQL Analyze (JAVA-MoteurDecision)
+    runs-on: ubuntu-latest
+
+    container:
+      image: maven:3.9.9-eclipse-temurin-17
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Initialize CodeQL (JAVA-MoteurDecision)
+        uses: github/codeql-action/init@v4
+        with:
+          languages: java
+          build-mode: manual
+
+      - name: Build java_api
+        working-directory: backend/MoteurDecision
+        run: mvn -q -DskipTests package
+
+
+      - name: Perform CodeQL Analysis (C/C++)
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:java"
+
