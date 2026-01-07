@@ -1,0 +1,71 @@
+.map-wrapper {
+  width: 100%;
+  height: 100%;
+  min-height: 480px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 14px 45px rgba(15, 31, 64, 0.12);
+  border: 1px solid #dfe3eb;
+}
+
+.marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #f25f4c;
+  color: #ffffff;
+  font-weight: 800;
+  border: 2px solid #ffffff;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.marker:hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
+}
+
+.marker-active {
+  background: #2463e3;
+}
+
+.marker-evenement.critique {
+  background: #e53935;
+}
+
+.marker-evenement.moyenne {
+  background: #f39c12;
+}
+
+.marker-evenement.faible {
+  background: #2eb88a;
+}
+
+.marker-ressource {
+  font-size: 0.9rem;
+  color: #ffffff;
+}
+
+.marker-ressource.police {
+  background: #2463e3;
+  border-color: #e3eafc;
+}
+
+.marker-ressource.pompiers {
+  background: #d62828;
+  border-color: #fdeaea;
+}
+
+.marker-ressource.samu {
+  background: #2eb88a;
+  border-color: #def5ec;
+}
+
+.marker-ressource.technique {
+  background: #1e293b;
+  border-color: #e2e8f0;
+}
