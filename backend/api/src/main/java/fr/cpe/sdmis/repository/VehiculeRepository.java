@@ -5,6 +5,7 @@ import fr.cpe.sdmis.dto.VehiculeUpdateRequest;
 import fr.cpe.sdmis.dto.VehiculeSnapshotResponse;
 import fr.cpe.sdmis.dto.EquipementContenanceResponse;
 import fr.cpe.sdmis.dto.VehiculeIdentResponse;
+import fr.cpe.sdmis.dto.VehiculeEnRouteResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
@@ -77,6 +78,22 @@ public class VehiculeRepository {
                 FROM vehicule
                 ORDER BY plaque_immat
                 """, new IdentRowMapper());
+    }
+
+    public List<VehiculeEnRouteResponse> findVehiculesEnRoute() {
+        return jdbcTemplate.query("""
+                SELECT v.id_vehicule,
+                       v.latitude AS v_lat,
+                       v.longitude AS v_lon,
+                       i.id_evenement,
+                       e.latitude AS e_lat,
+                       e.longitude AS e_lon
+                FROM vehicule v
+                JOIN statut_vehicule sv ON sv.id_statut = v.id_statut
+                JOIN intervention i ON i.id_vehicule = v.id_vehicule
+                JOIN evenement e ON e.id_evenement = i.id_evenement
+                WHERE sv.nom_statut = 'En route'
+                """, new VehiculeEnRouteRowMapper());
     }
 
     public void updateVehicule(VehiculeUpdateRequest request) {
@@ -176,6 +193,20 @@ public class VehiculeRepository {
                     rs.getObject("id_vehicule", UUID.class),
                     rs.getString("plaque_immat"),
                     rs.getString("cle_ident")
+            );
+        }
+    }
+
+    private static class VehiculeEnRouteRowMapper implements RowMapper<VehiculeEnRouteResponse> {
+        @Override
+        public VehiculeEnRouteResponse mapRow(ResultSet rs, int rowNum) throws SQLException {
+            return new VehiculeEnRouteResponse(
+                    rs.getObject("id_vehicule", UUID.class),
+                    rs.getDouble("v_lat"),
+                    rs.getDouble("v_lon"),
+                    rs.getObject("id_evenement", UUID.class),
+                    rs.getDouble("e_lat"),
+                    rs.getDouble("e_lon")
             );
         }
     }

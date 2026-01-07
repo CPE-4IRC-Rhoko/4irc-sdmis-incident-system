@@ -4,6 +4,7 @@ import fr.cpe.sdmis.dto.VehiculeOperationnelResponse;
 import fr.cpe.sdmis.dto.VehiculeSnapshotResponse;
 import fr.cpe.sdmis.dto.VehiculeUpdateRequest;
 import fr.cpe.sdmis.dto.VehiculeIdentResponse;
+import fr.cpe.sdmis.dto.VehiculeEnRouteResponse;
 import fr.cpe.sdmis.repository.VehiculeRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -45,5 +46,9 @@ public class VehiculeService {
 
     public List<VehiculeIdentResponse> getIdentifiants() {
         return vehiculeRepository.findCleIdent();
+    }
+
+    public List<VehiculeEnRouteResponse> getVehiculesEnRoute() {
+        return vehiculeRepository.findVehiculesEnRoute();
     }
 }
