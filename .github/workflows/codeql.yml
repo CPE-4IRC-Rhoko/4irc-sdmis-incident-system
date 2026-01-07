@@ -52,11 +52,15 @@ jobs:
           output: codeql-results/cpp.sarif
 
       - name: Upload C/CPP CodeQL SARIF
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
+          # Name of the artifact to upload.
+          # Optional. Default is 'artifact'
           name: codeql-sarif-cpp
-          paths: 
-            - codeql-results/cpp.sarif
+          # A file, directory or wildcard pattern that describes what to upload
+          # Required.
+          path: codeql-results/*.sarif
+
   # ==========================================
   # PYTHON / JAVA / JAVASCRIPT ANALYSIS
   # ==========================================
@@ -78,12 +82,16 @@ jobs:
         with:
           output: codeql-results/python-JS.sarif
 
-      - name: Upload python-JS CodeQL SARIF
-        uses: actions/upload-artifact@v3
+      - name: Upload Python-JS CodeQL SARIF
+        uses: actions/upload-artifact@v4
         with:
+          # Name of the artifact to upload.
+          # Optional. Default is 'artifact'
           name: codeql-sarif-python-JS
-          paths: 
-            - codeql-results/python-JS.sarif
+          # A file, directory or wildcard pattern that describes what to upload
+          # Required.
+          path: codeql-results/*.sarif
+
 
   codeql-JAVA-api:
     name: CodeQL Analyze (JAVA-API)
@@ -116,13 +124,16 @@ jobs:
         with:
           category: "/language:java"
           output: codeql-results/java-api.sarif
-      
+
       - name: Upload Java-API CodeQL SARIF
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
+          # Name of the artifact to upload.
+          # Optional. Default is 'artifact'
           name: codeql-sarif-java-api
-          paths: 
-            - codeql-results/java-api.sarif
+          # A file, directory or wildcard pattern that describes what to upload
+          # Required.
+          path: codeql-results/*.sarif
 
   codeql-MoteurDecision:
     name: CodeQL Analyze (JAVA-MoteurDecision)
@@ -157,8 +168,11 @@ jobs:
           output: codeql-results/java-MoteurDecision.sarif
 
       - name: Upload Java-MoteurDecision CodeQL SARIF
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
+          # Name of the artifact to upload.
+          # Optional. Default is 'artifact'
           name: codeql-sarif-java-MoteurDecision
-          paths: 
-            - codeql-results/java-MoteurDecision.sarif
+          # A file, directory or wildcard pattern that describes what to upload
+          # Required.
+          path: codeql-results/*.sarif
