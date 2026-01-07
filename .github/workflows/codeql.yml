@@ -60,7 +60,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspaces \
             -w /workspaces/iot/microbit-qg \
-            --user vscode \
+            --user 1001:1001 \
             schoumi/yotta:latest \
             bash -c "whoami && ls -al && make"
       
@@ -70,7 +70,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspaces \
             -w /workspaces/iot/microbit-terrain \                        
-            --user vscode \
+            --user 1001:1001 \
             schoumi/yotta:latest \
             bash -c "whoami && ls -al && make"
 
