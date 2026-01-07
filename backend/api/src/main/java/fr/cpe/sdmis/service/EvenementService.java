@@ -40,11 +40,8 @@ public class EvenementService {
     public EvenementResponse createEvenement(EvenementCreateRequest request) {
         UUID idType = typeEvenementRepository.findIdByNom(request.nomTypeEvenement())
                 .orElseThrow(() -> new IllegalArgumentException("Type d'événement introuvable: " + request.nomTypeEvenement()));
-        String statutNom = request.nomStatut() != null && !request.nomStatut().isBlank()
-                ? request.nomStatut()
-                : "Déclaré";
-        UUID idStatut = statutEvenementRepository.findIdByNom(statutNom)
-                .orElseThrow(() -> new IllegalArgumentException("Statut d'événement introuvable: " + statutNom));
+        UUID idStatut = statutEvenementRepository.findIdByNom("Déclaré")
+                .orElseThrow(() -> new IllegalArgumentException("Statut d'événement introuvable: Déclaré"));
         UUID idSeverite = severiteRepository.findIdByNom(request.nomSeverite())
                 .orElseThrow(() -> new IllegalArgumentException("Sévérité introuvable: " + request.nomSeverite()));
 
