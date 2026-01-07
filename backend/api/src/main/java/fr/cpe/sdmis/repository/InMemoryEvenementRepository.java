@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Repository
 @Profile("inmemory")
-public class InMemoryEvenementRepository implements EvenementRepository {
+public class InMemoryEvenementRepository implements IEvenementRepository {
     private final Map<UUID, Evenement> store = new ConcurrentHashMap<>();
 
     @Override

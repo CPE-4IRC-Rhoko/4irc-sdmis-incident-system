@@ -5,7 +5,7 @@ import fr.cpe.sdmis.dto.EvenementCreateRequest;
 import fr.cpe.sdmis.dto.EvenementResponse;
 import fr.cpe.sdmis.mapper.EvenementMapper;
 import fr.cpe.sdmis.messaging.EventMessage;
-import fr.cpe.sdmis.repository.EvenementRepository;
+import fr.cpe.sdmis.repository.IEvenementRepository;
 import fr.cpe.sdmis.repository.SeveriteRepository;
 import fr.cpe.sdmis.repository.StatutEvenementRepository;
 import fr.cpe.sdmis.repository.TypeEvenementRepository;
@@ -16,14 +16,14 @@ import java.util.UUID;
 
 @Service
 public class EvenementService {
-    private final EvenementRepository evenementRepository;
+    private final IEvenementRepository evenementRepository;
     private final EvenementMapper mapper;
     private final DecisionMessagingService messagingService;
     private final TypeEvenementRepository typeEvenementRepository;
     private final StatutEvenementRepository statutEvenementRepository;
     private final SeveriteRepository severiteRepository;
 
-    public EvenementService(EvenementRepository evenementRepository,
+    public EvenementService(IEvenementRepository evenementRepository,
                             EvenementMapper mapper,
                             DecisionMessagingService messagingService,
                             TypeEvenementRepository typeEvenementRepository,
