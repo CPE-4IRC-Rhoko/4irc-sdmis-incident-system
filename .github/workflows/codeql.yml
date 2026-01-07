@@ -62,7 +62,7 @@ jobs:
             -w /workspaces/iot/microbit-qg \
             --user 1001:1001 \
             schoumi/yotta:latest \
-            bash -c "whoami && ls -al && make"
+            bash -c "ls -al && make"
       
       - name: Build microbit-terrain in Docker
         if: matrix.language == 'c-cpp'
@@ -72,7 +72,7 @@ jobs:
             -w /workspaces/iot/microbit-terrain \                        
             --user 1001:1001 \
             schoumi/yotta:latest \
-            bash -c "whoami && ls -al && make"
+            bash -c "ls -al && make"
 
 
       - name: Perform CodeQL Analysis
