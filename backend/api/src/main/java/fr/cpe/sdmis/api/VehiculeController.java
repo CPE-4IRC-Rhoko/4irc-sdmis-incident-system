@@ -3,6 +3,8 @@ package fr.cpe.sdmis.api;
 import fr.cpe.sdmis.dto.VehiculeOperationnelResponse;
 import fr.cpe.sdmis.dto.VehiculeUpdateRequest;
 import fr.cpe.sdmis.dto.VehiculeSnapshotResponse;
+import fr.cpe.sdmis.dto.VehiculeIdentResponse;
+import fr.cpe.sdmis.dto.VehiculeEnRouteResponse;
 import fr.cpe.sdmis.service.VehiculeService;
 import org.springframework.web.bind.annotation.GetMapping;
 import jakarta.validation.Valid;
@@ -38,5 +40,15 @@ public class VehiculeController {
     public SseEmitter sseVehicules() {
         List<VehiculeSnapshotResponse> snapshots = vehiculeService.snapshots();
         return vehiculeService.subscribeSnapshots(snapshots);
+    }
+
+    @GetMapping("/cle-ident")
+    public List<VehiculeIdentResponse> identifiants() {
+        return vehiculeService.getIdentifiants();
+    }
+
+    @GetMapping("/en-route")
+    public List<VehiculeEnRouteResponse> vehiculesEnRoute() {
+        return vehiculeService.getVehiculesEnRoute();
     }
 }
