@@ -52,7 +52,8 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: codeql-sarif-cpp
-          path: codeql-results/cpp.sarif
+          paths: 
+            - codeql-results/cpp.sarif
   # ==========================================
   # PYTHON / JAVA / JAVASCRIPT ANALYSIS
   # ==========================================
@@ -75,7 +76,8 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: codeql-sarif-python-JS
-          path: codeql-results/python-JS.sarif
+          paths: 
+            - codeql-results/python-JS.sarif
 
   codeql-JAVA-api:
     name: CodeQL Analyze (JAVA-API)
@@ -111,7 +113,8 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: codeql-sarif-java-api
-          path: codeql-results/java-api.sarif
+          paths: 
+            - codeql-results/java-api.sarif
 
   codeql-MoteurDecision:
     name: CodeQL Analyze (JAVA-MoteurDecision)
@@ -147,4 +150,5 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: codeql-sarif-java-MoteurDecision
-          path: codeql-results/java-MoteurDecision.sarif
+          paths: 
+            - codeql-results/java-MoteurDecision.sarif
