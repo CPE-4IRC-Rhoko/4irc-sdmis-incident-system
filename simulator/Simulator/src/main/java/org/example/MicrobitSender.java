@@ -34,21 +34,21 @@ public class MicrobitSender {
      * Envoie une mise à jour d'état pour un camion spécifique.
      * Le format généré est : "ID:10;Geo:45.1234,4.5678;Eau:80;\n"
      */
-    public void envoyerDonnees(int id, double latitude, double longitude, int niveauEau) {
+    public void envoyerDonnees(String id, double latitude, double longitude, int niveauEau) {
         if (out == null) return;
 
         try {
 
             // On récupère le Timestamp actuel (en secondes)
-            String heure = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy:MM:dd:HH:mm:ss"));
+            long timestamp = System.currentTimeMillis() / 1000;
 
-            System.err.println("Heure : " + heure );
+            System.err.println("Heure : " + timestamp );
 
             // 1. Formatage de la trame
             // Locale.US force l'utilisation du POINT (.) pour les décimales et non la virgule
             // Le '\n' à la fin est OBLIGATOIRE pour que la Micro:bit détecte la fin du message
             // Trame
-            String trame = String.format(Locale.US, "ID:%d;Geo:%.5f,%.5f;Eau:%d;Time:%s;\n", id, latitude, longitude, niveauEau, heure);
+            String trame = String.format(Locale.US, "ID:%s;Geo:%.5f,%.5f;Eau:%d;Time:%s;\n", id, latitude, longitude, niveauEau, timestamp);
 
 
 

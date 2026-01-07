@@ -1,6 +1,11 @@
 package org.example;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.*;
 
 public class SendAPI
 {
@@ -10,6 +15,8 @@ public class SendAPI
         this.incidentGPS = new IncidentGPS();
     }
 
+    private static final String API_URL = "http://localhost:8082/api/evenements";
+
     public void envoyerEvenement(TypeEvenement evenement) throws IOException {
 
         // Récupération des informations depuis TypeEvenement
@@ -18,16 +25,51 @@ public class SendAPI
         String description = evenement.getDescription();
 
         // Récupération coordonnées GPS
+
         double[] coordonnees = incidentGPS.getBbox();
         double latitude = coordonnees[0];
         double longitude = coordonnees[1];
 
-        // Exemple d'utilisation (console / futur appel API)
-        System.out.println("=== Envoi de l'incident ===");
-        System.out.println("Sévérité   : " + severite);
-        System.out.println("Nom        : " + nom);
-        System.out.println("Description: " + description);
-        System.out.printf("Latitude   : %.5f%n", latitude);
-        System.out.printf("Longitude  : %.5f%n", longitude);
+        try {
+            // Création du client HTTP
+            HttpClient client = HttpClient.newHttpClient();
+
+            // Corps JSON
+            String jsonBody = String.format(
+                    Locale.US,
+                    """
+                    {
+                      "description": "%s",
+                      "latitude": %.5f,
+                      "longitude": %.5f,
+                      "nomTypeEvenement": "%s",
+                      "nomSeverite": "%s"
+                    }
+                    """,
+                    description, latitude, longitude, nom, severite
+            );
+
+            System.out.println("=== JSON envoyé ===");
+            System.out.println(jsonBody);
+
+            // Création de la requête POST
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(API_URL))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .build();
+
+            // Envoi
+            HttpResponse<String> response =
+                    client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            // Résultat
+            System.out.println("Code HTTP : " + response.statusCode());
+            System.out.println("Réponse   : " + response.body());
+
+        } catch (Exception e) {
+            System.err.println("Erreur POST API : " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 }

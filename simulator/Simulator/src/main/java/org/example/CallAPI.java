@@ -11,10 +11,12 @@ import java.util.Random;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 public class CallAPI {
 
-    private static final String API_URL = "http://localhost:8082/api/evenements";
+    private static final String API_URL_TYPE_EVENEMENT = "http://localhost:8082/api/references/types-evenement";
+    private static final String API_URL_SEVERTIE = "http://localhost:8082/api/references/severites";
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final Random random;
@@ -32,48 +34,62 @@ public class CallAPI {
      * @throws InterruptedException Si la requête est interrompue
      */
     public List<TypeEvenement> recupererEvenements() throws IOException, InterruptedException {
-        // Créer la requête HTTP GET
+        // Créer les requêtes HTTP GET
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(API_URL))
+                .uri(URI.create(API_URL_TYPE_EVENEMENT))
                 .header("Content-Type", "application/json")
                 .GET()
                 .build();
 
-        // Envoyer la requête et récupérer la réponse
+        HttpRequest request2 = HttpRequest.newBuilder()
+                .uri(URI.create(API_URL_SEVERTIE))
+                .header("Content-Type", "application/json")
+                .GET()
+                .build();
+
+        // Envoyer les requêtes et récupérer les réponses
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response2 = httpClient.send(request2, HttpResponse.BodyHandlers.ofString());
+
 
         // Vérifier le code de statut
-        if (response.statusCode() != 200) {
+        if (response.statusCode() != 200 || response2.statusCode() != 200) {
             throw new IOException("Erreur API: Code " + response.statusCode());
         }
 
-        // Parser le JSON et extraire les événements
-        return extraireEvenements(response.body());
-    }
+        List<String> liste1 = extraireTypes(response.body());
+        List<String> liste2 = extraireSeverites(response2.body());
 
-    /**
-     * Extrait les événements du JSON de réponse
-     * @param jsonResponse La réponse JSON de l'API
-     * @return Liste des événements avec sévérité, type et description
-     * @throws IOException En cas d'erreur de parsing JSON
-     */
-    private List<TypeEvenement> extraireEvenements(String jsonResponse) throws IOException {
-        List<TypeEvenement> evenements = new ArrayList<>();
+        List<TypeEvenement> resultatFinal = new ArrayList<>();
 
-        // Parser le JSON
-        JsonNode rootNode = objectMapper.readTree(jsonResponse);
-
-        // Si c'est un tableau
-        if (rootNode.isArray()) {
-            for (JsonNode node : rootNode) {
-                String nomSeverite = node.get("nomSeverite").asText();
-                String nomType = node.get("nomTypeEvenement").asText();
-                String description = node.get("description").asText();
-                evenements.add(new TypeEvenement(nomSeverite, nomType, description));
+        for (String type : liste1) {
+            for (String severite : liste2)
+            {
+                resultatFinal.add(new TypeEvenement(severite, type, "Description générée automatiquement"));
             }
         }
 
-        return evenements;
+        return resultatFinal;
+    }
+
+    private List<String> extraireTypes(String json) throws IOException {
+        List<String> types = new ArrayList<>();
+        JsonNode root = objectMapper.readTree(json);
+
+        for (JsonNode node : root) {
+            types.add(node.get("nom").asText());
+        }
+        return types;
+    }
+
+    private List<String> extraireSeverites(String json) throws IOException {
+        List<String> severites = new ArrayList<>();
+        JsonNode root = objectMapper.readTree(json);
+
+        for (JsonNode node : root) {
+            severites.add(node.get("nomSeverite").asText());
+        }
+        return severites;
     }
 
     /**
@@ -93,13 +109,14 @@ public class CallAPI {
 
     /**
      * Méthode principale pour tester
-     */
+     **/
+    /*
     public static void main(String[] args) {
         CallAPI callAPI = new CallAPI();
 
         try {
 
-            /*EVENEMENTS ALEATOIRES*/
+            //EVENEMENTS ALEATOIRES
             List<TypeEvenement> evenements = callAPI.recupererEvenements();
             TypeEvenement evenementsAleatoire = callAPI.selectionnerEvenementAleatoire(evenements);
             System.out.println("Événement récupéré :");
@@ -110,4 +127,5 @@ public class CallAPI {
             e.printStackTrace();
         }
     }
+    */
 }

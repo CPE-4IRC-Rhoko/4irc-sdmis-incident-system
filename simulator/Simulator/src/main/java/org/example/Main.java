@@ -1,11 +1,19 @@
 package org.example;
 
+import org.apache.logging.log4j.message.StringFormattedMessage;
+
 import java.io.IOException;
 import java.util.List;
+import java.time.Instant;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class Main {
 
    public static void main(String[] args) {
+
+      ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
 
       // 🔹 Thread 1 : Incidents
       Runnable threadIncident = () -> {
@@ -42,7 +50,7 @@ public class Main {
          try { Thread.sleep(2000); } catch (Exception e) {}
 
          // Tes calculs actuels...
-         int monId = 10;
+         String monId = "AA100AA";
          double maLat = 777; // Valeur calculée par ton simu
          double maLon = 777;  // Valeur calculée par ton simu
          int monEau = 85;
@@ -63,8 +71,13 @@ public class Main {
       Thread t1 = new Thread(threadIncident, "Thread-Incident");
       Thread t2 = new Thread(threadVehicule, "Thread-Vehicule");
 
-      // Démarrage des threads
-      t1.start();
-      t2.start();
+      // ⏱ Planification
+      scheduler.scheduleAtFixedRate(
+              threadIncident, 0, 2, TimeUnit.MINUTES
+      );
+
+      scheduler.scheduleAtFixedRate(
+              threadVehicule, 0, 30, TimeUnit.SECONDS
+      );
    }
 }

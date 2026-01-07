@@ -4,10 +4,7 @@ import okhttp3.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 public class IncidentGPS {
     private static final String GEO_API_URL = "https://geo.api.gouv.fr/communes?nom=Lyon&fields=code,nom,bbox";
@@ -82,10 +79,12 @@ public class IncidentGPS {
 
             double randomLat = minLat + (maxLat - minLat) * rand.nextDouble();
             double randomLon = minLon + (maxLon - minLon) * rand.nextDouble();
+
             /*
             System.out.println("\n=== Point GPS aléatoire ===");
-            System.out.printf("Point aléatoire = lat= %.5f, lon= %.5f\n", randomLat, randomLon);
+            System.out.printf(Locale.US, "Point aléatoire = lat= %.5f, lon= %.5f%n", randomLat, randomLon);
             */
+
             return new double[]{randomLat, randomLon};
         }
     }
