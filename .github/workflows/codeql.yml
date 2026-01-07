@@ -42,6 +42,9 @@ jobs:
       - name: Build microbit-terrain
         run: make -C iot/microbit-terrain
 
+      - name: Create CodeQL results folder
+        run: mkdir -p codeql-results
+
       - name: Perform CodeQL Analysis (C/C++)
         uses: github/codeql-action/analyze@v4
         with:
@@ -67,6 +70,9 @@ jobs:
       - uses: github/codeql-action/init@v4
         with:
           languages: python, javascript-typescript
+        
+      - name: Create CodeQL results folder
+        run: mkdir -p codeql-results
 
       - uses: github/codeql-action/analyze@v4
         with:
@@ -102,6 +108,8 @@ jobs:
         working-directory: backend/api
         run: mvn -q -DskipTests package
 
+      - name: Create CodeQL results folder
+        run: mkdir -p codeql-results
 
       - name: Perform CodeQL Analysis (C/C++)
         uses: github/codeql-action/analyze@v4
@@ -138,7 +146,9 @@ jobs:
       - name: Build java_api
         working-directory: backend/MoteurDecision
         run: mvn -q -DskipTests package
-
+        
+      - name: Create CodeQL results folder
+        run: mkdir -p codeql-results
 
       - name: Perform CodeQL Analysis (JAVA-MoteurDecision)
         uses: github/codeql-action/analyze@v4
