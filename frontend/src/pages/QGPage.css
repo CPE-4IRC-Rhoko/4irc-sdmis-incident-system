@@ -66,12 +66,18 @@
 
 .map-search {
   display: flex;
-  gap: 0.4rem;
+  flex-direction: column;
+  gap: 0.35rem;
   position: absolute;
   top: 0.75rem;
   left: 0.75rem;
   right: 0.75rem;
   z-index: 5;
+}
+
+.map-search .search-input {
+  display: flex;
+  gap: 0.4rem;
 }
 
 .map-search input {
@@ -90,6 +96,61 @@
   padding: 0 0.85rem;
   cursor: pointer;
   font-size: 1rem;
+}
+
+.search-suggestions {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #d7dce6;
+  border-radius: 12px;
+  box-shadow: 0 10px 32px rgba(15, 31, 64, 0.18);
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.search-suggestions button {
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0.55rem 0.75rem;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  color: #0f172a;
+}
+
+.search-suggestions button:hover {
+  background: #f1f4fa;
+}
+
+.search-selected {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #dfe3eb;
+  border-radius: 12px;
+  padding: 0.55rem 0.7rem;
+  box-shadow: 0 8px 22px rgba(15, 31, 64, 0.12);
+}
+
+.search-selected-title {
+  margin: 0.1rem 0;
+  font-weight: 700;
+}
+
+.search-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.map-status {
+  margin: 0;
+  color: #0f172a;
+}
+
+.map-status.erreur {
+  color: #c0392b;
+  font-weight: 700;
 }
 
 .map-zone > :not(.map-search) {
@@ -142,16 +203,39 @@
   background: #2eb88a;
 }
 
-.legend-dot.police {
-  background: #2463e3;
+.legend-vehicle {
+  width: 18px;
+  height: 12px;
+  border-radius: 4px;
+  display: inline-block;
 }
 
-.legend-dot.secours {
-  background: #e53935;
+.legend-vehicle.engage {
+  background: #2364d2;
 }
 
-.legend-dot.technique {
-  background: #1e293b;
+.legend-vehicle.dispo {
+  background: #2fbf71;
+}
+
+.legend-pin {
+  width: 10px;
+  height: 14px;
+  display: inline-block;
+  background: #111827;
+  border-radius: 7px 7px 2px 2px;
+  transform: rotate(45deg);
+}
+
+.badge-statut {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #1e3a8a;
+  font-weight: 700;
+  font-size: 0.85rem;
 }
 
 .situation-panel {
