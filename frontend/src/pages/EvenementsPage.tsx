@@ -19,6 +19,9 @@ type FormMode = 'creation' | 'edition'
 
 interface FormState extends EvenementCreatePayload {
   id?: string
+  idTypeEvenement?: string
+  idSeverite?: string
+  idStatut?: string
 }
 
 const niveauSeverite = (
@@ -85,6 +88,8 @@ function EvenementsPage() {
   const [filtreStatut, setFiltreStatut] = useState<string>('tous')
   const [refreshKey, setRefreshKey] = useState(0)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const pageSize = 5
 
   const [formMode, setFormMode] = useState<FormMode | null>(null)
   const [formState, setFormState] = useState<FormState | null>(null)
@@ -96,6 +101,9 @@ function EvenementsPage() {
     evenements.forEach((evt) => {
       map.set(evt.idStatut, evt.nomStatut)
     })
+    if (map.size === 0) {
+      map.set('default', 'Déclaré')
+    }
     return Array.from(map.entries()).map(([id, nom]) => ({ id, nom }))
   }, [evenements])
 
@@ -111,9 +119,15 @@ function EvenementsPage() {
           getTypesEvenement(controller.signal),
         ])
         setEvenements(evtApi)
-        setSeverites(severitesApi)
+        const severitesTriees = [...severitesApi].sort(
+          (a, b) =>
+            Number.parseInt(a.valeurEchelle, 10) -
+            Number.parseInt(b.valeurEchelle, 10),
+        )
+        setSeverites(severitesTriees)
         setTypes(typesApi)
         setEtat('ready')
+        setPage(1)
         if (evtApi.length > 0) {
           setSelectedId((prev) =>
             prev && evtApi.some((evt) => evt.id === prev)
@@ -180,10 +194,11 @@ function EvenementsPage() {
     }
   }, [evenementsFiltres, selectedId])
 
-  const selection = useMemo(
-    () => evenements.find((evt) => evt.id === selectedId) ?? null,
-    [evenements, selectedId],
-  )
+  const totalPages = Math.max(1, Math.ceil(evenementsFiltres.length / pageSize))
+  const evenementsPage = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return evenementsFiltres.slice(start, start + pageSize)
+  }, [evenementsFiltres, page])
 
   const metriques = useMemo(() => {
     const severiteCritique = evenements.filter(
@@ -219,24 +234,41 @@ function EvenementsPage() {
   const ouvrirCreation = () => {
     setFormMode('creation')
     setFormError(null)
+    const typeRef = types[0]
+    const severiteRef = severites[0]
+    const statutRef =
+      statutsDisponibles.find((s) =>
+        s.nom.toLowerCase().includes('déclar'),
+      ) ?? statutsDisponibles[0]
     setFormState({
       description: '',
-      latitude: selection?.latitude ?? 45.7578,
-      longitude: selection?.longitude ?? 4.8351,
-      idTypeEvenement: types[0]?.id ?? '',
-      idSeverite: severites[0]?.id ?? '',
-      idStatut: statutsDisponibles[0]?.id ?? '',
+      latitude: evenements[0]?.latitude ?? 45.7578,
+      longitude: evenements[0]?.longitude ?? 4.8351,
+      nomTypeEvenement: typeRef?.nom ?? '',
+      nomSeverite: severiteRef?.nomSeverite ?? '',
+      nomStatut: statutRef?.nom ?? 'Déclaré',
+      idTypeEvenement: typeRef?.id,
+      idSeverite: severiteRef?.id,
+      idStatut: statutRef?.id,
     })
   }
 
   const ouvrirEdition = (evt: EvenementApi) => {
     setFormMode('edition')
     setFormError(null)
+    const typeRef = types.find((type) => type.id === evt.idTypeEvenement)
+    const severiteRef = severites.find((sev) => sev.id === evt.idSeverite)
+    const statutRef = statutsDisponibles.find(
+      (statut) => statut.id === evt.idStatut,
+    )
     setFormState({
       id: evt.id,
       description: evt.description,
       latitude: evt.latitude,
       longitude: evt.longitude,
+      nomTypeEvenement: typeRef?.nom ?? evt.nomTypeEvenement,
+      nomSeverite: severiteRef?.nomSeverite ?? evt.nomSeverite,
+      nomStatut: statutRef?.nom ?? evt.nomStatut,
       idTypeEvenement: evt.idTypeEvenement,
       idSeverite: evt.idSeverite,
       idStatut: evt.idStatut,
@@ -258,7 +290,7 @@ function EvenementsPage() {
     if (!formState || !formMode) return
     setFormError(null)
 
-    if (!formState.idStatut) {
+    if (!formState.nomStatut) {
       setFormError(
         'Choisissez un statut (aucune référence de statut encore fournie par l’API).',
       )
@@ -286,11 +318,10 @@ function EvenementsPage() {
                 description: formState.description,
                 latitude: Number(formState.latitude),
                 longitude: Number(formState.longitude),
-                idTypeEvenement: formState.idTypeEvenement,
-                idSeverite: formState.idSeverite,
-                idStatut: formState.idStatut,
-                nomTypeEvenement:
-                  typeRef?.nomTypeEvenement ?? evt.nomTypeEvenement,
+                idTypeEvenement: formState.idTypeEvenement ?? evt.idTypeEvenement,
+                idSeverite: formState.idSeverite ?? evt.idSeverite,
+                idStatut: formState.idStatut ?? evt.idStatut,
+                nomTypeEvenement: typeRef?.nom ?? evt.nomTypeEvenement,
                 nomSeverite: severiteRef?.nomSeverite ?? evt.nomSeverite,
                 nomStatut: statutRef?.nom ?? evt.nomStatut,
                 nbVehiculesNecessaire:
@@ -306,13 +337,27 @@ function EvenementsPage() {
 
     try {
       setFormLoading(true)
+      const typeRef = types.find((type) => type.id === formState.idTypeEvenement)
+      const severiteRef = severites.find(
+        (sev) => sev.id === formState.idSeverite,
+      )
+      const statutNom = formState.nomStatut ?? undefined
+
+      if (!typeRef || !severiteRef || !statutNom) {
+        setFormError(
+          "Références manquantes pour l'envoi (type, gravité ou statut).",
+        )
+        setFormLoading(false)
+        return
+      }
+
       const payload: EvenementCreatePayload = {
         description: formState.description,
         latitude: Number(formState.latitude),
         longitude: Number(formState.longitude),
-        idTypeEvenement: formState.idTypeEvenement,
-        idStatut: formState.idStatut,
-        idSeverite: formState.idSeverite,
+        nomTypeEvenement: typeRef.nom,
+        nomSeverite: severiteRef.nomSeverite,
+        nomStatut: statutNom,
       }
       const created = await createEvenement(payload)
       setEvenements((prev) => [created, ...prev])
@@ -335,14 +380,8 @@ function EvenementsPage() {
         <div>
           <p className="muted small">Supervision en temps réel</p>
           <h2>Gestion des événements</h2>
-          <p className="muted">
-            Tableau de suivi et première connexion API (GET /api/evenements).
-          </p>
         </div>
         <div className="events-actions">
-          <button className="ghost-button" type="button">
-            Demander une décision
-          </button>
           <button
             className="primary"
             type="button"
@@ -363,22 +402,14 @@ function EvenementsPage() {
         <div className="metric-card">
           <p className="muted small">Événements actifs</p>
           <h3>{metriques.total}</h3>
-          <p className="muted">Source : API</p>
         </div>
         <div className="metric-card severe">
           <p className="muted small">Gravité critique</p>
           <h3>{metriques.critiques}</h3>
-          <p className="muted">Inclut les niveaux "Grave/Critique"</p>
-        </div>
-        <div className="metric-card warning">
-          <p className="muted small">Besoins en ressources</p>
-          <h3>{metriques.besoinsRessources}</h3>
-          <p className="muted">Nb véhicules requis renseignés</p>
         </div>
         <div className="metric-card success">
-          <p className="muted small">Clôturés / résolus</p>
+          <p className="muted small">Événements clôturés</p>
           <h3>{metriques.clotures}</h3>
-          <p className="muted">Basé sur le nom du statut</p>
         </div>
       </div>
 
@@ -423,7 +454,7 @@ function EvenementsPage() {
           </label>
           <button
             type="button"
-            className="ghost-button"
+            className="primary secondary"
             onClick={() => setRefreshKey((key) => key + 1)}
           >
             Recharger
@@ -442,15 +473,7 @@ function EvenementsPage() {
               </p>
               <h3>Liste des événements</h3>
             </div>
-            <div className="table-actions">
-              <button
-                type="button"
-                className="ghost-button"
-                onClick={() => setFiltreTexte('')}
-              >
-                Effacer la recherche
-              </button>
-            </div>
+            <div />
           </div>
 
           {etat === 'loading' && (
@@ -487,15 +510,17 @@ function EvenementsPage() {
                   <th>Échelle</th>
                   <th>Ressources</th>
                   <th>Statut</th>
-                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {evenementsFiltres.map((evt) => (
+                {evenementsPage.map((evt) => (
                   <tr
                     key={evt.id}
                     className={selectedId === evt.id ? 'row-active' : ''}
-                    onClick={() => setSelectedId(evt.id)}
+                    onClick={() => {
+                      setSelectedId(evt.id)
+                      ouvrirEdition(evt)
+                    }}
                   >
                     <td className="id-cell">#{evt.id.slice(0, 8)}</td>
                     <td>
@@ -517,114 +542,74 @@ function EvenementsPage() {
                         {evt.nomStatut}
                       </span>
                     </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="link-button"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          setSelectedId(evt.id)
-                        }}
-                      >
-                        Voir
-                      </button>
-                      <button
-                        type="button"
-                        className="link-button"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          ouvrirEdition(evt)
-                        }}
-                      >
-                        Modifier
-                      </button>
-                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
+          {etat === 'ready' && evenementsFiltres.length > pageSize && (
+            <div className="pagination">
+              <div className="muted small">
+                Affichage de {(page - 1) * pageSize + 1} à{' '}
+                {Math.min(page * pageSize, evenementsFiltres.length)} sur{' '}
+                {evenementsFiltres.length} résultats
+              </div>
+              <div className="pagination-controls">
+                <button
+                  type="button"
+                  disabled={page === 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Précédent
+                </button>
+                {Array.from({ length: totalPages }).map((_, idx) => {
+                  const num = idx + 1
+                  const visible =
+                    num === 1 ||
+                    num === totalPages ||
+                    (num >= page - 1 && num <= page + 1)
+                  if (!visible) {
+                    if (num === 2 || num === totalPages - 1) {
+                      return (
+                        <span key={num} className="pagination-dots">
+                          …
+                        </span>
+                      )
+                    }
+                    return null
+                  }
+                  return (
+                    <button
+                      key={num}
+                      type="button"
+                      className={num === page ? 'active' : ''}
+                      onClick={() => setPage(num)}
+                    >
+                      {num}
+                    </button>
+                  )
+                })}
+                <button
+                  type="button"
+                  disabled={page === totalPages}
+                  onClick={() =>
+                    setPage((p) => Math.min(totalPages, p + 1))
+                  }
+                >
+                  Suivant
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-
-        <aside className="event-detail-card">
-          <div className="detail-header">
-            <div>
-              <p className="muted small">Fiche événement</p>
-              <h3>{selection ? `#${selection.id}` : 'Aucune sélection'}</h3>
-            </div>
-            {selection && (
-              <span className={classSeverite(selection.nomSeverite)}>
-                {selection.nomSeverite}
-              </span>
-            )}
-          </div>
-
-          {!selection && (
-            <p className="muted">Cliquez sur une ligne pour afficher les détails.</p>
-          )}
-
-          {selection && (
-            <div className="detail-body">
-              <p className="detail-title">{selection.nomTypeEvenement}</p>
-              <p className="muted">{selection.description}</p>
-
-              <div className="detail-grid">
-                <div>
-                  <p className="muted small">Statut</p>
-                  <span className={`badge ${classStatut(selection.nomStatut)}`}>
-                    {selection.nomStatut}
-                  </span>
-                </div>
-                <div>
-                  <p className="muted small">Ressources requises</p>
-                  <p className="detail-strong">
-                    {selection.nbVehiculesNecessaire ?? '—'} véhicule(s)
-                  </p>
-                </div>
-                <div>
-                  <p className="muted small">Échelle</p>
-                  <p className="detail-strong">{selection.valeurEchelle}</p>
-                </div>
-                <div>
-                  <p className="muted small">Localisation</p>
-                  <p className="detail-strong">
-                    {localisationLisible(selection)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="detail-note">
-                Intervenant en charge : information non fournie par l’API pour
-                l’instant. Relier aux interventions dès que disponible.
-              </div>
-
-              <div className="detail-actions">
-                <button
-                  type="button"
-                  className="ghost-button"
-                  onClick={() => selection && ouvrirEdition(selection)}
-                >
-                  Modifier localement
-                </button>
-                <button
-                  type="button"
-                  className="primary"
-                  onClick={ouvrirCreation}
-                >
-                  Nouvel événement
-                </button>
-              </div>
-            </div>
-          )}
-        </aside>
       </div>
 
       {formMode && formState && (
         <Modal
           titre={
             formMode === 'creation'
-              ? 'Créer un événement (POST /api/evenements)'
-              : 'Modifier un événement (local)'
+              ? 'Créer un événement'
+              : 'Consulter / modifier un événement'
           }
           onClose={remettreAZeroForm}
         >
@@ -650,9 +635,19 @@ function EvenementsPage() {
                 Type d'événement
                 <select
                   value={formState.idTypeEvenement}
-                onChange={(e) =>
-                  mettreAJourForm('idTypeEvenement', e.target.value)
-                }
+                onChange={(e) => {
+                  const value = e.target.value
+                  const ref = types.find((type) => type.id === value)
+                  setFormState((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          idTypeEvenement: value,
+                          nomTypeEvenement: ref?.nom ?? prev.nomTypeEvenement,
+                        }
+                      : prev,
+                  )
+                }}
                 required
               >
                   {types.length === 0 && (
@@ -662,7 +657,7 @@ function EvenementsPage() {
                   )}
                   {types.map((type) => (
                     <option key={type.id} value={type.id}>
-                      {type.nomTypeEvenement}
+                      {type.nom}
                     </option>
                   ))}
                 </select>
@@ -671,7 +666,19 @@ function EvenementsPage() {
                 Gravité
                 <select
                   value={formState.idSeverite}
-                onChange={(e) => mettreAJourForm('idSeverite', e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value
+                  const ref = severites.find((sev) => sev.id === value)
+                  setFormState((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          idSeverite: value,
+                          nomSeverite: ref?.nomSeverite ?? prev.nomSeverite,
+                        }
+                      : prev,
+                  )
+                }}
                 required
               >
                   {severites.length === 0 && (
@@ -690,7 +697,21 @@ function EvenementsPage() {
                 Statut (réutilise ceux présents en base)
                 <select
                   value={formState.idStatut}
-                onChange={(e) => mettreAJourForm('idStatut', e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value
+                  const ref = statutsDisponibles.find(
+                    (statut) => statut.id === value,
+                  )
+                  setFormState((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          idStatut: value,
+                          nomStatut: ref?.nom ?? prev.nomStatut,
+                        }
+                      : prev,
+                  )
+                }}
                 required
               >
                   {statutsDisponibles.length === 0 && (
@@ -745,7 +766,7 @@ function EvenementsPage() {
                 className="primary"
                 disabled={formLoading}
               >
-                {formMode === 'creation' ? 'Envoyer vers API' : 'Enregistrer'}
+                {formMode === 'creation' ? 'Créer un événement' : 'Enregistrer'}
               </button>
             </div>
             {formMode === 'edition' && (

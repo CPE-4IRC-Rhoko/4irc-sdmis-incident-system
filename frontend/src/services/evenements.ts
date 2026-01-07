@@ -4,36 +4,7 @@ import type {
   SeveriteReference,
   TypeEvenementReference,
 } from '../models/evenement'
-
-const PROD_API_BASE = 'https://api.4irc.hugorodrigues.fr'
-
-const detectApiBase = () => {
-  // 1) override via env (Vite)
-  if (typeof import.meta !== 'undefined') {
-    const override = import.meta.env.VITE_API_URL as string | undefined
-    if (override && override.length > 0) return override
-  }
-
-  // 2) default to prod API (HTTPS) to éviter les soucis CORS/dns
-  return PROD_API_BASE
-}
-
-const API_BASE_URL = detectApiBase()
-
-const withBaseUrl = (path: string) =>
-  `${API_BASE_URL.replace(/\/$/, '')}${path}`
-
-const parseJson = async <T>(response: Response): Promise<T> => {
-  if (!response.ok) {
-    const message = await response.text()
-    throw new Error(
-      `Appel API échoué (${response.status}) : ${
-        message || response.statusText
-      }`,
-    )
-  }
-  return response.json() as Promise<T>
-}
+import { parseJson, withBaseUrl } from './api'
 
 export const getEvenements = async (
   signal?: AbortSignal,
