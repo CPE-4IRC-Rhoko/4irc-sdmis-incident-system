@@ -1,4 +1,4 @@
-# CodeQL Advanced - C / C++ + autres langages détectés
+# CodeQL Advanced - C / C++ (micro:bit / Yotta) + autres langages
 name: "CodeQL Advanced"
 
 on:
@@ -32,30 +32,72 @@ jobs:
             build-mode: none
 
     steps:
+      # ------------------------------------------------------------
+      # Checkout
+      # ------------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      # 🔹 Dépendances système pour C / C++
-      - name: Install build dependencies
+      # ------------------------------------------------------------
+      # Dépendances système (C/C++, ARM, Python)
+      # ------------------------------------------------------------
+      - name: Install system dependencies
         if: matrix.language == 'c-cpp'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            python3 \
+            python3-pip \
+            python3-venv \
+            gcc-arm-none-eabi
 
-      # 🔹 Initialisation CodeQL
+      # ------------------------------------------------------------
+      # Initialisation CodeQL
+      # ------------------------------------------------------------
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
 
-      - name: Build C/C++
-        if: matrix.build-mode == 'manual'
+      # ------------------------------------------------------------
+      # Setup environnement Yotta (obligatoire pour micro:bit)
+      # ------------------------------------------------------------
+      - name: Setup Yotta environment
+        if: matrix.language == 'c-cpp'
         run: |
-          cd iot/microbit-qg && make && cd ./../microbit-terrain && make
+          python3 -m venv yotta-env
+          source yotta-env/bin/activate
+          pip install --upgrade pip
+          pip install yotta
 
+      # ------------------------------------------------------------
+      # Build microbit-qg
+      # ------------------------------------------------------------
+      - name: Build microbit-qg
+        if: matrix.language == 'c-cpp'
+        working-directory: iot/microbit-qg
+        run: |
+          source ../../yotta-env/bin/activate
+          make
 
-      # 🔹 Analyse CodeQL
+      # ------------------------------------------------------------
+      # Build microbit-terrain
+      # ------------------------------------------------------------
+      - name: Build microbit-terrain
+        if: matrix.language == 'c-cpp'
+        working-directory: iot/microbit-terrain
+        run: |
+          source ../../yotta-env/bin/activate
+          make
+
+      # ------------------------------------------------------------
+      # Analyse CodeQL
+      # ------------------------------------------------------------
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
         with:
