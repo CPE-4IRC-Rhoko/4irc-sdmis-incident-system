@@ -61,7 +61,7 @@ jobs:
 
       - uses: github/codeql-action/analyze@v4
 
-codeql-JAVA-api:
+  codeql-JAVA-api:
     name: CodeQL Analyze (JAVA-API)
     runs-on: ubuntu-latest
 
@@ -90,7 +90,7 @@ codeql-JAVA-api:
         with:
           category: "/language:java"
 
-codeql-MoteurDecision:
+  codeql-MoteurDecision:
     name: CodeQL Analyze (JAVA-MoteurDecision)
     runs-on: ubuntu-latest
 
