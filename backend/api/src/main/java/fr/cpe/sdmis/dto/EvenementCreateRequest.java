@@ -8,6 +8,5 @@ public record EvenementCreateRequest(
         @NotNull Double latitude,
         @NotNull Double longitude,
         @NotBlank String nomTypeEvenement,
-        @NotBlank String nomSeverite,
-        String nomStatut
+        @NotBlank String nomSeverite
 ) { }
