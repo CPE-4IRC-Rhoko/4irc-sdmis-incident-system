@@ -17,9 +17,9 @@ export interface EvenementCreatePayload {
   description: string
   latitude: number
   longitude: number
-  idTypeEvenement: string
-  idStatut: string
-  idSeverite: string
+  nomTypeEvenement: string
+  nomSeverite: string
+  nomStatut?: string | null
 }
 
 export interface SeveriteReference {
@@ -31,5 +31,5 @@ export interface SeveriteReference {
 
 export interface TypeEvenementReference {
   id: string
-  nomTypeEvenement: string
+  nom: string
 }
