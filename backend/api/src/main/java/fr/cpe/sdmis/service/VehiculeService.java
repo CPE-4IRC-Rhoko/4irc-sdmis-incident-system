@@ -44,6 +44,6 @@ public class VehiculeService {
     }
 
     public List<VehiculeIdentResponse> getIdentifiants() {
-        return vehiculeRepository.findIdentifiants();
+        return vehiculeRepository.findCleIdent();
     }
 }
