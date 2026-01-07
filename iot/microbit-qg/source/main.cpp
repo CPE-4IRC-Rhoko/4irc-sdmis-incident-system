@@ -6,131 +6,166 @@ extern "C" {
 
 MicroBit uBit;
 uint8_t cleAES[16] = { 'V','i','n','c','e','n','t','L','e','P','l','u','B','o','1','2' };
-uint32_t watchdogValidFrames = 0;
 
-void serialPrint(ManagedString data) {
-    uBit.serial.send(data + "\n");
+// Base de clés
+uint8_t keysHMAC[3][16] = {
+    { 'K','e','y','1','0','_','S','e','c','r','e','t','!','!','!','!' }, 
+    { 'K','e','y','2','0','_','S','e','c','r','e','t','@','@','@','@' }, 
+    { 'K','e','y','3','0','_','S','e','c','r','e','t','#','#','#','#' }  
+};
+
+PacketBuffer bufferRadioRecu(0);
+bool dataReady = false; 
+
+// --- OUTILS (MODIFIÉ POUR STRING) ---
+uint8_t* getClePourID(ManagedString id) {
+    // Comparaison de chaînes de caractères
+    if (id == "AA100AA") return keysHMAC[0];
+    if (id == "BB200BB") return keysHMAC[1];
+    if (id == "CC300CC") return keysHMAC[2];
+    return NULL;
 }
 
-// Fonction utilitaire (OK)
-int findSubStr(ManagedString source, const char* target) {
-    const char* s = source.toCharArray();
-    const char* found = strstr(s, target);
-    if (found != NULL) {
-        return (int)(found - s);
-    }
-    return -1;
+uint32_t calculerAuth(const char* data, int len, uint8_t* cle) {
+    uint32_t hash = 0x12345678;
+    for (int i = 0; i < 16; i++) { hash ^= cle[i]; hash = (hash << 5) | (hash >> 27); }
+    for (int i = 0; i < len; i++) { hash ^= (uint8_t)data[i]; hash *= 0x5bd1e995; hash ^= (hash >> 15); }
+    return hash;
 }
 
-// Version sécurisée pour Yotta avec memset
-ManagedString chiffrerAES64(ManagedString message) {
-    uint8_t buffer[64];
-    memset(buffer, ' ', 64); // On remplit de vide proprement
-
-    int len = message.length();
-    if (len > 64) len = 64;
-    memcpy(buffer, message.toCharArray(), len);
-
-    AES_ctx ctx;
-    AES_init_ctx(&ctx, cleAES);
+PacketBuffer chiffrerReponse(ManagedString message, uint8_t* cleSpecifique) {
+    uint8_t buffer[64]; memset(buffer, 0, 64);
+    int len = message.length(); if (len > 56) len = 56;
+    memcpy(buffer + 4, message.toCharArray(), len);
+    uint32_t auth = calculerAuth((const char*)(buffer + 4), 56, cleSpecifique);
+    memcpy(buffer, &auth, 4);
+    AES_ctx ctx; AES_init_ctx(&ctx, cleAES);
     for (int i = 0; i < 4; i++) AES_ECB_encrypt(&ctx, buffer + (i * 16));
-    return ManagedString((const char*)buffer, 64);
+    return PacketBuffer(buffer, 64);
 }
 
-ManagedString dechiffrerAES64(ManagedString data) {
-    // Si on n'a pas 64 octets, on ne touche pas à la mémoire !
-    if (data.length() < 64) return ManagedString("");
-
-    const char* raw = data.toCharArray();
-    uint8_t buffer[64];
-    memcpy(buffer, raw, 64);
-
-    AES_ctx ctx;
-    AES_init_ctx(&ctx, cleAES);
-    for (int i = 0; i < 4; i++) AES_ECB_decrypt(&ctx, buffer + (i * 16));
-
-    int realLen = 64;
-    while (realLen > 0 && buffer[realLen - 1] == ' ') realLen--;
-    return ManagedString((const char*)buffer, realLen);
+// Fonction utilitaire pour extraire une valeur proprement
+ManagedString extractValue(ManagedString source, const char* tag) {
+    const char* s = source.toCharArray();
+    char* ptrStart = strstr((char*)s, tag);
+    if (!ptrStart) return "0";
+    ptrStart += strlen(tag);
+    char* ptrEnd = strstr(ptrStart, ";");
+    if (!ptrEnd) return "0";
+    return source.substring((ptrStart - s), ptrEnd - ptrStart);
 }
 
-void receive_from_microbit(MicroBitEvent)
-{
-    ManagedString raw = uBit.radio.datagram.recv();
+// --- DECHIFFREMENT (MODIFIÉ) ---
+// Note : idDetecte devient un ManagedString* pour renvoyer du texte
+ManagedString dechiffrerIntelligent(PacketBuffer data, bool* authValide, ManagedString* idDetecte) {
+    *authValide = false;
     
-    // --- DIAGNOSTIC VISUEL ---
-    // Allume un pixel au centre pour dire "J'ai reçu quelque chose !"
-    uBit.display.image.setPixelValue(2, 2, 255); 
-
-    // --- DIAGNOSTIC TAILLE ---
-    // C'EST ICI QUE TOUT SE JOUE
-    if (raw.length() < 64) {
-        // Si tu vois ce message dans le terminal, c'est que le config.json n'a pas marché
-        // La radio coupe les paquets à 32 octets.
-        serialPrint("ERREUR: Paquet recu trop petit (<64). Verifier config.json !");
-        uBit.sleep(200);
-        uBit.display.image.setPixelValue(2, 2, 0); // Eteint le pixel
-        return; 
-    }
-
-    ManagedString msg = dechiffrerAES64(raw); 
+    if (data.length() < 80) return ManagedString("");
     
-    int idIndex = findSubStr(msg, "ID:");
-    int seqIndex = findSubStr(msg, "Seq:");
+    uint8_t buffer[80]; memcpy(buffer, data.getBytes(), 80);
     
-    if (idIndex >= 0 && seqIndex >= 0) {
-        watchdogValidFrames++;
+    AES_ctx ctx; AES_init_ctx(&ctx, cleAES);
+    for (int i = 0; i < 5; i++) AES_ECB_decrypt(&ctx, buffer + (i * 16));
 
-        int firstSemiColon = -1;
-        // Recherche manuelle du ;
-        const char* sMsg = msg.toCharArray();
-        char* ptrID = strstr((char*)sMsg, "ID:");
-        char* ptrVirgule = strstr(ptrID, ";");
+    char* texteDebut = (char*)(buffer + 4);
+    
+    // --- Extraction ID (VERSION TEXTE) ---
+    char* ptrID = strstr(texteDebut, "ID:");
+    if (!ptrID) return ManagedString("");
+    
+    char* ptrFinID = strstr(ptrID, ";");
+    if (!ptrFinID) return ManagedString("");
+    
+    ptrID += 3; // On saute "ID:"
+    
+    // On calcule la longueur de l'ID (ex: "AA100AA" = 7 caractères)
+    int lenID = ptrFinID - ptrID;
+    
+    // On crée une ManagedString à partir de ces pointeurs
+    *idDetecte = ManagedString(ptrID, lenID);
+
+    // On récupère la clé grâce à la chaîne de caractères
+    uint8_t* cleSpecifique = getClePourID(*idDetecte);
+    
+    if (!cleSpecifique) return ManagedString("ERR_UNKNOWN_ID");
+
+    // --- Vérification Auth ---
+    uint32_t authRecu; memcpy(&authRecu, buffer, 4);
+    uint32_t authCalc = calculerAuth(texteDebut, 76, cleSpecifique);
+
+    if (authRecu != authCalc) return ManagedString("ERR_BAD_SIGNATURE");
+
+    *authValide = true;
+    int realLen = 76; while (realLen > 0 && buffer[4 + realLen - 1] == 0) realLen--;
+    return ManagedString(texteDebut, realLen);
+}
+
+void traiterDonnees() {
+    PacketBuffer raw = bufferRadioRecu;
+    dataReady = false;
+    
+    bool authValide = false;
+    ManagedString idRecu = ""; // C'est maintenant une String
+    
+    ManagedString msg = dechiffrerIntelligent(raw, &authValide, &idRecu);
+    
+    if (authValide) {
+        uBit.display.image.setPixelValue(2, 2, 255); 
         
-        if (ptrVirgule != NULL) {
-            firstSemiColon = ptrVirgule - sMsg;
-            
-            ManagedString idStr = msg.substring(idIndex + 3, firstSemiColon - (idIndex + 3));
-            ManagedString seqStr = msg.substring(seqIndex + 4, msg.length() - (seqIndex + 4));
-
-            ManagedString ackMsg = "ACK:" + idStr + ";" + seqStr;
-            uBit.sleep(100);
-            uBit.radio.datagram.send(chiffrerAES64(ackMsg));
-
-            serialPrint(msg + ";WD:" + ManagedString((int)watchdogValidFrames));
-            uBit.display.print("V"); 
+        ManagedString sGeo = extractValue(msg, "Geo:");
+        ManagedString sEau = extractValue(msg, "Eau:");
+        ManagedString sBtn = extractValue(msg, "Btn:");
+        ManagedString sSeq = extractValue(msg, "Seq:");
+        ManagedString sTime = extractValue(msg, "Time:");
+        
+        int virguleIndex = -1;
+        const char* sGeoChar = sGeo.toCharArray();
+        for(int i=0; i<sGeo.length(); i++) { if(sGeoChar[i] == ',') virguleIndex = i; }
+        
+        ManagedString sLat = "0";
+        ManagedString sLon = "0";
+        if (virguleIndex > 0) {
+            sLat = sGeo.substring(0, virguleIndex);
+            sLon = sGeo.substring(virguleIndex + 1, sGeo.length() - virguleIndex - 1);
         }
-    } 
+
+        // --- SORTIE USB (idRecu est déjà une string, on enlève le ManagedString(...) inutile) ---
+        // Attention aux guillemets pour l'ID dans le JSON si c'est une string !
+        uBit.serial.send("EXP:{\"plaqueImmat\":\"" + idRecu + "\"" + 
+                         ",\"lat\":" + sLat + 
+                         ",\"lon\":" + sLon +
+                         ",\"timestamp\":" + sTime + 
+                         ",\"ressources\":{\"eau\":" + sEau + "}" +
+                         ",\"btn\":" + sBtn + "}\r\n");
+        
+        // ACK
+        ManagedString ack = "ACK:" + idRecu + ";" + sSeq;
+        uBit.sleep(20);
+        uBit.radio.datagram.send(chiffrerReponse(ack, getClePourID(idRecu)));
+        
+    } else {
+        uBit.display.image.setPixelValue(0, 0, 255); 
+        uBit.serial.send("LOG: Rejet securite\r\n");
+    }
     
-    uBit.sleep(100);
-    uBit.display.image.setPixelValue(2, 2, 0); // Eteint le pixel
+    uBit.sleep(50);
+    uBit.display.image.clear();
 }
 
-void Send_to_microbit(ManagedString data) {
-    uBit.radio.datagram.send(chiffrerAES64(data));   
+void receive_from_microbit(MicroBitEvent) {
+    PacketBuffer temp = uBit.radio.datagram.recv();
+    if (temp.length() > 0) { bufferRadioRecu = temp; dataReady = true; }
 }
 
 int main() {
     uBit.init();
-    uBit.display.print("QG");
-
-    uBit.messageBus.listen(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, receive_from_microbit);
-    uBit.radio.enable();
-    uBit.radio.setGroup(16);
-    uBit.radio.setTransmitPower(7);
-
-    uBit.serial.setTxBufferSize(128);
-    uBit.serial.setRxBufferSize(128);
+    uBit.display.print("Q");
     uBit.serial.baud(115200);
-
+    uBit.radio.enable(); uBit.radio.setGroup(16);
+    uBit.messageBus.listen(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, receive_from_microbit);
+    
     while(1) {
-        ManagedString received = uBit.serial.readUntil('\n'); 
-        if (received.length() != 0) Send_to_microbit(received);
-        
-        // Petit clignotement en coin pour montrer que le QG est vivant
-        uBit.display.image.setPixelValue(0, 0, 255);
-        uBit.sleep(500);
-        uBit.display.image.setPixelValue(0, 0, 0);
-        uBit.sleep(500);
+        if (dataReady) traiterDonnees();
+        uBit.sleep(10);
     }
 }
