@@ -14,7 +14,7 @@ jobs:
   # ==========================
   # C / C++ ANALYSIS (Docker)
   # ==========================
-  codeql-cpp:
+  codeql-C-CPP:
     name: CodeQL Analyze (C/C++)
     runs-on: ubuntu-latest
 
@@ -48,28 +48,27 @@ jobs:
   # ==========================================
   # PYTHON / JAVA / JAVASCRIPT ANALYSIS
   # ==========================================
-  codeql-other:
-    name: CodeQL Analyze (Python / Java / JS)
+  codeql-Python-JS:
+    name: CodeQL Analyze (Python / JavaScript)
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup JDK
-        uses: actions/setup-java@v4
+      - uses: github/codeql-action/init@v4
         with:
-          distribution: temurin
-          java-version: 17
+          languages: python, javascript-typescript
 
-      - name: Initialize CodeQL (Other languages)
-        uses: github/codeql-action/init@v4
+      - uses: github/codeql-action/analyze@v4
+  codeql-Java:
+    name: CodeQL Analyze (Java)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v4
         with:
-          languages: python, java, javascript-typescript
+          languages: java
           build-mode: autobuild
-
-      # Aucun build nécessaire pour ces langages
-      - name: Perform CodeQL Analysis (Other languages)
-        uses: github/codeql-action/analyze@v4
-        with:
-          category: "/language:multi"
+      - uses: github/codeql-action/analyze@v4
