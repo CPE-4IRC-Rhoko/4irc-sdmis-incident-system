@@ -349,6 +349,10 @@
   display: inline-block;
 }
 
+.evenements-wrapper {
+  grid-column: span 2;
+}
+
 @media (max-width: 1280px) {
   .qg-dashboard {
     grid-template-columns: 190px 1fr;

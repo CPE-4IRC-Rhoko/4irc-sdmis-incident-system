@@ -62,7 +62,8 @@ function App() {
         />
 
         <section className="page-surface">
-          {ongletActif === 'QG' ? <QGPage /> : <TerrainPage />}
+          {ongletActif === 'QG' && <QGPage />}
+          {ongletActif === 'TERRAIN' && <TerrainPage />}
         </section>
       </main>
     </div>

@@ -11,6 +11,7 @@ import type {
   CategorieRessource,
   Ressource,
 } from '../models/resource'
+import EvenementsPage from './EvenementsPage'
 import './QGPage.css'
 
 const vueInitiale: VueCarte = {
@@ -50,6 +51,9 @@ function QGPage() {
     string | undefined
   >(evenementsInitial[0]?.id)
   const [vueCarte, setVueCarte] = useState<VueCarte>(vueInitiale)
+  const [sectionQG, setSectionQG] = useState<'TABLEAU' | 'EVENEMENTS'>(
+    'TABLEAU',
+  )
 
   const derniereMiseAJour = useMemo(
     () =>
@@ -123,10 +127,22 @@ function QGPage() {
     <div className="qg-dashboard">
       <nav className="nav-vertical">
         <p className="nav-label">Navigation</p>
-        <button className="nav-item nav-active" type="button">
+        <button
+          className={`nav-item ${
+            sectionQG === 'TABLEAU' ? 'nav-active' : ''
+          }`}
+          type="button"
+          onClick={() => setSectionQG('TABLEAU')}
+        >
           Tableau de bord
         </button>
-        <button className="nav-item" type="button">
+        <button
+          className={`nav-item ${
+            sectionQG === 'EVENEMENTS' ? 'nav-active' : ''
+          }`}
+          type="button"
+          onClick={() => setSectionQG('EVENEMENTS')}
+        >
           Événements
         </button>
         <button className="nav-item" type="button">
@@ -147,156 +163,164 @@ function QGPage() {
         </button>
       </nav>
 
-      <section className="map-zone">
-        <div className="map-search">
-          <input
-            type="text"
-            placeholder="Localiser une adresse ou des coordonnées GPS..."
-          />
-          <button type="button" title="Rechercher">🔍</button>
+      {sectionQG === 'EVENEMENTS' ? (
+        <div className="evenements-wrapper">
+          <EvenementsPage />
         </div>
-        <MapView
-          evenements={evenements}
-          ressources={ressources}
-          evenementSelectionneId={evenementSelectionneId}
-          onSelectEvenement={setEvenementSelectionneId}
-          vue={vueCarte}
-          onMove={setVueCarte}
-        />
-        <div className="map-legend">
-          <p className="legend-title">Légende</p>
-          <div className="legend-row">
-            <span className="legend-dot crit"></span> Événement critique
-          </div>
-          <div className="legend-row">
-            <span className="legend-dot modere"></span> Événement majeur
-          </div>
-          <div className="legend-row">
-            <span className="legend-dot mineur"></span> Événement mineur
-          </div>
-          <div className="legend-row">
-            <span className="legend-dot police"></span> Police / Gendarmerie
-          </div>
-          <div className="legend-row">
-            <span className="legend-dot secours"></span> Secours / Santé
-          </div>
-          <div className="legend-row">
-            <span className="legend-dot technique"></span> Technique
-          </div>
-        </div>
-      </section>
-
-      <aside className="situation-panel">
-        <header className="panel-header">
-          <div>
-            <p className="muted">Situation Temps Réel</p>
-            <p className="small">Dernière mise à jour : {derniereMiseAJour}</p>
-          </div>
-        </header>
-
-        <div className="stat-grid">
-          <div className="stat-card">
-            <p className="muted">Événements actifs</p>
-            <h3>{evenementsActifs.length}</h3>
-            <p className="small accent">Suivi en temps réel (données démo)</p>
-          </div>
-          <div className="stat-card">
-            <p className="muted">Unités terrain</p>
-            <h3>{ressources.length}</h3>
-            <p className="small accent">
-              {ressourcesEngagees.length} engagées · {tauxEngagement}%
-            </p>
-          </div>
-        </div>
-
-        <section className="card-block">
-          <div className="card-header">
-            <h4>Événements prioritaires</h4>
-            <button className="link">Tout voir</button>
-          </div>
-          <div className="priority-list">
-            {evenementsPrioritaires.map((evt) => (
-              <button
-                key={evt.id}
-                type="button"
-                className={`priority-item ${
-                  evenementSelectionneId === evt.id ? 'priority-active' : ''
-                }`}
-                onClick={() => setEvenementSelectionneId(evt.id)}
-              >
-                <div className="priority-top">
-                  <span className={`pill gravite-${evt.gravite.toLowerCase()}`}>
-                    {LIBELLES_GRAVITE_INCIDENT[evt.gravite]}
-                  </span>
-                  <span className="muted small">{evt.id}</span>
-                </div>
-                <p className="item-title">{evt.titre}</p>
-                <p className="muted small">
-                  {evt.description ?? 'Information en cours'}
-                </p>
-                <p className="muted small">
-                  Statut : {LIBELLES_STATUT_INCIDENT[evt.statut]}
-                </p>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section className="card-block">
-          <div className="card-header">
-            <h4>État des ressources</h4>
-          </div>
-          <div className="resource-bars">
-            {Object.entries(ressourcesParCategorie).map(([key, stats]) => (
-              <div key={key} className="resource-line">
-                <div className="resource-line-top">
-                  <span>{libelleCategorie(key as CategorieRessource)}</span>
-                  <span className="muted small">
-                    {stats.dispo} dispo / {stats.total} total
-                  </span>
-                </div>
-                <div className="resource-bar">
-                  <span
-                    className="bar dispo"
-                    style={{
-                      width: `${stats.total === 0 ? 0 : (stats.dispo / stats.total) * 100}%`,
-                    }}
-                  />
-                  <span
-                    className="bar occupe"
-                    style={{
-                      width: `${stats.total === 0 ? 0 : (stats.occupe / stats.total) * 100}%`,
-                    }}
-                  />
-                  <span
-                    className="bar hors-ligne"
-                    style={{
-                      width: `${stats.total === 0 ? 0 : (stats.horsLigne / stats.total) * 100}%`,
-                    }}
-                  />
-                </div>
+      ) : (
+        <>
+          <section className="map-zone">
+            <div className="map-search">
+              <input
+                type="text"
+                placeholder="Localiser une adresse ou des coordonnées GPS..."
+              />
+              <button type="button" title="Rechercher">🔍</button>
+            </div>
+            <MapView
+              evenements={evenements}
+              ressources={ressources}
+              evenementSelectionneId={evenementSelectionneId}
+              onSelectEvenement={setEvenementSelectionneId}
+              vue={vueCarte}
+              onMove={setVueCarte}
+            />
+            <div className="map-legend">
+              <p className="legend-title">Légende</p>
+              <div className="legend-row">
+                <span className="legend-dot crit"></span> Événement critique
               </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="card-block">
-          <div className="card-header">
-            <h4>Dernières actions</h4>
-          </div>
-          <div className="actions-list">
-            {actionsRecentes.map((action) => (
-              <div key={action.titre} className="action-item">
-                <span className="dot" />
-                <div>
-                  <p className="item-title">{action.titre}</p>
-                  <p className="muted small">{action.horodatage}</p>
-                </div>
+              <div className="legend-row">
+                <span className="legend-dot modere"></span> Événement majeur
               </div>
-            ))}
-          </div>
-        </section>
-      </aside>
+              <div className="legend-row">
+                <span className="legend-dot mineur"></span> Événement mineur
+              </div>
+              <div className="legend-row">
+                <span className="legend-dot police"></span> Police / Gendarmerie
+              </div>
+              <div className="legend-row">
+                <span className="legend-dot secours"></span> Secours / Santé
+              </div>
+              <div className="legend-row">
+                <span className="legend-dot technique"></span> Technique
+              </div>
+            </div>
+          </section>
+
+          <aside className="situation-panel">
+            <header className="panel-header">
+              <div>
+                <p className="muted">Situation Temps Réel</p>
+                <p className="small">Dernière mise à jour : {derniereMiseAJour}</p>
+              </div>
+            </header>
+
+            <div className="stat-grid">
+              <div className="stat-card">
+                <p className="muted">Événements actifs</p>
+                <h3>{evenementsActifs.length}</h3>
+                <p className="small accent">Suivi en temps réel (données démo)</p>
+              </div>
+              <div className="stat-card">
+                <p className="muted">Unités terrain</p>
+                <h3>{ressources.length}</h3>
+                <p className="small accent">
+                  {ressourcesEngagees.length} engagées · {tauxEngagement}%
+                </p>
+              </div>
+            </div>
+
+            <section className="card-block">
+              <div className="card-header">
+                <h4>Événements prioritaires</h4>
+                <button className="link">Tout voir</button>
+              </div>
+              <div className="priority-list">
+                {evenementsPrioritaires.map((evt) => (
+                  <button
+                    key={evt.id}
+                    type="button"
+                    className={`priority-item ${
+                      evenementSelectionneId === evt.id ? 'priority-active' : ''
+                    }`}
+                    onClick={() => setEvenementSelectionneId(evt.id)}
+                  >
+                    <div className="priority-top">
+                      <span className={`pill gravite-${evt.gravite.toLowerCase()}`}>
+                        {LIBELLES_GRAVITE_INCIDENT[evt.gravite]}
+                      </span>
+                      <span className="muted small">{evt.id}</span>
+                    </div>
+                    <p className="item-title">{evt.titre}</p>
+                    <p className="muted small">
+                      {evt.description ?? 'Information en cours'}
+                    </p>
+                    <p className="muted small">
+                      Statut : {LIBELLES_STATUT_INCIDENT[evt.statut]}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="card-block">
+              <div className="card-header">
+                <h4>État des ressources</h4>
+              </div>
+              <div className="resource-bars">
+                {Object.entries(ressourcesParCategorie).map(([key, stats]) => (
+                  <div key={key} className="resource-line">
+                    <div className="resource-line-top">
+                      <span>{libelleCategorie(key as CategorieRessource)}</span>
+                      <span className="muted small">
+                        {stats.dispo} dispo / {stats.total} total
+                      </span>
+                    </div>
+                    <div className="resource-bar">
+                      <span
+                        className="bar dispo"
+                        style={{
+                          width: `${stats.total === 0 ? 0 : (stats.dispo / stats.total) * 100}%`,
+                        }}
+                      />
+                      <span
+                        className="bar occupe"
+                        style={{
+                          width: `${stats.total === 0 ? 0 : (stats.occupe / stats.total) * 100}%`,
+                        }}
+                      />
+                      <span
+                        className="bar hors-ligne"
+                        style={{
+                          width: `${stats.total === 0 ? 0 : (stats.horsLigne / stats.total) * 100}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="card-block">
+              <div className="card-header">
+                <h4>Dernières actions</h4>
+              </div>
+              <div className="actions-list">
+                {actionsRecentes.map((action) => (
+                  <div key={action.titre} className="action-item">
+                    <span className="dot" />
+                    <div>
+                      <p className="item-title">{action.titre}</p>
+                      <p className="muted small">{action.horodatage}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </aside>
+        </>
+      )}
     </div>
   )
 }
