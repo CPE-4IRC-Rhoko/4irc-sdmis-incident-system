@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { useEffect } from 'react'
+import type { ReactNode, MouseEvent } from 'react'
 import './Modal.css'
 
 interface Props {
@@ -8,8 +9,27 @@ interface Props {
 }
 
 function Modal({ titre, children, onClose }: Props) {
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [onClose])
+
+  const handleBackdropClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (event.target === event.currentTarget) {
+      onClose()
+    }
+  }
+
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
+    <div
+      className="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      onMouseDown={handleBackdropClick}
+    >
       <div className="modal">
         <div className="modal-header">
           <h3>{titre}</h3>

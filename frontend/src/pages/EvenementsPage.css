@@ -74,7 +74,7 @@
 
 .events-toolbar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.75rem;
   align-items: center;
   background: #ffffff;
@@ -83,6 +83,7 @@
   padding: 0.75rem 0.85rem;
   box-shadow: 0 10px 26px rgba(15, 31, 64, 0.06);
   margin-bottom: 0.9rem;
+  justify-content: space-between;
 }
 
 .toolbar-input {
@@ -94,6 +95,7 @@
   padding: 0.45rem 0.6rem;
   min-width: 260px;
   background: #f9fbff;
+  flex: 1;
 }
 
 .toolbar-input input {
@@ -107,7 +109,7 @@
   display: flex;
   gap: 0.6rem;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .toolbar-filters label {
@@ -138,6 +140,8 @@
   border-radius: 16px;
   box-shadow: 0 12px 34px rgba(15, 31, 64, 0.08);
   min-height: 420px;
+  display: flex;
+  flex-direction: column;
 }
 .events-table-card {
   padding: 0.75rem 0.75rem 0.4rem 0.75rem;
@@ -246,6 +250,7 @@
   padding: 1rem;
   text-align: center;
   color: #6b7285;
+  flex: 1;
 }
 
 .table-placeholder.erreur {
@@ -333,6 +338,7 @@
   gap: 0.6rem;
   padding: 0.6rem 0.75rem;
   border-top: 1px solid #e6ebf4;
+  margin-top: auto;
 }
 
 .pagination-controls {

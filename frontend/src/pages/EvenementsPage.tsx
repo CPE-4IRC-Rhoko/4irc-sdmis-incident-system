@@ -452,13 +452,6 @@ function EvenementsPage() {
               ))}
             </select>
           </label>
-          <button
-            type="button"
-            className="primary secondary"
-            onClick={() => setRefreshKey((key) => key + 1)}
-          >
-            Recharger
-          </button>
         </div>
       </div>
 
@@ -547,7 +540,7 @@ function EvenementsPage() {
               </tbody>
             </table>
           )}
-          {etat === 'ready' && evenementsFiltres.length > pageSize && (
+          {etat === 'ready' && evenementsFiltres.length > 0 && (
             <div className="pagination">
               <div className="muted small">
                 Affichage de {(page - 1) * pageSize + 1} à{' '}
@@ -694,7 +687,7 @@ function EvenementsPage() {
                 </select>
               </label>
               <label>
-                Statut (réutilise ceux présents en base)
+                Statut
                 <select
                   value={formState.idStatut}
                 onChange={(e) => {

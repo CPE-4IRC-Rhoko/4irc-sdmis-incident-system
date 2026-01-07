@@ -21,6 +21,7 @@ import {
 import { getVehiculesOperationnels } from '../services/vehicules'
 import { getInterventions } from '../services/interventions'
 import EvenementsPage from './EvenementsPage'
+import RessourcesPage from './RessourcesPage'
 import './QGPage.css'
 import '../components/IncidentForm.css'
 
@@ -150,7 +151,7 @@ function QGPage() {
     string | undefined
   >(undefined)
   const [vueCarte, setVueCarte] = useState<VueCarte>(vueInitiale)
-  const [sectionQG, setSectionQG] = useState<'TABLEAU' | 'EVENEMENTS'>(
+  const [sectionQG, setSectionQG] = useState<'TABLEAU' | 'EVENEMENTS' | 'RESSOURCES'>(
     'TABLEAU',
   )
   const [etatChargement, setEtatChargement] = useState<
@@ -441,7 +442,13 @@ function QGPage() {
         >
           Événements
         </button>
-        <button className="nav-item" type="button">
+        <button
+          className={`nav-item ${
+            sectionQG === 'RESSOURCES' ? 'nav-active' : ''
+          }`}
+          type="button"
+          onClick={() => setSectionQG('RESSOURCES')}
+        >
           Ressources
         </button>
         <button className="nav-item" type="button">
@@ -462,6 +469,10 @@ function QGPage() {
       {sectionQG === 'EVENEMENTS' ? (
         <div className="evenements-wrapper">
           <EvenementsPage />
+        </div>
+      ) : sectionQG === 'RESSOURCES' ? (
+        <div className="evenements-wrapper">
+          <RessourcesPage />
         </div>
       ) : (
         <>
