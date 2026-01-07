@@ -49,12 +49,10 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
 
-      # 🔹 BUILD OBLIGATOIRE pour C / C++
       - name: Build C/C++
         if: matrix.build-mode == 'manual'
         run: |
-          cmake -S . -B build
-          cmake --build build
+          make
 
       # 🔹 Analyse CodeQL
       - name: Perform CodeQL Analysis
