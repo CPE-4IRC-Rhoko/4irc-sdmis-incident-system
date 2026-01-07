@@ -6,73 +6,140 @@ import sys
 from datetime import datetime, timezone
 
 # --- CONFIGURATION ---
+# Ton port Mac (vérifie avec 'ls /dev/tty.usbmodem*')
 PORT_USB = "/dev/tty.usbmodem11202"
 BAUDRATE = 115200
 
-# URL de ton API
-#URL_API = "https://webhook.site/30abc7a4-5b4e-46b6-a3b0-f3818a5b698c"
-URL_API = "https://api.4irc.hugorodrigues.fr/api/vehicules/mise-a-jour"
+# 1. URL pour RECUPERER les clés (GET)
+# Doit renvoyer : [{"plaqueImmat": "AA...", "cleIdent": "Key..."}, ...]
+URL_API_KEYS = "https://api.4irc.hugorodrigues.fr/api/vehicules/cle-ident"
+
+# 2. URL pour ENVOYER les données reçues (POST)
+URL_API_DATA = "https://api.4irc.hugorodrigues.fr/api/vehicules/mise-a-jour"
+
+# FREQUENCE DE MISE A JOUR DES CLES (en secondes)
+KEY_UPDATE_INTERVAL = 120  # 2 minutes
+
+def fetch_and_sync_keys(ser):
+    print(f"--- Synchronisation des clés depuis l'API ---")
+    print(f"GET {URL_API_KEYS}...")
+
+    vehicules_list = []
+
+    # 1. Récupération Web
+    try:
+        resp = requests.get(URL_API_KEYS)
+        if resp.status_code == 200:
+            vehicules_list = resp.json()
+            print(f"API a répondu : {len(vehicules_list)} véhicules trouvés.")
+        else:
+            print(f"Erreur API : Code {resp.status_code}")
+            return
+    except Exception as e:
+        print(f"Erreur Connexion API (Le serveur est lancé ?) : {e}")
+        return
+
+    # 2. Injection dans la Micro:bit
+    count = 0
+    for vehicule in vehicules_list:
+        # Mapping selon ta structure JSON exacte
+        plaque = vehicule.get("plaqueImmat")  # Devient l'ID
+        cle = vehicule.get("cleIdent")  # Devient la KEY
+
+        if plaque and cle:
+            # Format protocole : CFG:AA100AA:KeySecret!!!!
+            command = f"CFG:{plaque}:{cle}\n"
+
+            ser.write(command.encode('utf-8'))
+            ser.flush()
+
+            print(f"Injection : {plaque} -> Clé configurée")
+            count += 1
+
+            # Pause nécessaire pour ne pas saturer le buffer série de la Micro:bit
+            time.sleep(0.15)
+        else:
+            print(f"Ignoré (Données incomplètes) : {vehicule}")
+
+    print(f"--- Synchro terminée ({count} clés actives) ---")
 
 
 def demarrer_passerelle():
-    print(f"--- Démarrage Passerelle QG (Mac) sur {PORT_USB} ---")
+    print(f"--- Démarrage Passerelle QG sur {PORT_USB} ---")
 
     try:
-        # Ouverture du port série
+        # Ouverture Port Série
         ser = serial.Serial(PORT_USB, BAUDRATE, timeout=1)
-        print("Port série ouvert. En attente de données radio...")
+        # Attente stabilisation (reboot auto possible à l'ouverture)
+        time.sleep(2)
+
+        # Initialisation du timer
+        last_key_update = time.time()
+
+        # ETAPE 1 : CONFIGURATION AU DEMARRAGE
+        fetch_and_sync_keys(ser)
+
+        # ETAPE 2 : ECOUTE ET TRANSFERT
+        print("\nPasserelle prête. En attente de radio...")
 
         while True:
-            # Lecture d'une ligne
+            # --- AJOUT : GESTION DU TEMPS (AUTO-UPDATE) ---
+            current_time = time.time()
+            if current_time - last_key_update > KEY_UPDATE_INTERVAL:
+                print("\n[Timer] Mise à jour automatique des clés...")
+                fetch_and_sync_keys(ser)
+                last_key_update = current_time
+                print("[Timer] Retour à l'écoute radio...\n")
+            # ----------------------------------------------
+
             if ser.in_waiting > 0:
                 try:
-                    # decode('utf-8') est important sur Mac pour éviter les erreurs d'octets bizarres
-                    ligne = ser.readline().decode('utf-8', errors='ignore').strip()
+                    line = ser.readline().decode('utf-8', errors='ignore').strip()
 
-                    if ligne.startswith("EXP:"):
-                        print(f"Reçu : {ligne}")
+                    # CAS A : Log de confirmation de la Microbit
+                    if line.startswith("LOG:"):
+                        print(f"Microbit : {line}")
 
-                        # Extraction du JSON
-                        json_text = ligne[4:]
+                    # CAS B : Données capteurs à envoyer au Web
+                    elif line.startswith("EXP:"):
+                        print(f"Reçu : {line}")
+                        json_text = line[4:]
 
-                        # Envoi vers l'API
                         try:
-                            donnees = json.loads(json_text)
+                            data = json.loads(json_text)
 
-                            if "timestamp" in donnees:
-                                ts = donnees["timestamp"]
-                                # On vérifie que c'est bien un nombre et pas 0 (bug du ;)
-                                if isinstance(ts, (int, float)) and ts > 0:
-                                    # Conversion Unix (int) -> ISO 8601 (String)
-                                    dt_object = datetime.fromtimestamp(ts, timezone.utc)
-                                    donnees["timestamp"] = dt_object.strftime('%Y-%m-%dT%H:%M:%SZ')
-                                    print(f"Date convertie : {donnees['timestamp']}")
+                            # Conversion Timestamp Unix -> ISO String
+                            if "timestamp" in data and isinstance(data["timestamp"], (int, float)):
+                                dt = datetime.fromtimestamp(data["timestamp"], timezone.utc)
+                                data["timestamp"] = dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 
-                            reponse = requests.post(URL_API, json=donnees)
+                            # Envoi réel vers ton API de données
+                            try:
+                                # On envoie vraiment la requête POST
+                                r = requests.post(URL_API_DATA, json=data)
 
-                            if reponse.status_code == 200:
-                                print("API : OK (Envoyé)")
-                            else:
-                                print(f"API Erreur : {reponse.status_code}")
+                                if r.status_code in [200, 201]:
+                                    print("Donnée sauvegardée en BDD (200 OK)")
+                                else:
+                                    print(f"Erreur BDD : {r.status_code}")
+
+                            except Exception as e:
+                                print(f"Erreur envoi POST : {e}")
 
                         except json.JSONDecodeError:
-                            print("Erreur : JSON invalide")
-                        except Exception as e:
-                            print(f"Erreur Réseau : {e}")
+                            print("JSON malformé reçu du port série")
 
                 except UnicodeDecodeError:
-                    pass  # On ignore les glitchs série
+                    pass
 
     except serial.SerialException:
         print(f"\nERREUR CRITIQUE : Impossible d'ouvrir {PORT_USB}")
-        print("1. Vérifie que la Micro:bit est bien branchée.")
-        print("2. Vérifie le nom du port avec 'ls /dev/tty.usbmodem*'")
-        print("3. Vérifie que Cura ou un autre logiciel n'utilise pas déjà la carte.")
+        print("   -> Vérifie que le câble est branché.")
+        print("   -> Vérifie qu'un autre logiciel d'écoute ne bloque pas le port.")
 
     except KeyboardInterrupt:
+        if 'ser' in locals() and ser.is_open: ser.close()
         print("\nArrêt de la passerelle.")
-        if 'ser' in locals() and ser.is_open:
-            ser.close()
 
 
 if __name__ == "__main__":
