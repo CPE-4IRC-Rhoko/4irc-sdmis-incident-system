@@ -41,7 +41,16 @@ jobs:
           submodules: recursive
 
       # ------------------------------------------------------------
-      # Dépendances système (C/C++, ARM, Python)
+      # Forcer une version Python compatible avec Yotta
+      # ------------------------------------------------------------
+      - name: Setup Python 3.8
+        if: matrix.language == 'c-cpp'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.8"
+
+      # ------------------------------------------------------------
+      # Dépendances système
       # ------------------------------------------------------------
       - name: Install system dependencies
         if: matrix.language == 'c-cpp'
@@ -50,9 +59,6 @@ jobs:
           sudo apt-get install -y \
             build-essential \
             cmake \
-            python3 \
-            python3-pip \
-            python3-venv \
             gcc-arm-none-eabi
 
       # ------------------------------------------------------------
@@ -65,40 +71,6 @@ jobs:
           build-mode: ${{ matrix.build-mode }}
 
       # ------------------------------------------------------------
-      # Setup environnement Yotta (obligatoire pour micro:bit)
+      # Setup environnement Yotta (Python 3.8)
       # ------------------------------------------------------------
-      - name: Setup Yotta environment
-        if: matrix.language == 'c-cpp'
-        run: |
-          python3 -m venv yotta-env
-          source yotta-env/bin/activate
-          pip install --upgrade pip
-          pip install yotta
-
-      # ------------------------------------------------------------
-      # Build microbit-qg
-      # ------------------------------------------------------------
-      - name: Build microbit-qg
-        if: matrix.language == 'c-cpp'
-        working-directory: iot/microbit-qg
-        run: |
-          source ../../yotta-env/bin/activate
-          make
-
-      # ------------------------------------------------------------
-      # Build microbit-terrain
-      # ------------------------------------------------------------
-      - name: Build microbit-terrain
-        if: matrix.language == 'c-cpp'
-        working-directory: iot/microbit-terrain
-        run: |
-          source ../../yotta-env/bin/activate
-          make
-
-      # ------------------------------------------------------------
-      # Analyse CodeQL
-      # ------------------------------------------------------------
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v4
-        with:
-          category: "/language:${{ matrix.language }}"
+      - nam
