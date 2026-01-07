@@ -40,7 +40,7 @@ jobs:
 
       - name: Build microbit-terrain
         run: |
-          cd ../microbit-terrain
+          cd iot/microbit-terrain
           make
 
       - name: Perform CodeQL Analysis
