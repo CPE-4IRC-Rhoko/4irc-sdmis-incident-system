@@ -59,8 +59,16 @@ jobs:
         run: |
           python -m venv yotta-env
           source yotta-env/bin/activate
+      
           pip install --upgrade pip setuptools wheel
+      
+          pip install \
+            "Jinja2==2.11.3" \
+            "MarkupSafe==2.0.1" \
+            "PyYAML==5.4.1"
+      
           pip install yotta
+
 
       - name: Build microbit-qg
         if: matrix.language == 'c-cpp'
