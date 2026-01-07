@@ -2,24 +2,25 @@ name: CodeQL Advanced
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
+
+permissions:
+  security-events: write
+  contents: read
 
 jobs:
-  analyze:
-    name: CodeQL Analyze (c-cpp)
+  # ==========================
+  # C / C++ ANALYSIS (Docker)
+  # ==========================
+  codeql-cpp:
+    name: CodeQL Analyze (C/C++)
     runs-on: ubuntu-latest
 
     container:
       image: schoumi/yotta:latest
       options: --user 1001:1001
-
-    permissions:
-      security-events: write
-      contents: read
 
     steps:
       - name: Checkout repository
@@ -27,21 +28,47 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Initialize CodeQL
+      - name: Initialize CodeQL (C/C++)
         uses: github/codeql-action/init@v4
         with:
           languages: c-cpp
           build-mode: manual
 
       - name: Build microbit-qg
-        run: |
-          cd iot/microbit-qg
-          make
+        run: make -C iot/microbit-qg
 
       - name: Build microbit-terrain
-        run: |
-          cd iot/microbit-terrain
-          make
+        run: make -C iot/microbit-terrain
 
-      - name: Perform CodeQL Analysis
+      - name: Perform CodeQL Analysis (C/C++)
         uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:c-cpp"
+
+  # ==========================================
+  # PYTHON / JAVA / JAVASCRIPT ANALYSIS
+  # ==========================================
+  codeql-other:
+    name: CodeQL Analyze (Python / Java / JS)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Initialize CodeQL (Other languages)
+        uses: github/codeql-action/init@v4
+        with:
+          languages: python, java, javascript-typescript
+
+      # Aucun build nécessaire pour ces langages
+      - name: Perform CodeQL Analysis (Other languages)
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:multi"
