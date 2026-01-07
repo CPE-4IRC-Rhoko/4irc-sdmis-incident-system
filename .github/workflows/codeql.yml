@@ -69,7 +69,7 @@ jobs:
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/workspaces \
-            -w /workspaces/iot/microbit-terrain \                        
+            -w /workspaces/iot/microbit-terrain \
             --user 1001:1001 \
             schoumi/yotta:latest \
             bash -c "ls -al && make"
