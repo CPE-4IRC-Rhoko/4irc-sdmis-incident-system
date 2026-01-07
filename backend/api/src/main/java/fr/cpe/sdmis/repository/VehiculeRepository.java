@@ -4,6 +4,7 @@ import fr.cpe.sdmis.dto.VehiculeOperationnelResponse;
 import fr.cpe.sdmis.dto.VehiculeUpdateRequest;
 import fr.cpe.sdmis.dto.VehiculeSnapshotResponse;
 import fr.cpe.sdmis.dto.EquipementContenanceResponse;
+import fr.cpe.sdmis.dto.VehiculeIdentResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
@@ -68,6 +69,14 @@ public class VehiculeRepository {
                 new SnapshotRowMapper()
         );
         return res.stream().findFirst();
+    }
+
+    public List<VehiculeIdentResponse> findCleIdent() {
+        return jdbcTemplate.query("""
+                SELECT id_vehicule, plaque_immat, cle_ident
+                FROM vehicule
+                ORDER BY plaque_immat
+                """, new IdentRowMapper());
     }
 
     public void updateVehicule(VehiculeUpdateRequest request) {
@@ -157,6 +166,17 @@ public class VehiculeRepository {
             }
 
             return new VehiculeSnapshotResponse(id, lat, lon, derniere, statut, caserne, equipements);
+        }
+    }
+
+    private static class IdentRowMapper implements RowMapper<VehiculeIdentResponse> {
+        @Override
+        public VehiculeIdentResponse mapRow(ResultSet rs, int rowNum) throws SQLException {
+            return new VehiculeIdentResponse(
+                    rs.getObject("id_vehicule", UUID.class),
+                    rs.getString("plaque_immat"),
+                    rs.getString("cle_ident")
+            );
         }
     }
 
