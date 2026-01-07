@@ -54,35 +54,24 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
 
-      - name: Setup Yotta environment
+      - name: Build microbit-qg in Docker
         if: matrix.language == 'c-cpp'
         run: |
-          python -m venv yotta-env
-          source yotta-env/bin/activate
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspaces \
+            -w /workspaces/iot/microbit-qg \
+            schoumi/yotta:latest \
+            bash -c "make"
       
-          pip install --upgrade pip setuptools wheel
-      
-          pip install \
-            "Jinja2==2.11.3" \
-            "MarkupSafe==2.0.1" \
-            "PyYAML==5.4.1"
-      
-          pip install yotta
-
-
-      - name: Build microbit-qg
+      - name: Build microbit-terrain in Docker
         if: matrix.language == 'c-cpp'
-        working-directory: iot/microbit-qg
         run: |
-          source ../../yotta-env/bin/activate
-          make
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspaces \
+            -w /workspaces/iot/microbit-terrain \
+            schoumi/yotta:latest \
+            bash -c "make"
 
-      - name: Build microbit-terrain
-        if: matrix.language == 'c-cpp'
-        working-directory: iot/microbit-terrain
-        run: |
-          source ../../yotta-env/bin/activate
-          make
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
