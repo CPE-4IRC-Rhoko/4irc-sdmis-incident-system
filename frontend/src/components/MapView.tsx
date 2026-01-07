@@ -1,13 +1,27 @@
 import { useMemo } from 'react'
 import maplibregl from 'maplibre-gl'
 import type { StyleSpecification } from 'maplibre-gl'
-import { Map, Marker, NavigationControl, Popup } from 'react-map-gl/maplibre'
-import type { ViewState } from 'react-map-gl/maplibre'
+import type { LayerProps } from '@vis.gl/react-maplibre'
+import {
+  Layer,
+  Map,
+  Marker,
+  NavigationControl,
+  Popup,
+  Source,
+  type ViewState,
+} from 'react-map-gl/maplibre'
 import type { Incident } from '../models/incident'
 import type { Ressource } from '../models/resource'
 import './MapView.css'
 
 export type VueCarte = ViewState & { transitionDuration?: number }
+
+export type RouteTrace = {
+  id: string
+  coordinates: Array<[number, number]>
+  color?: string
+}
 
 interface Props {
   evenements?: Incident[]
@@ -24,6 +38,7 @@ interface Props {
   interactionEnabled?: boolean
   navigationEnabled?: boolean
   compactMarkers?: boolean
+  routes?: RouteTrace[]
   vue: VueCarte
   onMove: (vue: VueCarte) => void
 }
@@ -96,6 +111,7 @@ function MapView({
   interactionEnabled = true,
   navigationEnabled = true,
   compactMarkers = false,
+  routes = [],
   vue,
   onMove,
 }: Props) {
@@ -147,6 +163,55 @@ function MapView({
     [],
   )
 
+  const routesGeojson = useMemo(() => {
+    if (!routes || routes.length === 0) return null
+    const features = routes
+      .filter(
+        (route) =>
+          Array.isArray(route.coordinates) && route.coordinates.length >= 2,
+      )
+      .map((route) => ({
+        type: 'Feature' as const,
+        properties: {
+          color: route.color ?? '#0ea5e9',
+          id: route.id,
+        },
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: route.coordinates,
+        },
+      }))
+    if (features.length === 0) return null
+    return {
+      type: 'FeatureCollection' as const,
+      features,
+    }
+  }, [routes])
+
+  const routeCasingLayer: LayerProps = {
+    id: 'routes-casing',
+    type: 'line',
+    source: 'routes',
+    paint: {
+      'line-color': '#ffffff',
+      'line-width': 7,
+      'line-opacity': 0.52,
+    },
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+  }
+
+  const routeLayer: LayerProps = {
+    id: 'routes-layer',
+    type: 'line',
+    source: 'routes',
+    paint: {
+      'line-color': ['get', 'color'] as any,
+      'line-width': 5,
+      'line-opacity': 0.9,
+    },
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+  }
+
   const popupEvenement = popupEvenementId
     ? evenementsAffiches.find((evt) => evt.id === popupEvenementId)
     : undefined
@@ -171,6 +236,12 @@ function MapView({
         touchZoomRotate={interactionEnabled}
         onClick={() => onClosePopups?.()}
       >
+        {routesGeojson && (
+          <Source id="routes" type="geojson" data={routesGeojson}>
+            <Layer {...routeCasingLayer} />
+            <Layer {...routeLayer} />
+          </Source>
+        )}
         {navigationEnabled && <NavigationControl position="top-right" />}
         {pointInteretValide && (
           <Marker
