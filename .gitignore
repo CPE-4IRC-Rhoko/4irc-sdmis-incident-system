@@ -1,8 +1,14 @@
 # Ignorer les modules Yotta
+iot/microbit-qg/yotta_modules/
+iot/microbit-terrain/yotta_modules/
+iot/microbit-qg/yotta_targets/
+iot/microbit-terrain/yotta_targets/
 iot/microbit-qg/build/
 iot/microbit-terrain/build/
 **/target/
 .idea/
+frontend/.vite/
+**/.vite/
 # Ignorer les fichiers de configuration sensibles
 .env
 KEYCLOAK/WEB/

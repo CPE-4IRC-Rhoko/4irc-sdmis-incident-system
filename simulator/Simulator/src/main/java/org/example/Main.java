@@ -1,47 +1,83 @@
 package org.example;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Random;
+import org.apache.logging.log4j.message.StringFormattedMessage;
+
 import java.io.IOException;
+import java.util.List;
+import java.time.Instant;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class Main {
-    public static void main(String[] args) throws IOException {
 
-       VehiculeGPS generateur = new VehiculeGPS();
-       double[] bboxCoords = generateur.getBbox();
-       double lat = bboxCoords[0];
-       double lon = bboxCoords[1];
-       System.out.println("Position vehicule Latitude (Min/Max) : " + lat);
-       System.out.println("Position vehicule Longitude (Min/Max): " + lon);
+   public static void main(String[] args) {
 
-       IncidentGPS generateur2 = new IncidentGPS();
-       double[] bboxCoords2 = generateur2.getBbox();
-       double lat2 = bboxCoords2[0];
-       double lon2 = bboxCoords2[1];
-       System.out.println("Position Incident Latitude (Min/Max) : " + lat2);
-       System.out.println("Position Incident Longitude (Min/Max): " + lon2);
+      ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
 
-        /*
-        // Création d'une instance Random pour sélectionner un type aléatoire
-        List<String> typesIncidents = Arrays.asList(
-                "Accident de voiture",
-                "Blessure sportive",
-                "Chute accidentelle",
-                "Incendie domestique",
-                "Malaises médicaux"
-        );
-        Random random = new Random();
-        // Choisir un type d'incident aléatoire dans la liste
-        String typeDeLIncident = typesIncidents.get(random.nextInt(typesIncidents.size()));
+      // 🔹 Thread 1 : Incidents
+      Runnable threadIncident = () -> {
+         try {
+            // Appel de l'API pour récupérer les événements
+            CallAPI callAPI = new CallAPI();
+            List<TypeEvenement> evenements = callAPI.recupererEvenements();
 
-        try {
-            Incident incident = new Incident(typeDeLIncident, 5, 48.8566, 2.3522, "F");
-            System.out.println(incident);
-        } catch (IllegalArgumentException e) {
-            System.err.println("Erreur : " + e.getMessage());
-        }
-        */
+            // Sélection d'un événement aléatoire
+            TypeEvenement evenementAleatoire =
+                    callAPI.selectionnerEvenementAleatoire(evenements);
 
-    }
+            // Envoi de l'événement avec GPS
+            SendAPI sendAPI = new SendAPI();
+            sendAPI.envoyerEvenement(evenementAleatoire);
+
+         } catch (IOException e) {
+            System.err.println("Erreur IO : " + e.getMessage());
+            e.printStackTrace();
+         } catch (InterruptedException e) {
+            System.err.println("Requête interrompue");
+            e.printStackTrace();
+         }
+      };
+
+      // 🔹 Thread 2 : Véhicule
+      Runnable threadVehicule = () -> {
+
+         // 1. Initialisation (à faire une seule fois au début)
+         // Remplace "COM3" par le bon port de ta Micro:bit Terrain
+         MicrobitSender emetteur = new MicrobitSender("COM3");
+
+         // Attendre 2 secondes que le port soit prêt (recommandé)
+         try { Thread.sleep(2000); } catch (Exception e) {}
+
+         // Tes calculs actuels...
+         String monId = "AA100AA";
+         double maLat = 777; // Valeur calculée par ton simu
+         double maLon = 777;  // Valeur calculée par ton simu
+         int monEau = 85;
+
+         // 2. Envoi des données
+         emetteur.envoyerDonnees(monId, maLat, maLon, monEau);
+
+         // IMPORTANT : Faire une petite pause si tu as plusieurs camions
+         // pour ne pas saturer le tampon de réception de la Micro:bit
+         try { Thread.sleep(50); } catch (Exception e) {}
+
+         // 3. Fermeture à la fin
+         emetteur.close();
+
+      };
+
+      // Création des threads
+      Thread t1 = new Thread(threadIncident, "Thread-Incident");
+      Thread t2 = new Thread(threadVehicule, "Thread-Vehicule");
+
+      // ⏱ Planification
+      scheduler.scheduleAtFixedRate(
+              threadIncident, 0, 2, TimeUnit.MINUTES
+      );
+
+      scheduler.scheduleAtFixedRate(
+              threadVehicule, 0, 30, TimeUnit.SECONDS
+      );
+   }
 }

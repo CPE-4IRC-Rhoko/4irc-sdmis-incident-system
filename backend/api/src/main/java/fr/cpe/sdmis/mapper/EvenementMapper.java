@@ -5,27 +5,8 @@ import fr.cpe.sdmis.dto.EvenementCreateRequest;
 import fr.cpe.sdmis.dto.EvenementResponse;
 import org.springframework.stereotype.Component;
 
-import java.util.UUID;
-
 @Component
 public class EvenementMapper {
-    public Evenement toDomain(EvenementCreateRequest req) {
-        return new Evenement(
-            null,
-            req.description(),
-            req.latitude(),
-            req.longitude(),
-            req.idTypeEvenement(),
-            req.idStatut(),
-            req.idSeverite(),
-            null,
-            null,
-            null,
-            null,
-            null
-        );
-    }
-
     public EvenementResponse toResponse(Evenement evenement) {
         return new EvenementResponse(
             evenement.id(),

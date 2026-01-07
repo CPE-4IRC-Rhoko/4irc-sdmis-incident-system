@@ -1,140 +1,261 @@
 #include "MicroBit.h"
-#include "bme280.h"
-#include "ssd1306.h"
-#include "tsl256x.h"
+#include <string.h> 
 extern "C" {
-    #include "aes.h"
+#include "aes.h"
 }
 
 MicroBit uBit;
-MicroBitI2C i2c(I2C_SDA0,I2C_SCL0);
-MicroBitPin P0(MICROBIT_ID_IO_P0, MICROBIT_PIN_P0, PIN_CAPABILITY_DIGITAL_OUT);
-ManagedString ordreAffichage = "THPL";
-int id = 2; // ID de l’émetteur
+
+// --- CONFIGURATION DES CLES ---
 uint8_t cleAES[16] = { 'V','i','n','c','e','n','t','L','e','P','l','u','B','o','1','2' };
+uint8_t keysHMAC[3][16] = {
+    { 'K','e','y','1','0','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA100AA (Index 0)
+    { 'K','e','y','2','0','_','S','e','c','r','e','t','@','@','@','@' }, // Pour BB200BB (Index 1)
+    { 'K','e','y','3','0','_','S','e','c','r','e','t','#','#','#','#' }  // Pour CC300CC (Index 2)
+};
 
-// Chiffre un message clair de 32 octets en AES-ECB 128
-ManagedString chiffrerAES32(ManagedString message) {
-    uint8_t buffer[32] = {0};
-    int len = message.length();
-    if (len > 32) len = 32; // Bloque à 32 si dépasse
+// --- STRUCTURE DE DONNÉES ---
+struct EtatCamion {
+    bool actif;         
+    ManagedString id;   // <--- STOCKAGE DE L'ID EN TEXTE (ex: "AA100AA")
+    ManagedString geo;  
+    ManagedString eau;  
+    ManagedString time;  
+    int sequence;       
+    bool btnAppuye;     
+};
 
-    memcpy(buffer, message.toCharArray(), len);
+// Notre flotte en mémoire (3 slots maximum pour cet exemple)
+EtatCamion flotte[3];
 
-    // Complête avec " " si message < 32
-    for (int i = len; i < 32; i++) {
-        buffer[i] = ' ';
+// Buffers Radio
+PacketBuffer bufferAckRecu(0);
+bool unAckEstArrive = false;
+bool ackReceived = false;
+
+// --- INTERRUPTIONS BOUTONS ---
+void onButtonA(MicroBitEvent) { 
+    if (flotte[0].actif) {
+        flotte[0].btnAppuye = true; 
+        uBit.display.image.setPixelValue(0, 0, 255);
     }
-
-    AES_ctx ctx;
-    AES_init_ctx(&ctx, cleAES);
-    AES_ECB_encrypt(&ctx, buffer);       // Bloc 1
-    AES_ECB_encrypt(&ctx, buffer + 16);  // Bloc 2
-
-    return ManagedString((const char*)buffer, 32);
 }
-
-// Déchiffre une chaîne hexadécimale AES-ECB 128
-ManagedString dechiffrerAES32(ManagedString data) {
-    const char* raw = data.toCharArray();
-    uint8_t buffer[32] = {0};
-    int len = data.length() > 32 ? 32 : data.length();
-    memcpy(buffer, raw, len);
-
-    AES_ctx ctx;
-    AES_init_ctx(&ctx, cleAES);
-    AES_ECB_decrypt(&ctx, buffer);
-    AES_ECB_decrypt(&ctx, buffer + 16);
-
-    // Supprime le(s) caractère ' ' utilisé(s) pour completer
-    int realLen = 32;
-    while (realLen > 0 && buffer[realLen - 1] == ' ') {
-        realLen--;
+void onButtonB(MicroBitEvent) { 
+    if (flotte[1].actif) {
+        flotte[1].btnAppuye = true; 
+        uBit.display.image.setPixelValue(4, 0, 255);
     }
-
-    return ManagedString((const char*)buffer, realLen);
 }
 
-void onData(MicroBitEvent)
-{
-    ManagedString s = dechiffrerAES32(uBit.radio.datagram.recv());
-
-    if (s.length() == 4)
-        ordreAffichage = s;  // Met à jour l’ordre d'affichage de l'écren OLED
-    else
-        ordreAffichage = "THPL"; // Ordre d'affichage par défaut
+// --- OUTILS PARSING & CRYPTO ---
+ManagedString extractValue(ManagedString source, const char* tag) {
+    const char* s = source.toCharArray();
+    char* ptrStart = strstr((char*)s, tag);
+    if (!ptrStart) return "";
+    ptrStart += strlen(tag);
+    char* ptrEnd = strstr(ptrStart, ";");
+    if (!ptrEnd) return "";
+    return source.substring((ptrStart - s), ptrEnd - ptrStart);
 }
 
-int main()
-{
-    // Initialise micro:bit.
-    uBit.init();
+// Conversion ID Texte -> Index Tableau (Mapping des clés)
+int getIndexFromID(ManagedString id) {
+    if (id == "AA100AA") return 0;
+    if (id == "BB200BB") return 1;
+    if (id == "CC300CC") return 2;
+    // Ajoute d'autres IDs ici si besoin
+    return -1;
+}
 
-    // Initialise le module radio de la micro:bit
-    uBit.radio.enable();
-    uBit.radio.setGroup(16);
-    uBit.messageBus.listen(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, onData);
+uint32_t calculerAuth(const char* data, int len, uint8_t* cle) {
+    uint32_t hash = 0x12345678;
+    for (int i = 0; i < 16; i++) { hash ^= cle[i]; hash = (hash << 5) | (hash >> 27); }
+    for (int i = 0; i < len; i++) { hash ^= (uint8_t)data[i]; hash *= 0x5bd1e995; hash ^= (hash >> 15); }
+    return hash;
+}
 
-    // Déclaration des capteurs et des valeurs associées par défaut
-    bme280 bme(&uBit,&i2c);
-    ssd1306 screen(&uBit, &i2c, &P0);
-    tsl256x tsl(&uBit,&i2c);
-    uint32_t pressure = 0;
-    int32_t temp = 0;
-    uint16_t humidite = 0;
-    uint16_t comb=0, ir=0;
-    uint32_t lux = 0;
+PacketBuffer chiffrerSecurise(ManagedString message, int keyIdx) {
+    // 80 OCTETS
+    uint8_t buffer[80]; memset(buffer, 0, 80);
+    int len = message.length(); 
+    if (len > 76) len = 76; 
+    memcpy(buffer + 4, message.toCharArray(), len);
+    
+    uint32_t auth = calculerAuth((const char*)(buffer + 4), 76, keysHMAC[keyIdx]);
+    memcpy(buffer, &auth, 4);
+    
+    AES_ctx ctx; AES_init_ctx(&ctx, cleAES);
+    for (int i = 0; i < 5; i++) AES_ECB_encrypt(&ctx, buffer + (i * 16));
+    return PacketBuffer(buffer, 80);
+}
 
-    while (true)
-    {
-        // Lecture brute des données
-        bme.sensor_read(&pressure, &temp, &humidite);
-        tsl.sensor_read(&comb, &ir, &lux);
+ManagedString dechiffrerSecurise(PacketBuffer data, int keyIdx, bool* valide) {
+    *valide = false;
+    // On peut recevoir des ACK chiffrés en 64 octets (suffisant pour un ACK court)
+    if (data.length() < 64) return ManagedString("");
+    
+    uint8_t buffer[64]; memcpy(buffer, data.getBytes(), 64);
+    AES_ctx ctx; AES_init_ctx(&ctx, cleAES);
+    for (int i = 0; i < 4; i++) AES_ECB_decrypt(&ctx, buffer + (i * 16));
+    
+    uint32_t authRecu; memcpy(&authRecu, buffer, 4);
+    uint32_t authCalc = calculerAuth((const char*)(buffer + 4), 56, keysHMAC[keyIdx]);
+    
+    if (authRecu != authCalc) return ManagedString("");
+    *valide = true;
+    int realLen = 56; while (realLen > 0 && buffer[4 + realLen - 1] == 0) realLen--;
+    return ManagedString((const char*)(buffer + 4), realLen);
+}
 
-        // Compensation des valeurs
-        int tmp = bme.compensate_temperature(temp); // En centièmes de degré
-        int pres = bme.compensate_pressure(pressure) / 100; // En hPa
-        int hum = bme.compensate_humidity(humidite); // En centièmes de %
+void onData(MicroBitEvent) {
+    PacketBuffer tmp = uBit.radio.datagram.recv();
+    if (tmp.length() > 0) { bufferAckRecu = tmp; unAckEstArrive = true; }
+}
 
-        // Conversion en chaînes de caractères à afficher
-        ManagedString lineT = ManagedString(tmp / 100) + "." + ManagedString(tmp > 0 ? tmp % 100 : (-tmp) % 100);
-        ManagedString lineH = ManagedString(hum / 100) + "." + ManagedString(hum % 100);
-        ManagedString lineP = ManagedString(pres);
-        ManagedString lineL = ManagedString((int)lux);
+// --- MISE A JOUR DE LA MÉMOIRE (Depuis le Java) ---
+void mettreAJourEtat(ManagedString ligneJava) {
+    ManagedString sId = extractValue(ligneJava, "ID:");
+    // PLUS DE atoi() ICI ! On garde l'ID en String.
+    
+    int idx = getIndexFromID(sId);
+    
+    if (idx != -1) {
+        flotte[idx].id = sId; // On stocke l'ID texte
+        flotte[idx].geo = extractValue(ligneJava, "Geo:");
+        flotte[idx].eau = extractValue(ligneJava, "Eau:");
+        flotte[idx].time = extractValue(ligneJava, "Time:");
+        flotte[idx].actif = true; 
+        
+        // Feedback visuel court
+        uBit.display.image.setPixelValue(2, 2, 255);
+        uBit.sleep(10);
+        uBit.display.image.setPixelValue(2, 2, 0);
+    }
+}
 
-        screen.update_screen();
-        screen.clear(); // Réinitialise l'écran avant d'écrire dessus
+// --- ENVOI RADIO (Depuis la mémoire) ---
+void envoyerCamionRadio(int index) {
+    if (!flotte[index].actif) return; 
 
-        // Affiche selon ordre reçu sur l'écran OLED
-        for (int i = 0; i < 4; i++)
-        {
-            char capteur = ordreAffichage.charAt(i);
-            switch (capteur)
-            {
-                case 'T':
-                    screen.display_line(i, 0, (ManagedString("Temp: ") + lineT + " C").toCharArray());
-                    break;
-                case 'H':
-                    screen.display_line(i, 0, (ManagedString("Hum: ") + lineH + " %").toCharArray());
-                    break;
-                case 'P':
-                    screen.display_line(i, 0, (ManagedString("Pres: ") + lineP + " hPa").toCharArray());
-                    break;
-                case 'L':
-                    screen.display_line(i, 0, (ManagedString("Lumi: ") + lineL + " lux").toCharArray());
-                    break;
-                default:
-                    screen.display_line(i, 0, "Invalide");
-                    break;
+    // On utilise l'ID stocké en mémoire (ex: "AA100AA")
+    ManagedString idString = flotte[index].id;
+    
+    ManagedString payload = "ID:" + idString + 
+                            ";Geo:" + flotte[index].geo + 
+                            ";Eau:" + flotte[index].eau + 
+                            ";Btn:" + ManagedString(flotte[index].btnAppuye ? 1 : 0) + 
+                            ";Seq:" + ManagedString(flotte[index].sequence) +
+                            ";Time:" + flotte[index].time + ";";
+
+    // Logs Série
+    uBit.serial.send("\r\n--------------------------------\r\n");
+    uBit.serial.send("Envoi Radio ID:" + idString + " Time:" + flotte[index].time + "\r\n");
+    uBit.serial.send("Contenu: " + payload + "\r\n");
+
+    ackReceived = false;
+    int tentatives = 0;
+    PacketBuffer paquet = chiffrerSecurise(payload, index); 
+
+    uBit.display.print(index + 1); 
+
+    while (!ackReceived && tentatives < 3) {
+        tentatives++;
+        unAckEstArrive = false;
+        
+        uBit.radio.datagram.send(paquet);
+        uBit.serial.send("."); 
+        
+        uBit.sleep(100 + uBit.random(50));
+        
+        uint32_t start = uBit.systemTime();
+        while(uBit.systemTime() - start < 800) {
+            // Lecture Série continue
+            if (uBit.serial.isReadable()) {
+                ManagedString s = uBit.serial.readUntil('\n');
+                if (s.length() > 5) mettreAJourEtat(s);
             }
+
+            // Vérification ACK
+            if (unAckEstArrive) {
+                bool authValide = false;
+                ManagedString msg = dechiffrerSecurise(bufferAckRecu, index, &authValide);
+                
+                if (authValide && msg.substring(0, 4) == "ACK:") {
+                    ManagedString idCheck = idString; // On compare avec l'ID texte
+                    ManagedString seqCheck = ManagedString(flotte[index].sequence);
+                    
+                    if (strstr(msg.toCharArray(), idCheck.toCharArray()) && 
+                        strstr(msg.toCharArray(), (";" + seqCheck).toCharArray())) {
+                        ackReceived = true;
+                        break;
+                    }
+                }
+                unAckEstArrive = false;
+            }
+            uBit.sleep(10);
+        }
+    }
+    
+    if (ackReceived) {
+        uBit.serial.send(" -> ACK OK\r\n");
+        flotte[index].sequence++;
+        if (flotte[index].sequence > 999) flotte[index].sequence = 0;
+        
+        if (flotte[index].btnAppuye) {
+            flotte[index].btnAppuye = false;
+            if (index == 0) uBit.display.image.setPixelValue(0, 0, 0);
+            if (index == 1) uBit.display.image.setPixelValue(4, 0, 0);
+        }
+        uBit.display.image.setPixelValue(4, 4, 255); uBit.sleep(50); uBit.display.image.setPixelValue(4, 4, 0);
+    } else {
+        uBit.serial.send(" -> TIMEOUT\r\n");
+        uBit.display.image.setPixelValue(0, 4, 255); uBit.sleep(50); uBit.display.image.setPixelValue(0, 4, 0);
+    }
+    uBit.display.clear();
+}
+
+int main() {
+    uBit.init();
+    uBit.serial.baud(115200);
+    uBit.serial.setRxBufferSize(254);
+    
+    uBit.radio.enable(); uBit.radio.setGroup(16); uBit.radio.setTransmitPower(7);
+    uBit.messageBus.listen(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, onData);
+    uBit.messageBus.listen(MICROBIT_ID_BUTTON_A, MICROBIT_BUTTON_EVT_CLICK, onButtonA);
+    uBit.messageBus.listen(MICROBIT_ID_BUTTON_B, MICROBIT_BUTTON_EVT_CLICK, onButtonB);
+
+    // Initialisation
+    for(int i=0; i<3; i++) {
+        flotte[i].actif = false; 
+        flotte[i].sequence = 0;
+        flotte[i].btnAppuye = false;
+        flotte[i].id = ""; // Init vide
+    }
+    
+    uBit.display.print("R"); 
+    uBit.serial.send("MODEM PRET (Support String IDs)\r\n");
+
+    int camionEnCours = 0;
+
+    while (true) {
+        // 1. Lire le Java
+        while (uBit.serial.isReadable()) {
+            ManagedString s = uBit.serial.readUntil('\n');
+            if (s.length() > 5) mettreAJourEtat(s);
         }
 
-        // Envoie les valeurs par radio avec chiffrement
-        ManagedString message = "T:"+ lineT + ";" + "H:"+ lineH + ";" + "P:"+ lineP + ";" + "L:" + lineL + ";ID:" + id;
-        uBit.radio.datagram.send(chiffrerAES32(message));
+        // 2. Envoyer
+        envoyerCamionRadio(camionEnCours);
 
-        uBit.sleep(1000);
+        // 3. Suivant
+        camionEnCours++;
+        if (camionEnCours > 2) camionEnCours = 0;
+
+        // 4. Pause eco
+        if (!flotte[0].actif && !flotte[1].actif && !flotte[2].actif) {
+            uBit.sleep(100);
+        } else {
+            uBit.sleep(500); 
+        }
     }
-
-    release_fiber();
 }

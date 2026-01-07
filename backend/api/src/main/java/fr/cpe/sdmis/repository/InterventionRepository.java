@@ -22,6 +22,7 @@ import java.util.UUID;
 public class InterventionRepository {
     private static final Logger LOGGER = LoggerFactory.getLogger(InterventionRepository.class);
     private static final String STATUT_EN_ATTENTE = "En attente";
+    private static final String STATUT_VEHICULE_PROPOSITION = "En proposition";
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
@@ -46,6 +47,7 @@ public class InterventionRepository {
                     """, params);
             if (rows > 0) {
                 LOGGER.info("Intervention insérée pour évènement {} avec véhicule {}", message.getIdEvenement(), message.getVehiculeId());
+                updateVehiculeStatutProposition(message.getVehiculeId());
             } else {
                 LOGGER.warn("Intervention non insérée (conflit probablement dû à un doublon) pour évènement {} et véhicule {}", message.getIdEvenement(), message.getVehiculeId());
             }
@@ -92,6 +94,33 @@ public class InterventionRepository {
                     """, new MapSqlParameterSource("nom", STATUT_EN_ATTENTE), UUID.class);
         } catch (EmptyResultDataAccessException e) {
             throw new IllegalStateException("Statut d'intervention introuvable en base : " + STATUT_EN_ATTENTE);
+        }
+    }
+
+    private void updateVehiculeStatutProposition(UUID vehiculeId) {
+        if (vehiculeId == null) {
+            return;
+        }
+        try {
+            UUID statutVehiculeId = jdbcTemplate.queryForObject("""
+                    SELECT id_statut
+                    FROM statut_vehicule
+                    WHERE lower(nom_statut) = lower(:nom)
+                    """, new MapSqlParameterSource("nom", STATUT_VEHICULE_PROPOSITION), UUID.class);
+            int rows = jdbcTemplate.update("""
+                    UPDATE vehicule
+                    SET id_statut = :statut
+                    WHERE id_vehicule = :vehicule
+                    """, new MapSqlParameterSource()
+                    .addValue("statut", statutVehiculeId)
+                    .addValue("vehicule", vehiculeId));
+            if (rows == 0) {
+                LOGGER.warn("Statut véhicule non mis à jour (id={})", vehiculeId);
+            }
+        } catch (EmptyResultDataAccessException e) {
+            LOGGER.error("Statut véhicule 'En proposition' introuvable, mise à jour ignorée");
+        } catch (DataAccessException e) {
+            LOGGER.error("Echec mise à jour statut 'En proposition' pour véhicule {} : {}", vehiculeId, e.getMessage());
         }
     }
 
