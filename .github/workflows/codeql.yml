@@ -48,7 +48,11 @@ jobs:
           category: "/language:c-cpp"
           output: codeql-results/cpp.sarif
 
-
+      - name: Upload C/CPP CodeQL SARIF
+        uses: actions/upload-artifact@v3
+        with:
+          name: codeql-sarif-cpp
+          path: codeql-results/cpp.sarif
   # ==========================================
   # PYTHON / JAVA / JAVASCRIPT ANALYSIS
   # ==========================================
@@ -67,6 +71,11 @@ jobs:
         with:
           output: codeql-results/python-JS.sarif
 
+      - name: Upload python-JS CodeQL SARIF
+        uses: actions/upload-artifact@v3
+        with:
+          name: codeql-sarif-python-JS
+          path: codeql-results/python-JS.sarif
 
   codeql-JAVA-api:
     name: CodeQL Analyze (JAVA-API)
@@ -97,7 +106,12 @@ jobs:
         with:
           category: "/language:java"
           output: codeql-results/java-api.sarif
-
+      
+      - name: Upload Java-API CodeQL SARIF
+        uses: actions/upload-artifact@v3
+        with:
+          name: codeql-sarif-java-api
+          path: codeql-results/java-api.sarif
 
   codeql-MoteurDecision:
     name: CodeQL Analyze (JAVA-MoteurDecision)
@@ -123,9 +137,14 @@ jobs:
         run: mvn -q -DskipTests package
 
 
-      - name: Perform CodeQL Analysis (C/C++)
+      - name: Perform CodeQL Analysis (JAVA-MoteurDecision)
         uses: github/codeql-action/analyze@v4
         with:
           category: "/language:java"
           output: codeql-results/java-MoteurDecision.sarif
 
+      - name: Upload Java-MoteurDecision CodeQL SARIF
+        uses: actions/upload-artifact@v3
+        with:
+          name: codeql-sarif-java-MoteurDecision
+          path: codeql-results/java-MoteurDecision.sarif
