@@ -66,6 +66,7 @@ jobs:
         uses: github/codeql-action/init@v4
         with:
           languages: python, java, javascript-typescript
+          build-mode: autobuild
 
       # Aucun build nécessaire pour ces langages
       - name: Perform CodeQL Analysis (Other languages)
