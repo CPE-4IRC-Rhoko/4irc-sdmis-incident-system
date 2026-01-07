@@ -52,7 +52,8 @@ jobs:
       - name: Build C/C++
         if: matrix.build-mode == 'manual'
         run: |
-          make
+          cd 4irc-sdmis-incident-system/iot/microbit-qg && make && cd ./../microbit-terrain && make
+
 
       # 🔹 Analyse CodeQL
       - name: Perform CodeQL Analysis
