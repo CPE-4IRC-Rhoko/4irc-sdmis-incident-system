@@ -55,19 +55,19 @@ jobs:
       - name: Fix workspace permissions
         run: sudo chmod -R a+w $GITHUB_WORKSPACE
 
-      - name: ZAP Baseline Scan (API)
-        uses: zaproxy/action-baseline@v0.10.0
-        with:
-          target: 'http://127.0.0.1:8080'
-          cmd_options: >
-            -z "-cmd zap-api-scan.py
-                -t http://127.0.0.1:8080
-                -f openapi
-                -J zap_api.json
-                -r zap_api.html
-                -d failOnRisk HIGH,MEDIUM
-                -u http://127.0.0.1:8080/v3/api-docs"
-          fail_action: true
+      - name: ZAP API Scan (OpenAPI)
+        run: |
+          docker run --rm \
+            --network=host \
+            -v $GITHUB_WORKSPACE:/zap/wrk:rw \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-api-scan.py \
+              -t http://127.0.0.1:8080 \
+              -f openapi \
+              -u http://127.0.0.1:8080/v3/api-docs \
+              -J zap_api.json \
+              -r zap_api.html \
+              -d failOnRisk HIGH,MEDIUM
           
       - name: ZAP Baseline Scan (FRONTEND)
         uses: zaproxy/action-full-scan@v0.10.0
