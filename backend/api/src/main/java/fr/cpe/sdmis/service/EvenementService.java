@@ -3,6 +3,7 @@ package fr.cpe.sdmis.service;
 import fr.cpe.sdmis.domain.model.Evenement;
 import fr.cpe.sdmis.dto.EvenementCreateRequest;
 import fr.cpe.sdmis.dto.EvenementResponse;
+import fr.cpe.sdmis.dto.EvenementSnapshotResponse;
 import fr.cpe.sdmis.mapper.EvenementMapper;
 import fr.cpe.sdmis.messaging.EventMessage;
 import fr.cpe.sdmis.repository.IEvenementRepository;
@@ -10,6 +11,7 @@ import fr.cpe.sdmis.repository.SeveriteRepository;
 import fr.cpe.sdmis.repository.StatutEvenementRepository;
 import fr.cpe.sdmis.repository.TypeEvenementRepository;
 import org.springframework.stereotype.Service;
+import fr.cpe.sdmis.service.SdmisSseService;
 
 import java.util.List;
 import java.util.UUID;
@@ -22,19 +24,22 @@ public class EvenementService {
     private final TypeEvenementRepository typeEvenementRepository;
     private final StatutEvenementRepository statutEvenementRepository;
     private final SeveriteRepository severiteRepository;
+    private final SdmisSseService sseService;
 
     public EvenementService(IEvenementRepository evenementRepository,
                             EvenementMapper mapper,
                             DecisionMessagingService messagingService,
                             TypeEvenementRepository typeEvenementRepository,
                             StatutEvenementRepository statutEvenementRepository,
-                            SeveriteRepository severiteRepository) {
+                            SeveriteRepository severiteRepository,
+                            SdmisSseService sseService) {
         this.evenementRepository = evenementRepository;
         this.mapper = mapper;
         this.messagingService = messagingService;
         this.typeEvenementRepository = typeEvenementRepository;
         this.statutEvenementRepository = statutEvenementRepository;
         this.severiteRepository = severiteRepository;
+        this.sseService = sseService;
     }
 
     public EvenementResponse createEvenement(EvenementCreateRequest request) {
@@ -57,6 +62,7 @@ public class EvenementService {
         );
         Evenement saved = evenementRepository.save(evenement);
         publierDansRabbit(saved);
+        broadcastEvenement(saved.id());
         return mapper.toResponse(saved);
     }
 
@@ -65,6 +71,15 @@ public class EvenementService {
                 .stream()
                 .map(mapper::toResponse)
                 .toList();
+    }
+
+    public List<EvenementSnapshotResponse> listSnapshots() {
+        return evenementRepository.findSnapshots();
+    }
+
+    public void broadcastEvenement(UUID idEvenement) {
+        evenementRepository.findSnapshotById(idEvenement)
+                .ifPresent(snapshot -> sseService.broadcast("evenements", List.of(snapshot)));
     }
 
     private void publierDansRabbit(Evenement evenement) {

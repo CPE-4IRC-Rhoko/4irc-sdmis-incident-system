@@ -62,7 +62,10 @@ public class InterventionService {
 
         // Mettre l'évènement en "En intervention"
         statutEvenementRepository.findIdByNom("En intervention")
-                .ifPresent(id -> evenementRepository.updateStatut(request.id_evenement(), id));
+                .ifPresent(id -> {
+                    evenementRepository.updateStatut(request.id_evenement(), id);
+                    broadcastEvenementSnapshot(request.id_evenement());
+                });
 
         broadcastSnapshotsFor(request.id_evenement(), vehiculesCibles);
     }
@@ -75,7 +78,10 @@ public class InterventionService {
         // Si plus aucune intervention en cours pour l'évènement, passer l'évènement en "Résolu"
         if (!interventionRepository.hasInterventionEnCours(request.id_evenement())) {
             statutEvenementRepository.findIdByNom("Résolu")
-                    .ifPresent(id -> evenementRepository.updateStatut(request.id_evenement(), id));
+                    .ifPresent(id -> {
+                        evenementRepository.updateStatut(request.id_evenement(), id);
+                        broadcastEvenementSnapshot(request.id_evenement());
+                    });
         }
 
         broadcastSnapshotsFor(request.id_evenement(), java.util.Set.of(request.id_vehicule()));
@@ -89,5 +95,10 @@ public class InterventionService {
         if (!updated.isEmpty()) {
             sseService.broadcast("interventions", updated);
         }
+    }
+
+    private void broadcastEvenementSnapshot(UUID idEvenement) {
+        evenementRepository.findSnapshotById(idEvenement)
+                .ifPresent(snapshot -> sseService.broadcast("evenements", List.of(snapshot)));
     }
 }
