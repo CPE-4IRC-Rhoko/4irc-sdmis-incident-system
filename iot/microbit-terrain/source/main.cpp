@@ -8,10 +8,14 @@ MicroBit uBit;
 
 // --- CONFIGURATION DES CLES ---
 uint8_t cleAES[16] = { 'V','i','n','c','e','n','t','L','e','P','l','u','B','o','1','2' };
-uint8_t keysHMAC[3][16] = {
+uint8_t keysHMAC[7][16] = {
     { 'K','e','y','1','0','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA100AA (Index 0)
-    { 'K','e','y','2','0','_','S','e','c','r','e','t','@','@','@','@' }, // Pour BB200BB (Index 1)
-    { 'K','e','y','3','0','_','S','e','c','r','e','t','#','#','#','#' }  // Pour CC300CC (Index 2)
+    { 'K','e','y','1','1','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA101AA (Index 1)
+    { 'K','e','y','1','2','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA102AA (Index 2)
+    { 'K','e','y','1','3','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA103AA (Index 3)
+    { 'K','e','y','1','4','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA104AA (Index 4)
+    { 'K','e','y','1','5','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA105AA (Index 5)
+    { 'K','e','y','1','5','_','S','e','c','r','e','t','!','!','!','!' }  // Pour AA106AA (Index 6)
 };
 
 // --- STRUCTURE DE DONNÉES ---
@@ -25,8 +29,8 @@ struct EtatCamion {
     bool btnAppuye;     
 };
 
-// Notre flotte en mémoire (3 slots maximum pour cet exemple)
-EtatCamion flotte[3];
+// Notre flotte en mémoire (7 slots maximum pour cet exemple)
+EtatCamion flotte[7];
 
 // Buffers Radio
 PacketBuffer bufferAckRecu(0);
@@ -61,9 +65,12 @@ ManagedString extractValue(ManagedString source, const char* tag) {
 // Conversion ID Texte -> Index Tableau (Mapping des clés)
 int getIndexFromID(ManagedString id) {
     if (id == "AA100AA") return 0;
-    if (id == "BB200BB") return 1;
-    if (id == "CC300CC") return 2;
-    // Ajoute d'autres IDs ici si besoin
+    if (id == "AA101AA") return 1;
+    if (id == "AA102AA") return 2;
+    if (id == "AA103AA") return 3;
+    if (id == "AA104AA") return 4;
+    if (id == "AA105AA") return 5;
+    if (id == "AA106AA") return 6;
     return -1;
 }
 
@@ -115,8 +122,7 @@ void onData(MicroBitEvent) {
 // --- MISE A JOUR DE LA MÉMOIRE (Depuis le Java) ---
 void mettreAJourEtat(ManagedString ligneJava) {
     ManagedString sId = extractValue(ligneJava, "ID:");
-    // PLUS DE atoi() ICI ! On garde l'ID en String.
-    
+
     int idx = getIndexFromID(sId);
     
     if (idx != -1) {
@@ -225,7 +231,7 @@ int main() {
     uBit.messageBus.listen(MICROBIT_ID_BUTTON_B, MICROBIT_BUTTON_EVT_CLICK, onButtonB);
 
     // Initialisation
-    for(int i=0; i<3; i++) {
+    for(int i=0; i<7; i++) {
         flotte[i].actif = false; 
         flotte[i].sequence = 0;
         flotte[i].btnAppuye = false;
@@ -249,10 +255,10 @@ int main() {
 
         // 3. Suivant
         camionEnCours++;
-        if (camionEnCours > 2) camionEnCours = 0;
+        if (camionEnCours > 6) camionEnCours = 0;
 
         // 4. Pause eco
-        if (!flotte[0].actif && !flotte[1].actif && !flotte[2].actif) {
+        if (!flotte[0].actif && !flotte[1].actif && !flotte[2].actif && !flotte[3].actif && !flotte[4].actif && !flotte[5].actif && !flotte[6].actif) {
             uBit.sleep(100);
         } else {
             uBit.sleep(500); 

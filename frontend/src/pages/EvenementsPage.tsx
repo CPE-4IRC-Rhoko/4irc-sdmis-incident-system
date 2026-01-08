@@ -1,0 +1,778 @@
+import { useEffect, useMemo, useState } from 'react'
+import Modal from '../components/Modal'
+import './EvenementsPage.css'
+import '../components/IncidentForm.css'
+import {
+  createEvenement,
+  getEvenements,
+  getSeverites,
+  getTypesEvenement,
+} from '../services/evenements'
+import type {
+  EvenementApi,
+  EvenementCreatePayload,
+  SeveriteReference,
+  TypeEvenementReference,
+} from '../models/evenement'
+
+type FormMode = 'creation' | 'edition'
+
+interface FormState extends EvenementCreatePayload {
+  id?: string
+  idTypeEvenement?: string
+  idSeverite?: string
+  idStatut?: string
+}
+
+const niveauSeverite = (
+  libelle: string,
+): 'critique' | 'moyenne' | 'faible' => {
+  const texte = libelle.toLowerCase()
+  if (
+    texte.includes('crit') ||
+    texte.includes('grave') ||
+    texte.includes('haut')
+  ) {
+    return 'critique'
+  }
+  if (texte.includes('moy') || texte.includes('mod')) return 'moyenne'
+  return 'faible'
+}
+
+const poidsSeverite = (libelle: string) => {
+  const niveau = niveauSeverite(libelle)
+  if (niveau === 'critique') return 3
+  if (niveau === 'moyenne') return 2
+  return 1
+}
+
+const classSeverite = (libelle: string) =>
+  `badge severite-${niveauSeverite(libelle)}`
+
+const classStatut = (statut: string) => {
+  const texte = statut.toLowerCase()
+  if (texte.includes('cours')) return 'statut-en-cours'
+  if (
+    texte.includes('attente') ||
+    texte.includes('declare') ||
+    texte.includes('décla')
+  ) {
+    return 'statut-attente'
+  }
+  if (
+    texte.includes('résol') ||
+    texte.includes('resol') ||
+    texte.includes('clos') ||
+    texte.includes('clôt')
+  ) {
+    return 'statut-resolu'
+  }
+  return 'statut-neutre'
+}
+
+const formatCoord = (value: number) => value.toFixed(4)
+
+const localisationLisible = (evt: EvenementApi) =>
+  `${formatCoord(evt.latitude)}, ${formatCoord(evt.longitude)}`
+
+function EvenementsPage() {
+  const [evenements, setEvenements] = useState<EvenementApi[]>([])
+  const [severites, setSeverites] = useState<SeveriteReference[]>([])
+  const [types, setTypes] = useState<TypeEvenementReference[]>([])
+  const [etat, setEtat] = useState<'idle' | 'loading' | 'ready' | 'error'>(
+    'idle',
+  )
+  const [erreur, setErreur] = useState<string | null>(null)
+  const [filtreTexte, setFiltreTexte] = useState('')
+  const [filtreSeverite, setFiltreSeverite] = useState<string>('toutes')
+  const [filtreStatut, setFiltreStatut] = useState<string>('tous')
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const pageSize = 5
+
+  const [formMode, setFormMode] = useState<FormMode | null>(null)
+  const [formState, setFormState] = useState<FormState | null>(null)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [formLoading, setFormLoading] = useState(false)
+
+  const statutsDisponibles = useMemo(() => {
+    const map = new Map<string, string>()
+    evenements.forEach((evt) => {
+      map.set(evt.idStatut, evt.nomStatut)
+    })
+    if (map.size === 0) {
+      map.set('default', 'Déclaré')
+    }
+    return Array.from(map.entries()).map(([id, nom]) => ({ id, nom }))
+  }, [evenements])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    const charger = async () => {
+      setEtat('loading')
+      setErreur(null)
+      try {
+        const [evtApi, severitesApi, typesApi] = await Promise.all([
+          getEvenements(controller.signal),
+          getSeverites(controller.signal),
+          getTypesEvenement(controller.signal),
+        ])
+        setEvenements(evtApi)
+        const severitesTriees = [...severitesApi].sort(
+          (a, b) =>
+            Number.parseInt(a.valeurEchelle, 10) -
+            Number.parseInt(b.valeurEchelle, 10),
+        )
+        setSeverites(severitesTriees)
+        setTypes(typesApi)
+        setEtat('ready')
+        setPage(1)
+        if (evtApi.length > 0) {
+          setSelectedId((prev) =>
+            prev && evtApi.some((evt) => evt.id === prev)
+              ? prev
+              : evtApi[0].id,
+          )
+        } else {
+          setSelectedId(null)
+        }
+      } catch (error) {
+        if (controller.signal.aborted) return
+        setErreur(
+          error instanceof Error
+            ? error.message
+            : 'Impossible de charger les événements',
+        )
+        setEtat('error')
+      }
+    }
+
+    void charger()
+    return () => controller.abort()
+  }, [refreshKey])
+
+  const evenementsFiltres = useMemo(() => {
+    const recherche = filtreTexte.trim().toLowerCase()
+    return [...evenements]
+      .filter((evt) => {
+        const correspondTexte =
+          recherche.length === 0 ||
+          [
+            evt.id,
+            evt.description,
+            evt.nomTypeEvenement,
+            evt.nomStatut,
+            evt.nomSeverite,
+            evt.valeurEchelle,
+          ].some((champ) => champ?.toLowerCase().includes(recherche))
+        const correspondSeverite =
+          filtreSeverite === 'toutes' || evt.idSeverite === filtreSeverite
+        const correspondStatut =
+          filtreStatut === 'tous' || evt.idStatut === filtreStatut
+        return correspondTexte && correspondSeverite && correspondStatut
+      })
+      .sort(
+        (a, b) => poidsSeverite(b.nomSeverite) - poidsSeverite(a.nomSeverite),
+      )
+  }, [evenements, filtreTexte, filtreSeverite, filtreStatut])
+
+  useEffect(() => {
+    if (evenementsFiltres.length === 0) {
+      setSelectedId(null)
+      return
+    }
+    if (!selectedId) {
+      setSelectedId(evenementsFiltres[0].id)
+      return
+    }
+    const selectionVisible = evenementsFiltres.some(
+      (evt) => evt.id === selectedId,
+    )
+    if (!selectionVisible) {
+      setSelectedId(evenementsFiltres[0].id)
+    }
+  }, [evenementsFiltres, selectedId])
+
+  const totalPages = Math.max(1, Math.ceil(evenementsFiltres.length / pageSize))
+  const evenementsPage = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return evenementsFiltres.slice(start, start + pageSize)
+  }, [evenementsFiltres, page])
+
+  const metriques = useMemo(() => {
+    const severiteCritique = evenements.filter(
+      (evt) => niveauSeverite(evt.nomSeverite) === 'critique',
+    ).length
+    const besoinsRessources = evenements.filter(
+      (evt) => (evt.nbVehiculesNecessaire ?? 0) > 0,
+    ).length
+    const clotures = evenements.filter((evt) => {
+      const statut = evt.nomStatut.toLowerCase()
+      return (
+        statut.includes('résol') ||
+        statut.includes('resol') ||
+        statut.includes('clos') ||
+        statut.includes('clôt')
+      )
+    }).length
+    return {
+      total: evenements.length,
+      critiques: severiteCritique,
+      besoinsRessources,
+      clotures,
+    }
+  }, [evenements])
+
+  const remettreAZeroForm = () => {
+    setFormMode(null)
+    setFormState(null)
+    setFormError(null)
+    setFormLoading(false)
+  }
+
+  const ouvrirCreation = () => {
+    setFormMode('creation')
+    setFormError(null)
+    const typeRef = types[0]
+    const severiteRef = severites[0]
+    const statutRef =
+      statutsDisponibles.find((s) =>
+        s.nom.toLowerCase().includes('déclar'),
+      ) ?? statutsDisponibles[0]
+    setFormState({
+      description: '',
+      latitude: evenements[0]?.latitude ?? 45.7578,
+      longitude: evenements[0]?.longitude ?? 4.8351,
+      nomTypeEvenement: typeRef?.nom ?? '',
+      nomSeverite: severiteRef?.nomSeverite ?? '',
+      nomStatut: statutRef?.nom ?? 'Déclaré',
+      idTypeEvenement: typeRef?.id,
+      idSeverite: severiteRef?.id,
+      idStatut: statutRef?.id,
+    })
+  }
+
+  const ouvrirEdition = (evt: EvenementApi) => {
+    setFormMode('edition')
+    setFormError(null)
+    const typeRef = types.find((type) => type.id === evt.idTypeEvenement)
+    const severiteRef = severites.find((sev) => sev.id === evt.idSeverite)
+    const statutRef = statutsDisponibles.find(
+      (statut) => statut.id === evt.idStatut,
+    )
+    setFormState({
+      id: evt.id,
+      description: evt.description,
+      latitude: evt.latitude,
+      longitude: evt.longitude,
+      nomTypeEvenement: typeRef?.nom ?? evt.nomTypeEvenement,
+      nomSeverite: severiteRef?.nomSeverite ?? evt.nomSeverite,
+      nomStatut: statutRef?.nom ?? evt.nomStatut,
+      idTypeEvenement: evt.idTypeEvenement,
+      idSeverite: evt.idSeverite,
+      idStatut: evt.idStatut,
+    })
+  }
+
+  const mettreAJourForm = (champ: keyof FormState, valeur: string | number) => {
+    setFormState((prev) =>
+      prev
+        ? {
+            ...prev,
+            [champ]: valeur,
+          }
+        : prev,
+    )
+  }
+
+  const soumettreFormulaire = async () => {
+    if (!formState || !formMode) return
+    setFormError(null)
+
+    if (!formState.nomStatut) {
+      setFormError(
+        'Choisissez un statut (aucune référence de statut encore fournie par l’API).',
+      )
+      return
+    }
+
+    if (formMode === 'edition') {
+      if (!formState.id) {
+        setFormError('Impossible de modifier : identifiant manquant.')
+        return
+      }
+      const severiteRef = severites.find(
+        (sev) => sev.id === formState.idSeverite,
+      )
+      const typeRef = types.find((type) => type.id === formState.idTypeEvenement)
+      const statutRef = statutsDisponibles.find(
+        (statut) => statut.id === formState.idStatut,
+      )
+
+      setEvenements((prev) =>
+        prev.map((evt) =>
+          evt.id === formState.id
+            ? {
+                ...evt,
+                description: formState.description,
+                latitude: Number(formState.latitude),
+                longitude: Number(formState.longitude),
+                idTypeEvenement: formState.idTypeEvenement ?? evt.idTypeEvenement,
+                idSeverite: formState.idSeverite ?? evt.idSeverite,
+                idStatut: formState.idStatut ?? evt.idStatut,
+                nomTypeEvenement: typeRef?.nom ?? evt.nomTypeEvenement,
+                nomSeverite: severiteRef?.nomSeverite ?? evt.nomSeverite,
+                nomStatut: statutRef?.nom ?? evt.nomStatut,
+                nbVehiculesNecessaire:
+                  severiteRef?.nbVehiculesNecessaire ?? evt.nbVehiculesNecessaire,
+                valeurEchelle: severiteRef?.valeurEchelle ?? evt.valeurEchelle,
+              }
+            : evt,
+        ),
+      )
+      remettreAZeroForm()
+      return
+    }
+
+    try {
+      setFormLoading(true)
+      const typeRef = types.find((type) => type.id === formState.idTypeEvenement)
+      const severiteRef = severites.find(
+        (sev) => sev.id === formState.idSeverite,
+      )
+      const statutNom = formState.nomStatut ?? undefined
+
+      if (!typeRef || !severiteRef || !statutNom) {
+        setFormError(
+          "Références manquantes pour l'envoi (type, gravité ou statut).",
+        )
+        setFormLoading(false)
+        return
+      }
+
+      const payload: EvenementCreatePayload = {
+        description: formState.description,
+        latitude: Number(formState.latitude),
+        longitude: Number(formState.longitude),
+        nomTypeEvenement: typeRef.nom,
+        nomSeverite: severiteRef.nomSeverite,
+        nomStatut: statutNom,
+      }
+      const created = await createEvenement(payload)
+      setEvenements((prev) => [created, ...prev])
+      setSelectedId(created.id)
+      remettreAZeroForm()
+    } catch (error) {
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : 'Échec de la création côté API.',
+      )
+    } finally {
+      setFormLoading(false)
+    }
+  }
+
+  return (
+    <div className="evenements-page">
+      <header className="events-header">
+        <div>
+          <p className="muted small">Supervision en temps réel</p>
+          <h2>Gestion des événements</h2>
+        </div>
+        <div className="events-actions">
+          <button
+            className="primary"
+            type="button"
+            onClick={ouvrirCreation}
+            disabled={etat !== 'ready'}
+            title={
+              severites.length === 0 || types.length === 0
+                ? 'Référentiels incomplets pour pré-remplir le formulaire'
+                : undefined
+            }
+          >
+            Créer un événement
+          </button>
+        </div>
+      </header>
+
+      <div className="events-metrics">
+        <div className="metric-card">
+          <p className="muted small">Événements actifs</p>
+          <h3>{metriques.total}</h3>
+        </div>
+        <div className="metric-card severe">
+          <p className="muted small">Gravité critique</p>
+          <h3>{metriques.critiques}</h3>
+        </div>
+        <div className="metric-card success">
+          <p className="muted small">Événements clôturés</p>
+          <h3>{metriques.clotures}</h3>
+        </div>
+      </div>
+
+      <div className="events-toolbar">
+        <div className="toolbar-input">
+          <span aria-hidden="true">🔍</span>
+          <input
+            type="text"
+            placeholder="Rechercher par ID, type, statut..."
+            value={filtreTexte}
+            onChange={(e) => setFiltreTexte(e.target.value)}
+          />
+        </div>
+        <div className="toolbar-filters">
+          <label>
+            Gravité
+            <select
+              value={filtreSeverite}
+              onChange={(e) => setFiltreSeverite(e.target.value)}
+            >
+              <option value="toutes">Toutes</option>
+              {severites.map((sev) => (
+                <option key={sev.id} value={sev.id}>
+                  {sev.nomSeverite} ({sev.valeurEchelle})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Statut
+            <select
+              value={filtreStatut}
+              onChange={(e) => setFiltreStatut(e.target.value)}
+            >
+              <option value="tous">Tous</option>
+              {statutsDisponibles.map((statut) => (
+                <option key={statut.id} value={statut.id}>
+                  {statut.nom}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div className="events-grid">
+        <div className="events-table-card">
+          <div className="table-header">
+            <div>
+              <p className="muted small">
+                {etat === 'loading'
+                  ? 'Chargement en cours...'
+                  : `${evenementsFiltres.length} résultat(s)`}
+              </p>
+              <h3>Liste des événements</h3>
+            </div>
+            <div />
+          </div>
+
+          {etat === 'loading' && (
+            <div className="table-placeholder">Chargement des données...</div>
+          )}
+
+          {etat === 'error' && (
+            <div className="table-placeholder erreur">
+              <p>{erreur}</p>
+              <button
+                type="button"
+                className="primary"
+                onClick={() => setRefreshKey((key) => key + 1)}
+              >
+                Réessayer
+              </button>
+            </div>
+          )}
+
+          {etat === 'ready' && evenementsFiltres.length === 0 && (
+            <div className="table-placeholder">
+              Aucun événement ne correspond aux filtres.
+            </div>
+          )}
+
+          {etat === 'ready' && evenementsFiltres.length > 0 && (
+            <table className="events-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Type</th>
+                  <th>Gravité</th>
+                  <th>Localisation</th>
+                  <th>Échelle</th>
+                  <th>Ressources</th>
+                  <th>Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+                {evenementsPage.map((evt) => (
+                  <tr
+                    key={evt.id}
+                    className={selectedId === evt.id ? 'row-active' : ''}
+                    onClick={() => {
+                      setSelectedId(evt.id)
+                      ouvrirEdition(evt)
+                    }}
+                  >
+                    <td className="id-cell">#{evt.id.slice(0, 8)}</td>
+                    <td>
+                      <div className="table-primary">{evt.nomTypeEvenement}</div>
+                      <p className="muted small">{evt.description}</p>
+                    </td>
+                    <td>
+                      <span className={classSeverite(evt.nomSeverite)}>
+                        {evt.nomSeverite}
+                      </span>
+                    </td>
+                    <td>{localisationLisible(evt)}</td>
+                    <td>{evt.valeurEchelle}</td>
+                    <td>
+                      {evt.nbVehiculesNecessaire ?? '—'} véhicule(s)
+                    </td>
+                    <td>
+                      <span className={`badge ${classStatut(evt.nomStatut)}`}>
+                        {evt.nomStatut}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {etat === 'ready' && evenementsFiltres.length > 0 && (
+            <div className="pagination">
+              <div className="muted small">
+                Affichage de {(page - 1) * pageSize + 1} à{' '}
+                {Math.min(page * pageSize, evenementsFiltres.length)} sur{' '}
+                {evenementsFiltres.length} résultats
+              </div>
+              <div className="pagination-controls">
+                <button
+                  type="button"
+                  disabled={page === 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Précédent
+                </button>
+                {Array.from({ length: totalPages }).map((_, idx) => {
+                  const num = idx + 1
+                  const visible =
+                    num === 1 ||
+                    num === totalPages ||
+                    (num >= page - 1 && num <= page + 1)
+                  if (!visible) {
+                    if (num === 2 || num === totalPages - 1) {
+                      return (
+                        <span key={num} className="pagination-dots">
+                          …
+                        </span>
+                      )
+                    }
+                    return null
+                  }
+                  return (
+                    <button
+                      key={num}
+                      type="button"
+                      className={num === page ? 'active' : ''}
+                      onClick={() => setPage(num)}
+                    >
+                      {num}
+                    </button>
+                  )
+                })}
+                <button
+                  type="button"
+                  disabled={page === totalPages}
+                  onClick={() =>
+                    setPage((p) => Math.min(totalPages, p + 1))
+                  }
+                >
+                  Suivant
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {formMode && formState && (
+        <Modal
+          titre={
+            formMode === 'creation'
+              ? 'Créer un événement'
+              : 'Consulter / modifier un événement'
+          }
+          onClose={remettreAZeroForm}
+        >
+          <form
+            className="incident-form"
+            onSubmit={(e) => {
+              e.preventDefault()
+              void soumettreFormulaire()
+            }}
+          >
+            <label>
+              Description
+              <textarea
+                value={formState.description}
+                onChange={(e) => mettreAJourForm('description', e.target.value)}
+                rows={3}
+                required
+                placeholder="Ex : Incendie d'appartement"
+              />
+            </label>
+            <div className="form-grid">
+              <label>
+                Type d'événement
+                <select
+                  value={formState.idTypeEvenement}
+                onChange={(e) => {
+                  const value = e.target.value
+                  const ref = types.find((type) => type.id === value)
+                  setFormState((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          idTypeEvenement: value,
+                          nomTypeEvenement: ref?.nom ?? prev.nomTypeEvenement,
+                        }
+                      : prev,
+                  )
+                }}
+                required
+              >
+                  {types.length === 0 && (
+                    <option value="" disabled>
+                      Référence type indisponible
+                    </option>
+                  )}
+                  {types.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.nom}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Gravité
+                <select
+                  value={formState.idSeverite}
+                onChange={(e) => {
+                  const value = e.target.value
+                  const ref = severites.find((sev) => sev.id === value)
+                  setFormState((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          idSeverite: value,
+                          nomSeverite: ref?.nomSeverite ?? prev.nomSeverite,
+                        }
+                      : prev,
+                  )
+                }}
+                required
+              >
+                  {severites.length === 0 && (
+                    <option value="" disabled>
+                      Référentiel gravité manquant
+                    </option>
+                  )}
+                  {severites.map((sev) => (
+                    <option key={sev.id} value={sev.id}>
+                      {sev.nomSeverite} ({sev.valeurEchelle})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Statut
+                <select
+                  value={formState.idStatut}
+                onChange={(e) => {
+                  const value = e.target.value
+                  const ref = statutsDisponibles.find(
+                    (statut) => statut.id === value,
+                  )
+                  setFormState((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          idStatut: value,
+                          nomStatut: ref?.nom ?? prev.nomStatut,
+                        }
+                      : prev,
+                  )
+                }}
+                required
+              >
+                  {statutsDisponibles.length === 0 && (
+                    <option value="" disabled>
+                      Aucun statut disponible pour le moment
+                    </option>
+                  )}
+                  {statutsDisponibles.map((statut) => (
+                    <option key={statut.id} value={statut.id}>
+                      {statut.nom}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="form-grid">
+              <label>
+                Latitude
+                <input
+                  type="number"
+                  step="0.0001"
+                  value={formState.latitude}
+                  onChange={(e) => mettreAJourForm('latitude', e.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                Longitude
+                <input
+                  type="number"
+                  step="0.0001"
+                  value={formState.longitude}
+                  onChange={(e) => mettreAJourForm('longitude', e.target.value)}
+                  required
+                />
+              </label>
+            </div>
+
+            {formError && <p className="erreur">{formError}</p>}
+
+            <div className="form-actions">
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={remettreAZeroForm}
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                className="primary"
+                disabled={formLoading}
+              >
+                {formMode === 'creation' ? 'Créer un événement' : 'Enregistrer'}
+              </button>
+            </div>
+            {formMode === 'edition' && (
+              <p className="muted small">
+                En attendant un endpoint PUT côté API, la modification reste
+                locale.
+              </p>
+            )}
+          </form>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+export default EvenementsPage

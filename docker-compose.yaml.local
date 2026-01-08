@@ -67,6 +67,17 @@ services:
     networks:
       - bridge_network
   
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    networks:
+      - bridge_network
+
   pgadmin:
     image: dpage/pgadmin4:9.11.0
     container_name: pgadmin
