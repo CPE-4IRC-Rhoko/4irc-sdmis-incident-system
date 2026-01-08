@@ -18,7 +18,7 @@ jobs:
 
       - name: Start docker-compose
         run: |
-          docker compose up -d --build -f docker-compose.yaml.local
+          docker compose up -f docker-compose.yaml.local -d --build
 
       - name: Wait for application
         run: |
