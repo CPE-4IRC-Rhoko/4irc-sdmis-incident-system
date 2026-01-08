@@ -58,14 +58,14 @@ jobs:
       - name: ZAP API Scan (OpenAPI)
         run: |
           docker run --rm \
-            --network=host \
             -v $GITHUB_WORKSPACE:/zap/wrk:rw \
             ghcr.io/zaproxy/zaproxy:stable \
             zap.sh -cmd \
               -port 8090 \
               -openapiurl http://127.0.0.1:8080/v3/api-docs \
               -openapitargeturl http://127.0.0.1:8080 \
-              -quickout zap_api.html \
+              -quickprogress \
+              -quickout /zap/wrk/zap_api.html \
               -config rules.failonrisk=2
           
       - name: ZAP Baseline Scan (FRONTEND)
