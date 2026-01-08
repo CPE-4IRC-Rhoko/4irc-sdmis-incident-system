@@ -41,7 +41,7 @@ function App() {
           </div>
         </div>
         <div className="role-switcher">
-          <label htmlFor="role">Rôle simulé</label>
+          <label htmlFor="role">Rôle</label>
           <select
             id="role"
             value={role}

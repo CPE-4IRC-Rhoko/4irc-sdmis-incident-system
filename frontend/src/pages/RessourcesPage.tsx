@@ -13,6 +13,8 @@ type VehiculeView = {
   position: string
   statut: StatutVehicule
   incidentId?: string | null
+  equipements?: Array<{ nomEquipement: string; contenanceCourante: number }>
+  plaque?: string
 }
 
 function RessourcesPage() {
@@ -81,6 +83,7 @@ function RessourcesPage() {
           statut: string
           caserne?: string
           equipements?: Array<{ nomEquipement: string; contenanceCourante: number }>
+          plaqueImmat?: string
         }>
         setVehicules((prev) => {
           const map = new Map(prev.map((v) => [v.id, v]))
@@ -95,6 +98,12 @@ function RessourcesPage() {
               position: `${veh.latitude.toFixed(4)}, ${veh.longitude.toFixed(4)}`,
               statut,
               incidentId: map.get(veh.id)?.incidentId ?? undefined,
+              equipements:
+                veh.equipements?.map((eq) => ({
+                  nomEquipement: eq.nomEquipement,
+                  contenanceCourante: eq.contenanceCourante,
+                })) ?? map.get(veh.id)?.equipements,
+              plaque: veh.plaqueImmat ?? map.get(veh.id)?.plaque,
             })
           })
           return Array.from(map.values())
@@ -116,6 +125,10 @@ function RessourcesPage() {
         texte.length === 0 ||
         v.id.toLowerCase().includes(texte) ||
         v.position.toLowerCase().includes(texte)
+        || v.statut.toLowerCase().includes(texte)
+        || (v.equipements ?? []).some((eq) =>
+          `${eq.nomEquipement ?? ''}`.toLowerCase().includes(texte),
+        )
       const okStatut = filtreStatut === 'TOUS' || v.statut === filtreStatut
       return okTexte && okStatut
     })
@@ -215,15 +228,18 @@ function RessourcesPage() {
             <thead>
               <tr>
                 <th>ID camion</th>
+                <th>Plaque</th>
                 <th>Position actuelle</th>
                 <th>Disponibilité</th>
                 <th>Incident assigné</th>
+                <th>Ressources</th>
               </tr>
             </thead>
             <tbody>
               {vehiculesPage.map((v) => (
                 <tr key={v.id}>
                   <td className="id-cell">{v.id.slice(0, 8)}</td>
+                  <td>{v.plaque ?? '—'}</td>
                   <td>{v.position}</td>
                   <td>
                     <span className={`badge ${v.statut.toLowerCase()}`}>
@@ -235,6 +251,18 @@ function RessourcesPage() {
                     </span>
                   </td>
                   <td>{v.incidentId ?? '—'}</td>
+                  <td>
+                    {v.equipements && v.equipements.length > 0
+                      ? v.equipements
+                          .map(
+                            (eq) =>
+                              `${eq.nomEquipement ?? 'Ressource'} (${
+                                eq.contenanceCourante ?? 0
+                              })`,
+                          )
+                          .join(', ')
+                      : '—'}
+                  </td>
                 </tr>
               ))}
             </tbody>
