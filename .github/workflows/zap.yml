@@ -62,6 +62,7 @@ jobs:
             -v $GITHUB_WORKSPACE:/zap/wrk:rw \
             ghcr.io/zaproxy/zaproxy:stable \
             zap.sh -cmd \
+              -port 8090 \
               -openapiurl http://127.0.0.1:8080/v3/api-docs \
               -openapitargeturl http://127.0.0.1:8080 \
               -quickout zap_api.html \
