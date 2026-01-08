@@ -6,9 +6,11 @@ import fr.cpe.sdmis.dto.VehiculeSnapshotResponse;
 import fr.cpe.sdmis.dto.EquipementContenanceResponse;
 import fr.cpe.sdmis.dto.VehiculeIdentResponse;
 import fr.cpe.sdmis.dto.VehiculeEnRouteResponse;
+import fr.cpe.sdmis.dto.VehiculeStatusUpdateRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -63,10 +65,10 @@ public class VehiculeRepository {
         return res.stream().findFirst();
     }
 
-    public Optional<VehiculeSnapshotResponse> findSnapshotByPlaque(String plaqueImmat) {
+    public Optional<VehiculeSnapshotResponse> findSnapshotByPlaque(String idVehicule) {
         List<VehiculeSnapshotResponse> res = jdbcTemplate.query(
                 baseSnapshotQuery("WHERE v.plaque_immat = :plaque"),
-                new MapSqlParameterSource("plaque", plaqueImmat),
+                new MapSqlParameterSource("plaque", idVehicule),
                 new SnapshotRowMapper()
         );
         return res.stream().findFirst();
@@ -83,6 +85,7 @@ public class VehiculeRepository {
     public List<VehiculeEnRouteResponse> findVehiculesEnRoute() {
         return jdbcTemplate.query("""
                 SELECT v.id_vehicule,
+                       v.plaque_immat,
                        v.latitude AS v_lat,
                        v.longitude AS v_lon,
                        i.id_evenement,
@@ -95,6 +98,27 @@ public class VehiculeRepository {
                 join statut_evenement se ON se.id_statut = e.id_statut
                 WHERE sv.nom_statut = 'En route' and se.nom_statut = 'En intervention'
                 """, new VehiculeEnRouteRowMapper());
+    }
+
+    public void updateVehiculeStatutEnIntervention(UUID idVehicule) {
+        try {
+            UUID statutVehiculeId = jdbcTemplate.queryForObject("""
+                    SELECT id_statut
+                    FROM statut_vehicule
+                    WHERE lower(nom_statut) = lower(:nom)
+                    """, new MapSqlParameterSource("nom", "En intervention"), UUID.class);
+            jdbcTemplate.update("""
+                    UPDATE vehicule
+                    SET id_statut = :statut
+                    WHERE id_vehicule = :vehicule
+                    """, new MapSqlParameterSource()
+                    .addValue("statut", statutVehiculeId)
+                    .addValue("vehicule", idVehicule));
+        } catch (EmptyResultDataAccessException e) {
+            LOGGER.error("Statut véhicule 'En intervention' introuvable, mise à jour ignorée");
+        } catch (DataAccessException e) {
+            LOGGER.error("Echec mise à jour statut 'En intervention' pour véhicule {} : {}", idVehicule, e.getMessage());
+        }
     }
 
     public void updateVehicule(VehiculeUpdateRequest request) {
@@ -203,6 +227,7 @@ public class VehiculeRepository {
         public VehiculeEnRouteResponse mapRow(ResultSet rs, int rowNum) throws SQLException {
             return new VehiculeEnRouteResponse(
                     rs.getObject("id_vehicule", UUID.class),
+                    rs.getString("plaque_immat"),
                     rs.getDouble("v_lat"),
                     rs.getDouble("v_lon"),
                     rs.getObject("id_evenement", UUID.class),
@@ -222,13 +247,16 @@ public class VehiculeRepository {
                   v.derniere_position_connue,
                   sv.nom_statut,
                   c.nom_de_la_caserne,
-                  JSON_AGG(
+                  COALESCE(
+                    JSON_AGG(
                     JSON_BUILD_OBJECT(
-                      'nom_equipement', e.nom_equipement,
-                      'contenance_courante', eed.contenance_courante_
+                        'nom_equipement', e.nom_equipement,
+                        'contenance_courante', eed.contenance_courante_
                     )
                     ORDER BY e.nom_equipement
-                  ) AS equipements
+                    ) FILTER (WHERE e.id_equipement IS NOT NULL),
+                    '[]'::json
+                ) AS equipements
                 FROM vehicule v
                 JOIN est_equipe_de eed ON eed.id_vehicule = v.id_vehicule
                 JOIN equipement e ON e.id_equipement = eed.id_equipement
