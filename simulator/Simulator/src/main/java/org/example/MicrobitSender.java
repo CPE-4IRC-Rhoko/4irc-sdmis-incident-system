@@ -3,10 +3,7 @@ package org.example;
 import com.fazecast.jSerialComm.SerialPort;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Locale;
-import java.time.Instant;
 
 public class MicrobitSender {
 
@@ -34,7 +31,7 @@ public class MicrobitSender {
      * Envoie une mise à jour d'état pour un camion spécifique.
      * Le format généré est : "ID:10;Geo:45.1234,4.5678;Eau:80;\n"
      */
-    public void envoyerDonnees(String id, double latitude, double longitude, String ressources) {
+    public void envoyerDonnees(String imatriculation, double latitude, double longitude, String resources) {
         if (out == null) return;
 
         try {
@@ -48,7 +45,7 @@ public class MicrobitSender {
             // Locale.US force l'utilisation du POINT (.) pour les décimales et non la virgule
             // Le '\n' à la fin est OBLIGATOIRE pour que la Micro:bit détecte la fin du message
             // Trame
-            String trame = String.format(Locale.US, "ID:%s;Geo:%.5f,%.5f;Res:%s;Time:%s;\n", id, latitude, longitude, ressources, timestamp);
+            String trame = String.format(Locale.US, "ID:%s;Geo:%.5f,%.5f;Res:%s;Time:%s;\n", imatriculation, latitude, longitude, resources, timestamp);
 
             // 2. Envoi sur le port série
             out.write(trame.getBytes());
