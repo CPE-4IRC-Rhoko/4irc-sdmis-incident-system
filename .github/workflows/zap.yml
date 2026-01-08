@@ -2,8 +2,10 @@ name: DAST - ZAP (docker-compose local)
 
 on:
   pull_request:
-  push:
     branches: [ "main" ]
+  push:
+    branches: [ "main", "dev"]
+
 
 jobs:
   dast:
@@ -25,30 +27,60 @@ jobs:
 
       - name: Wait for API
         run: |
-          echo "Waiting for API..."          
-          sleep 30
+          echo "Waiting for API..."
+          for i in {1..30}; do
+            if curl -s http://127.0.0.1:8080/v3/api-docs > /dev/null; then
+              echo "API is ready"
+              break
+            fi
+            sleep 5
+          done
+
+      - name: Wait for FRONTEND
+        run: |
+          echo "Waiting for FRONTEND..."
+          for i in {1..30}; do
+            if curl -s http://127.0.0.1:5173 > /dev/null; then
+              echo "FRONTEND is ready"
+              break
+            fi
+            sleep 5
+          done
 
       - name: Fix workspace permissions
         run: sudo chmod -R a+w $GITHUB_WORKSPACE
 
-      - name: ZAP Baseline Scan (API)
+      - name: OWASP ZAP - API Scan
+        uses: zaproxy/action-api-scan@v0.9.0
+        with:
+          target: "http://localhost:8080/api"
+          rules_file_name: ".zap/rules.tsv"
+          cmd_options: "-a -j -l WARN"
+          issue_title: "ZAP API Scan - Résultats de sécurité"
+          fail_action: false
+          artifact_name: "zap-api-scan"
+          
+      - name: ZAP Baseline Scan (FRONTEND)
         uses: zaproxy/action-baseline@v0.10.0
         with:
-          target: 'http://localhost:8080'
+          target: 'http://127.0.0.1:5173'
           cmd_options: >
             -a
-            -J zap.json
-            -r zap_report.html
+            -J zap_frontend.json
+            -r zap_frontend.html
+            -d failOnRisk HIGH
           rules_file_name: '.zap/rules.tsv'
-
+          fail_action: true
 
       - name: Upload ZAP reports
         uses: actions/upload-artifact@v4
         with:
           name: zap-report
           path: |
-            zap_report.html
-            zap.json
+            zap_frontend.html
+            zap_frontend.json
+            zap_api.html
+            zap_api.json
 
       - name: Stop docker-compose
         if: always()

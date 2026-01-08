@@ -4,6 +4,7 @@ import { getVehiculesOperationnels } from '../services/vehicules'
 import { getInterventions } from '../services/interventions'
 import type { InterventionApi } from '../models/intervention'
 import Modal from '../components/Modal'
+import { withBaseUrl } from '../services/api'
 
 type StatutVehicule = 'DISPONIBLE' | 'INTERVENTION' | 'MAINTENANCE'
 
@@ -66,6 +67,46 @@ function RessourcesPage() {
     }
     void charger()
     return () => controller.abort()
+  }, [])
+
+  useEffect(() => {
+    const url = withBaseUrl('/api/vehicules/sse')
+    const es = new EventSource(url)
+    es.addEventListener('vehicules', (event) => {
+      try {
+        const data = JSON.parse((event as MessageEvent).data) as Array<{
+          id: string
+          latitude: number
+          longitude: number
+          statut: string
+          caserne?: string
+          equipements?: Array<{ nomEquipement: string; contenanceCourante: number }>
+        }>
+        setVehicules((prev) => {
+          const map = new Map(prev.map((v) => [v.id, v]))
+          data.forEach((veh) => {
+            const statut: StatutVehicule = veh.statut.toLowerCase().includes('intervention')
+              ? 'INTERVENTION'
+              : veh.statut.toLowerCase().includes('dispon')
+                ? 'DISPONIBLE'
+                : 'MAINTENANCE'
+            map.set(veh.id, {
+              id: veh.id,
+              position: `${veh.latitude.toFixed(4)}, ${veh.longitude.toFixed(4)}`,
+              statut,
+              incidentId: map.get(veh.id)?.incidentId ?? undefined,
+            })
+          })
+          return Array.from(map.values())
+        })
+      } catch (error) {
+        console.error('Erreur SSE ressources', error)
+      }
+    })
+    es.onerror = (err) => {
+      console.error('SSE ressources erreur', err)
+    }
+    return () => es.close()
   }, [])
 
   const vehiculesFiltres = useMemo(() => {
@@ -148,7 +189,7 @@ function RessourcesPage() {
               value={filtreStatut}
               onChange={(e) => setFiltreStatut(e.target.value as StatutVehicule | 'TOUS')}
             >
-              <option value="TOUS">Tous les états</option>
+              <option value="TOUS">Tous</option>
               <option value="DISPONIBLE">Disponible</option>
               <option value="INTERVENTION">En intervention</option>
               <option value="MAINTENANCE">Maintenance</option>

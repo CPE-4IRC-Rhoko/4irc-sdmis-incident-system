@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import maplibregl from 'maplibre-gl'
 import type { StyleSpecification } from 'maplibre-gl'
-import { Map, Marker, NavigationControl } from 'react-map-gl/maplibre'
+import { Map, Marker, NavigationControl, Popup } from 'react-map-gl/maplibre'
 import type { ViewState } from 'react-map-gl/maplibre'
 import type { Incident } from '../models/incident'
 import type { Ressource } from '../models/resource'
@@ -14,7 +14,11 @@ interface Props {
   ressources?: Ressource[]
   pointInteret?: { latitude: number; longitude: number; label?: string }
   evenementSelectionneId?: string
+  popupEvenementId?: string | null
+  popupRessourceId?: string | null
   onSelectEvenement: (id: string) => void
+  onSelectRessource?: (id: string) => void
+  onClosePopups?: () => void
   onClickPointInteret?: () => void
   vue: VueCarte
   onMove: (vue: VueCarte) => void
@@ -78,7 +82,11 @@ function MapView({
   ressources = [],
   pointInteret,
   evenementSelectionneId,
+  popupEvenementId,
+  popupRessourceId,
   onSelectEvenement,
+  onSelectRessource,
+  onClosePopups,
   onClickPointInteret,
   vue,
   onMove,
@@ -113,7 +121,7 @@ function MapView({
       sources: {
         osm: {
           type: 'raster',
-          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+          tiles: ['https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'],
           tileSize: 256,
           attribution,
         },
@@ -128,6 +136,14 @@ function MapView({
     }),
     [],
   )
+
+  const popupEvenement = popupEvenementId
+    ? evenementsAffiches.find((evt) => evt.id === popupEvenementId)
+    : undefined
+  const popupRessource =
+    popupRessourceId != null
+      ? ressourcesAffichees.find((res) => res.id === popupRessourceId)
+      : undefined
 
   return (
     <div className="map-wrapper">
@@ -161,7 +177,9 @@ function MapView({
             longitude={evt.longitude}
             latitude={evt.latitude}
             anchor="bottom"
-            onClick={() => onSelectEvenement(evt.id)}
+            onClick={() => {
+              onSelectEvenement(evt.id)
+            }}
           >
             <div
               className={`marker ${classeEvenement(evt.gravite)} ${
@@ -183,11 +201,62 @@ function MapView({
             <div
               className="marker marker-vehicule"
               title={ressource.nom}
+              onClick={() => {
+                onSelectRessource?.(ressource.id)
+              }}
             >
               <VehicleIcon color={couleurRessource(ressource.disponibilite)} />
             </div>
           </Marker>
         ))}
+        {popupEvenement && (
+          <Popup
+            longitude={popupEvenement.longitude}
+            latitude={popupEvenement.latitude}
+            anchor="top"
+            closeOnClick={false}
+            closeButton
+            focusAfterOpen={false}
+            onClose={onClosePopups}
+          >
+            <div className="popup-content">
+              <h4>{popupEvenement.titre}</h4>
+              <p className="muted small">
+                Gravité : {popupEvenement.gravite} | Statut :{' '}
+                {popupEvenement.statut}
+              </p>
+              <p className="muted small">
+                {popupEvenement.latitude.toFixed(4)},{' '}
+                {popupEvenement.longitude.toFixed(4)}
+              </p>
+              {popupEvenement.description && (
+                <p className="muted small">{popupEvenement.description}</p>
+              )}
+            </div>
+          </Popup>
+        )}
+        {popupRessource && (
+          <Popup
+            longitude={popupRessource.longitude}
+            latitude={popupRessource.latitude}
+            anchor="top"
+            closeOnClick={false}
+            closeButton
+            focusAfterOpen={false}
+            onClose={onClosePopups}
+          >
+            <div className="popup-content">
+              <h4>{popupRessource.nom}</h4>
+              <p className="muted small">
+                Statut : {popupRessource.disponibilite}
+              </p>
+              <p className="muted small">
+                {popupRessource.latitude.toFixed(4)},{' '}
+                {popupRessource.longitude.toFixed(4)}
+              </p>
+            </div>
+          </Popup>
+        )}
       </Map>
     </div>
   )
