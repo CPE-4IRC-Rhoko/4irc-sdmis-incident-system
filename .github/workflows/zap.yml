@@ -41,8 +41,10 @@ jobs:
             -a
             -J zap_api.json
             -r zap_api.html
+            -d failOnRisk HIGH
           rules_file_name: '.zap/rules.tsv'
-
+          fail_action: true
+          
       - name: ZAP Baseline Scan (FRONTEND)
         uses: zaproxy/action-baseline@v0.10.0
         with:
@@ -51,7 +53,9 @@ jobs:
             -a
             -J zap_frontend.json
             -r zap_frontend.html
+            -d failOnRisk HIGH
           rules_file_name: '.zap/rules.tsv'
+          fail_action: true
 
       - name: Upload ZAP reports
         uses: actions/upload-artifact@v4
