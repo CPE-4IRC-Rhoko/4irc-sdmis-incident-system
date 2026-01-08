@@ -56,13 +56,11 @@ jobs:
             --network=host \
             -v $GITHUB_WORKSPACE:/zap/wrk:rw \
             ghcr.io/zaproxy/zaproxy:stable \
-            zap-api-scan.py \
-              -t http://127.0.0.1:8080 \
-              -f openapi \
-              -u http://127.0.0.1:8080/v3/api-docs \
-              -J zap_api.json \
-              -r zap_api.html \
-              -d failOnRisk HIGH,MEDIUM
+            zap.sh -cmd \
+              -openapiurl http://127.0.0.1:8080/v3/api-docs \
+              -openapitargeturl http://127.0.0.1:8080 \
+              -quickout zap_api.html \
+              -config rules.failonrisk=2
           
       - name: ZAP Baseline Scan (FRONTEND)
         uses: zaproxy/action-baseline@v0.10.0
