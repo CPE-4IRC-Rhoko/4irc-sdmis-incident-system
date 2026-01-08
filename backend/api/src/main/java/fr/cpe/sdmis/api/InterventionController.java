@@ -1,6 +1,7 @@
 package fr.cpe.sdmis.api;
 
 import fr.cpe.sdmis.dto.InterventionResponse;
+import fr.cpe.sdmis.dto.InterventionSnapshotResponse;
 import fr.cpe.sdmis.repository.InterventionRepository;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,5 +22,10 @@ public class InterventionController {
     @GetMapping
     public List<InterventionResponse> list() {
         return interventionRepository.findAll();
+    }
+
+    @GetMapping("/snapshots")
+    public List<InterventionSnapshotResponse> snapshots() {
+        return interventionRepository.findSnapshots();
     }
 }
