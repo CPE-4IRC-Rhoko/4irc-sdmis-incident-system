@@ -18,7 +18,6 @@ import {
   getSeverites,
   getTypesEvenement,
 } from '../services/evenements'
-import { getVehiculesOperationnels } from '../services/vehicules'
 import { getInterventions } from '../services/interventions'
 import { withBaseUrl } from '../services/api'
 import EvenementsPage from './EvenementsPage'
@@ -171,6 +170,26 @@ function QGPage() {
   const [types, setTypes] = useState<TypeEvenementReference[]>([])
   const [severites, setSeverites] = useState<SeveriteReference[]>([])
   const [statutsDisponibles, setStatutsDisponibles] = useState<string[]>([])
+  const [interventionsData, setInterventionsData] = useState<InterventionApi[]>([])
+  const [vehiculesSseOk, setVehiculesSseOk] = useState(false)
+  const [popupEvenementId, setPopupEvenementId] = useState<string | null>(null)
+  const [popupRessourceId, setPopupRessourceId] = useState<string | null>(null)
+
+  const handleSelectEvenement = (id: string) => {
+    setEvenementSelectionneId(id)
+    setPopupEvenementId(id)
+    setPopupRessourceId(null)
+  }
+
+  const handleSelectRessource = (id: string) => {
+    setPopupRessourceId(id)
+    setPopupEvenementId(null)
+  }
+
+  const fermerPopups = () => {
+    setPopupEvenementId(null)
+    setPopupRessourceId(null)
+  }
 
   const choisirSuggestion = (suggestion: SuggestionAdresse) => {
     setPointRecherche(suggestion)
@@ -319,13 +338,11 @@ function QGPage() {
       try {
         const [
           evtApi,
-          vehiculesApi,
           interventionsApi,
           severitesApi,
           typesApi,
         ] = await Promise.all([
           getEvenements(controller.signal),
-          getVehiculesOperationnels(controller.signal),
           getInterventions(controller.signal),
           getSeverites(controller.signal),
           getTypesEvenement(controller.signal),
@@ -334,7 +351,7 @@ function QGPage() {
         const incidents = evtApi.map(incidentDepuisApi)
         setEvenements(incidents)
         setEvenementsApi(evtApi)
-        setRessources(ressourcesDepuisApi(vehiculesApi, interventionsApi, evtApi))
+        setInterventionsData(interventionsApi)
         const severitesTriees = [...severitesApi].sort(
           (a, b) =>
             Number.parseInt(a.valeurEchelle, 10) -
@@ -372,6 +389,21 @@ function QGPage() {
   useEffect(() => {
     const url = withBaseUrl('/api/vehicules/sse')
     const es = new EventSource(url)
+    const chargerFallback = async () => {
+      try {
+        const { getVehiculesOperationnels } = await import(
+          '../services/vehicules'
+        )
+        const vehiculesApi = await getVehiculesOperationnels()
+        setRessources(
+          ressourcesDepuisApi(vehiculesApi, interventionsData, evenementsApi),
+        )
+        setEtatChargement((prev) => (prev === 'ready' ? prev : 'ready'))
+      } catch (error) {
+        console.error('Fallback véhicules échoué', error)
+      }
+    }
+
     es.addEventListener('vehicules', (event) => {
       try {
         const data = JSON.parse((event as MessageEvent).data) as Array<{
@@ -395,25 +427,30 @@ function QGPage() {
               id: veh.id,
               nom: veh.caserne ? `Véhicule ${veh.caserne}` : `Véhicule ${veh.id.slice(0, 6)}`,
               type: 'Véhicule',
-              categorie: 'POMPIERS',
-              disponibilite: dispo,
-              latitude: veh.latitude,
-              longitude: veh.longitude,
-            })
+            categorie: 'POMPIERS',
+            disponibilite: dispo,
+            latitude: veh.latitude,
+            longitude: veh.longitude,
           })
-          return Array.from(map.values())
         })
+        return Array.from(map.values())
+      })
+      setVehiculesSseOk(true)
+      setEtatChargement((prev) => (prev === 'ready' ? prev : 'ready'))
       } catch (error) {
         console.error('Erreur SSE vehicules', error)
       }
     })
     es.onerror = (err) => {
       console.error('SSE vehicules erreur', err)
+      if (!vehiculesSseOk) {
+        void chargerFallback()
+      }
     }
     return () => {
       es.close()
     }
-  }, [])
+  }, [evenementsApi, interventionsData, vehiculesSseOk])
 
   const derniereMiseAJour = useMemo(
     () =>
@@ -605,7 +642,11 @@ function QGPage() {
                   : undefined
               }
               evenementSelectionneId={evenementSelectionneId}
-              onSelectEvenement={setEvenementSelectionneId}
+              popupEvenementId={popupEvenementId}
+              popupRessourceId={popupRessourceId}
+              onSelectEvenement={handleSelectEvenement}
+              onSelectRessource={handleSelectRessource}
+              onClosePopups={fermerPopups}
               onClickPointInteret={
                 pointRecherche ? ouvrirCreationDepuisCarte : undefined
               }
