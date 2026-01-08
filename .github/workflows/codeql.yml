@@ -2,33 +2,27 @@ name: CodeQL Advanced
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
+
+permissions:
+  security-events: write
+  contents: read
+  packages: read
+
 
 jobs:
-  analyze:
-    name: CodeQL Analyze (${{ matrix.language }})
+  # ==========================
+  # C / C++ ANALYSIS (Docker)
+  # ==========================
+  codeql-C-CPP:
+    name: CodeQL Analyze (C/C++)
     runs-on: ubuntu-latest
 
-    permissions:
-      security-events: write
-      packages: read
-      actions: read
-      contents: read
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - language: actions
-            build-mode: none
-          - language: c-cpp
-            build-mode: manual
-          - language: java-kotlin
-            build-mode: none
+    container:
+      image: schoumi/yotta:latest
+      options: --user 1001:1001
 
     steps:
       - name: Checkout repository
@@ -36,44 +30,149 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Setup Python 3.8
-        if: matrix.language == 'c-cpp'
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.8"
-
-      - name: Install system dependencies
-        if: matrix.language == 'c-cpp'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential gcc-arm-none-eabi
-
-      - name: Initialize CodeQL
+      - name: Initialize CodeQL (C/C++)
         uses: github/codeql-action/init@v4
         with:
-          languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
+          languages: c-cpp
+          build-mode: manual
 
-      - name: Build microbit-qg in Docker
-        if: matrix.language == 'c-cpp'
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspaces \
-            -w /workspaces/iot/microbit-qg \
-            --user 1001:1001 \
-            schoumi/yotta:latest \
-            bash -c "ls -al && make"
-      
-      - name: Build microbit-terrain in Docker
-        if: matrix.language == 'c-cpp'
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspaces \
-            -w /workspaces/iot/microbit-terrain \                        
-            --user 1001:1001 \
-            schoumi/yotta:latest \
-            bash -c "ls -al && make"
+      - name: Build microbit-qg
+        run: make -C iot/microbit-qg
 
+      - name: Build microbit-terrain
+        run: make -C iot/microbit-terrain
 
-      - name: Perform CodeQL Analysis
+      - name: Create CodeQL results folder
+        run: mkdir -p codeql-results
+
+      - name: Perform CodeQL Analysis (C/C++)
         uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:c-cpp"
+          output: codeql-results/cpp.sarif
+
+      - name: Upload C/CPP CodeQL SARIF
+        uses: actions/upload-artifact@v4
+        with:
+          # Name of the artifact to upload.
+          # Optional. Default is 'artifact'
+          name: codeql-sarif-cpp
+          # A file, directory or wildcard pattern that describes what to upload
+          # Required.
+          path: codeql-results/*.sarif
+
+  # ==========================================
+  # PYTHON / JAVA / JAVASCRIPT ANALYSIS
+  # ==========================================
+  codeql-Python-JS:
+    name: CodeQL Analyze (Python / JavaScript)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: python, javascript-typescript
+        
+      - name: Create CodeQL results folder
+        run: mkdir -p codeql-results
+
+      - uses: github/codeql-action/analyze@v4
+        with:
+          output: codeql-results/python-JS.sarif
+
+      - name: Upload Python-JS CodeQL SARIF
+        uses: actions/upload-artifact@v4
+        with:
+          # Name of the artifact to upload.
+          # Optional. Default is 'artifact'
+          name: codeql-sarif-python-JS
+          # A file, directory or wildcard pattern that describes what to upload
+          # Required.
+          path: codeql-results/*.sarif
+
+
+  codeql-JAVA-api:
+    name: CodeQL Analyze (JAVA-API)
+    runs-on: ubuntu-latest
+
+    container:
+      image: maven:3.9.9-eclipse-temurin-17
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Initialize CodeQL (JAVA-API)
+        uses: github/codeql-action/init@v4
+        with:
+          languages: java
+          build-mode: manual
+
+      - name: Build java_api
+        working-directory: backend/api
+        run: mvn -q -DskipTests package
+
+      - name: Create CodeQL results folder
+        run: mkdir -p codeql-results
+
+      - name: Perform CodeQL Analysis (C/C++)
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:java"
+          output: codeql-results/java-api.sarif
+
+      - name: Upload Java-API CodeQL SARIF
+        uses: actions/upload-artifact@v4
+        with:
+          # Name of the artifact to upload.
+          # Optional. Default is 'artifact'
+          name: codeql-sarif-java-api
+          # A file, directory or wildcard pattern that describes what to upload
+          # Required.
+          path: codeql-results/*.sarif
+
+  codeql-MoteurDecision:
+    name: CodeQL Analyze (JAVA-MoteurDecision)
+    runs-on: ubuntu-latest
+
+    container:
+      image: maven:3.9.9-eclipse-temurin-23
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Initialize CodeQL (JAVA-MoteurDecision)
+        uses: github/codeql-action/init@v4
+        with:
+          languages: java
+          build-mode: manual
+
+      - name: Build java_api
+        working-directory: backend/MoteurDecision
+        run: mvn -q -DskipTests package
+        
+      - name: Create CodeQL results folder
+        run: mkdir -p codeql-results
+
+      - name: Perform CodeQL Analysis (JAVA-MoteurDecision)
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:java"
+          output: codeql-results/java-MoteurDecision.sarif
+
+      - name: Upload Java-MoteurDecision CodeQL SARIF
+        uses: actions/upload-artifact@v4
+        with:
+          # Name of the artifact to upload.
+          # Optional. Default is 'artifact'
+          name: codeql-sarif-java-MoteurDecision
+          # A file, directory or wildcard pattern that describes what to upload
+          # Required.
+          path: codeql-results/*.sarif

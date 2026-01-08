@@ -2,6 +2,7 @@ package fr.cpe.sdmis.repository;
 
 import fr.cpe.sdmis.dto.StatutInterventionResponse;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -23,6 +24,22 @@ public class StatutInterventionRepository {
                 "SELECT id_statut_intervention, nom FROM statut_intervention ORDER BY nom",
                 new StatutInterventionRowMapper()
         );
+    }
+
+    public UUID findIdByNomOrThrow(String nom) {
+        return jdbcTemplate.query("""
+                        SELECT id_statut_intervention
+                        FROM statut_intervention
+                        WHERE lower(nom) = lower(:nom)
+                        LIMIT 1
+                        """,
+                new MapSqlParameterSource("nom", nom),
+                rs -> rs.next() ? rs.getObject(1, UUID.class)
+                        : throwNotFound(nom));
+    }
+
+    private UUID throwNotFound(String nom) {
+        throw new IllegalStateException("Statut d'intervention introuvable : " + nom);
     }
 
     private static class StatutInterventionRowMapper implements RowMapper<StatutInterventionResponse> {

@@ -45,27 +45,27 @@
   background: #2eb88a;
 }
 
-.marker-ressource {
-  font-size: 0.9rem;
-  color: #ffffff;
+.marker-vehicule {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  width: 36px;
+  height: 32px;
+  padding: 0;
+  position: relative;
+  z-index: 3;
 }
 
-.marker-ressource.police {
-  background: #2463e3;
-  border-color: #e3eafc;
+.vehicle-icon {
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.25));
 }
 
-.marker-ressource.pompiers {
-  background: #d62828;
-  border-color: #fdeaea;
+.marker-search {
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
-.marker-ressource.samu {
-  background: #2eb88a;
-  border-color: #def5ec;
-}
-
-.marker-ressource.technique {
-  background: #1e293b;
-  border-color: #e2e8f0;
+.pin-icon {
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.22));
 }

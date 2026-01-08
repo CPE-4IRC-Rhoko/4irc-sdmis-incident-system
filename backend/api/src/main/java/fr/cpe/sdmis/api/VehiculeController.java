@@ -5,6 +5,7 @@ import fr.cpe.sdmis.dto.VehiculeUpdateRequest;
 import fr.cpe.sdmis.dto.VehiculeSnapshotResponse;
 import fr.cpe.sdmis.dto.VehiculeIdentResponse;
 import fr.cpe.sdmis.dto.VehiculeEnRouteResponse;
+import fr.cpe.sdmis.dto.VehiculeStatusUpdateRequest;
 import fr.cpe.sdmis.service.VehiculeService;
 import org.springframework.web.bind.annotation.GetMapping;
 import jakarta.validation.Valid;
@@ -50,5 +51,10 @@ public class VehiculeController {
     @GetMapping("/en-route")
     public List<VehiculeEnRouteResponse> vehiculesEnRoute() {
         return vehiculeService.getVehiculesEnRoute();
+    }
+
+    @PostMapping("/statut/en-intervention")
+    public void setEnIntervention(@Valid @RequestBody VehiculeStatusUpdateRequest request) {
+        vehiculeService.setVehiculeEnIntervention(request);
     }
 }
