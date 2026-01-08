@@ -2,6 +2,7 @@ package fr.cpe.sdmis.api;
 
 import fr.cpe.sdmis.dto.EvenementCreateRequest;
 import fr.cpe.sdmis.dto.EvenementResponse;
+import fr.cpe.sdmis.dto.EvenementSnapshotResponse;
 import fr.cpe.sdmis.service.EvenementService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,5 +30,10 @@ public class EvenementController {
     @GetMapping
     public List<EvenementResponse> list() {
         return evenementService.listEvenements();
+    }
+
+    @GetMapping("/snapshots")
+    public List<EvenementSnapshotResponse> listSnapshots() {
+        return evenementService.listSnapshots();
     }
 }
