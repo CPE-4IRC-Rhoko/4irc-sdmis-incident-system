@@ -51,16 +51,18 @@ jobs:
         run: sudo chmod -R a+w $GITHUB_WORKSPACE
 
       - name: ZAP Baseline Scan (API)
-        uses: zaproxy/action-api@v0.10.0
+        uses: zaproxy/action-baseline@v0.10.0
         with:
-            target: 'http://127.0.0.1:8080'
-            format: openapi
-            api_definition: 'http://127.0.0.1:8080/v3/api-docs'
-            cmd_options: >
-              -J zap_api.json
-              -r zap_api.html
-              -d failOnRisk HIGH,MEDIUM
-            fail_action: true
+          target: 'http://127.0.0.1:8080'
+          cmd_options: >
+            -z "-cmd zap-api-scan.py
+                -t http://127.0.0.1:8080
+                -f openapi
+                -J zap_api.json
+                -r zap_api.html
+                -d failOnRisk HIGH,MEDIUM
+                -u http://127.0.0.1:8080/v3/api-docs"
+          fail_action: true
           
       - name: ZAP Baseline Scan (FRONTEND)
         uses: zaproxy/action-baseline@v0.10.0
