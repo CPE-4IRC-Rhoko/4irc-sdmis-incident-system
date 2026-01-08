@@ -28,6 +28,8 @@ jobs:
           echo "Waiting for API..."          
           sleep 30
 
+      - name: Fix workspace permissions
+        run: sudo chmod -R a+w $GITHUB_WORKSPACE
 
       - name: ZAP Baseline Scan (API)
         uses: zaproxy/action-baseline@v0.10.0
@@ -38,7 +40,6 @@ jobs:
             -J zap.json
             -r zap_report.html
           rules_file_name: '.zap/rules.tsv'
-          docker_run_opts: "-u root"
 
 
       - name: Upload ZAP reports
@@ -53,5 +54,6 @@ jobs:
         if: always()
         run: |
           docker compose \
+            --env-file .env.ci \
             -f docker-compose.yaml.local \
             down -v
