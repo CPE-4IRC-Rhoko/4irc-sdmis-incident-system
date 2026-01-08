@@ -82,7 +82,6 @@ public class VehiculeRepository {
                 """, new IdentRowMapper());
     }
 
-<<<<<<< HEAD
     public List<VehiculeEnRouteResponse> findVehiculesEnRoute() {
         return jdbcTemplate.query("""
                 SELECT v.id_vehicule,
@@ -92,17 +91,6 @@ public class VehiculeRepository {
                        i.id_evenement,
                        e.latitude AS e_lat,
                        e.longitude AS e_lon
-=======
-    public List<VehiculeEnRouteResponse> findVehiculesEnRoute() {
-        return jdbcTemplate.query("""
-                SELECT v.id_vehicule,
-                       v.plaque_immat,
-                       v.latitude AS v_lat,
-                       v.longitude AS v_lon,
-                       i.id_evenement,
-                       e.latitude AS e_lat,
-                       e.longitude AS e_lon
->>>>>>> 4b7ed0c (add plaque_immat for en-route + add route to update vehicule statut to en intervention)
                 FROM vehicule v
                 JOIN statut_vehicule sv ON sv.id_statut = v.id_statut
                 JOIN intervention i ON i.id_vehicule = v.id_vehicule
@@ -112,7 +100,6 @@ public class VehiculeRepository {
                 """, new VehiculeEnRouteRowMapper());
     }
 
-<<<<<<< HEAD
     public void updateVehiculeStatutEnIntervention(UUID idVehicule) {
         try {
             UUID statutVehiculeId = jdbcTemplate.queryForObject("""
@@ -140,35 +127,6 @@ public class VehiculeRepository {
                 .addValue("lat", request.lat())
                 .addValue("lon", request.lon())
                 .addValue("ts", request.timestamp() != null ? java.sql.Timestamp.from(request.timestamp().toInstant()) : null);
-=======
-    public void updateVehiculeStatutEnIntervention(UUID idVehicule) {
-        try {
-            UUID statutVehiculeId = jdbcTemplate.queryForObject("""
-                    SELECT id_statut
-                    FROM statut_vehicule
-                    WHERE lower(nom_statut) = lower(:nom)
-                    """, new MapSqlParameterSource("nom", "En intervention"), UUID.class);
-            jdbcTemplate.update("""
-                    UPDATE vehicule
-                    SET id_statut = :statut
-                    WHERE id_vehicule = :vehicule
-                    """, new MapSqlParameterSource()
-                    .addValue("statut", statutVehiculeId)
-                    .addValue("vehicule", idVehicule));
-        } catch (EmptyResultDataAccessException e) {
-            LOGGER.error("Statut véhicule 'En intervention' introuvable, mise à jour ignorée");
-        } catch (DataAccessException e) {
-            LOGGER.error("Echec mise à jour statut 'En intervention' pour véhicule {} : {}", idVehicule, e.getMessage());
-        }
-    }
-
-    public void updateVehicule(VehiculeUpdateRequest request) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("plaque", request.plaqueImmat())
-                .addValue("lat", request.lat())
-                .addValue("lon", request.lon())
-                .addValue("ts", request.timestamp() != null ? java.sql.Timestamp.from(request.timestamp().toInstant()) : null);
->>>>>>> 4b7ed0c (add plaque_immat for en-route + add route to update vehicule statut to en intervention)
 
         jdbcTemplate.update("""
                 UPDATE vehicule
@@ -265,7 +223,6 @@ public class VehiculeRepository {
         }
     }
 
-<<<<<<< HEAD
     private static class VehiculeEnRouteRowMapper implements RowMapper<VehiculeEnRouteResponse> {
         @Override
         public VehiculeEnRouteResponse mapRow(ResultSet rs, int rowNum) throws SQLException {
@@ -277,19 +234,6 @@ public class VehiculeRepository {
                     rs.getObject("id_evenement", UUID.class),
                     rs.getDouble("e_lat"),
                     rs.getDouble("e_lon")
-=======
-    private static class VehiculeEnRouteRowMapper implements RowMapper<VehiculeEnRouteResponse> {
-        @Override
-        public VehiculeEnRouteResponse mapRow(ResultSet rs, int rowNum) throws SQLException {
-            return new VehiculeEnRouteResponse(
-                    rs.getObject("id_vehicule", UUID.class),
-                    rs.getString("plaque_immat"),
-                    rs.getDouble("v_lat"),
-                    rs.getDouble("v_lon"),
-                    rs.getObject("id_evenement", UUID.class),
-                    rs.getDouble("e_lat"),
-                    rs.getDouble("e_lon")
->>>>>>> 4b7ed0c (add plaque_immat for en-route + add route to update vehicule statut to en intervention)
             );
         }
     }
