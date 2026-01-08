@@ -26,6 +26,8 @@ public class InterventionRepository {
     private static final String STATUT_INTERVENTION_EN_COURS = "En cours";
     private static final String STATUT_INTERVENTION_ANNULEE = "Annulée";
     private static final String STATUT_VEHICULE_EN_ROUTE = "En route";
+    private static final String STATUT_INTERVENTION_TERMINEE = "Terminée";
+    private static final String STATUT_VEHICULE_DISPONIBLE = "Disponible";
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
@@ -37,7 +39,7 @@ public class InterventionRepository {
         UUID statutInterventionId = resolveStatutIntervention();
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("id_evenement", message.getIdEvenement())
-                .addValue("date_debut", Timestamp.from(defaultDateDebut(message.getDateCreation())))
+                .addValue("date_debut", null)
                 .addValue("date_fin", null)
                 .addValue("id_vehicule", message.getVehiculeId())
                 .addValue("id_statut_intervention", statutInterventionId);
@@ -151,10 +153,6 @@ public class InterventionRepository {
         }
     }
 
-    private Instant defaultDateDebut(Instant fromMessage) {
-        return fromMessage != null ? fromMessage : Instant.now();
-    }
-
     public UUID resolveStatutInterventionByNom(String nom) {
         try {
             return jdbcTemplate.queryForObject("""
@@ -167,13 +165,15 @@ public class InterventionRepository {
         }
     }
 
-    public void updateInterventionStatut(UUID idEvenement, UUID idVehicule, UUID idStatut) {
+    public void updateInterventionStatutEnCours(UUID idEvenement, UUID idVehicule, UUID idStatut, Instant dateDebut) {
         jdbcTemplate.update("""
                 UPDATE intervention
-                SET id_statut_intervention = :statut
+                SET id_statut_intervention = :statut,
+                    date_debut = COALESCE(date_debut, :debut)
                 WHERE id_evenement = :event AND id_vehicule = :vehicule
                 """, new MapSqlParameterSource()
                 .addValue("statut", idStatut)
+                .addValue("debut", Timestamp.from(dateDebut))
                 .addValue("event", idEvenement)
                 .addValue("vehicule", idVehicule));
     }
@@ -200,5 +200,55 @@ public class InterventionRepository {
                 .addValue("debut", Timestamp.from(dateDebut))
                 .addValue("vehicule", idVehicule)
                 .addValue("statut", statutEnCours));
+    }
+
+    public void cloturerIntervention(UUID idEvenement, UUID idVehicule) {
+        UUID statutTerminee = resolveStatutInterventionByNom(STATUT_INTERVENTION_TERMINEE);
+        jdbcTemplate.update("""
+                UPDATE intervention
+                SET id_statut_intervention = :statut,
+                    date_fin = COALESCE(date_fin, :fin)
+                WHERE id_evenement = :event AND id_vehicule = :vehicule
+                """, new MapSqlParameterSource()
+                .addValue("statut", statutTerminee)
+                .addValue("fin", Timestamp.from(Instant.now()))
+                .addValue("event", idEvenement)
+                .addValue("vehicule", idVehicule));
+    }
+
+    public void updateVehiculeStatutDisponible(UUID vehiculeId) {
+        if (vehiculeId == null) {
+            return;
+        }
+        try {
+            UUID statutVehiculeId = jdbcTemplate.queryForObject("""
+                    SELECT id_statut
+                    FROM statut_vehicule
+                    WHERE lower(nom_statut) = lower(:nom)
+                    """, new MapSqlParameterSource("nom", STATUT_VEHICULE_DISPONIBLE), UUID.class);
+            jdbcTemplate.update("""
+                    UPDATE vehicule
+                    SET id_statut = :statut
+                    WHERE id_vehicule = :vehicule
+                    """, new MapSqlParameterSource()
+                    .addValue("statut", statutVehiculeId)
+                    .addValue("vehicule", vehiculeId));
+        } catch (EmptyResultDataAccessException e) {
+            LOGGER.error("Statut véhicule 'Disponible' introuvable, mise à jour ignorée");
+        } catch (DataAccessException e) {
+            LOGGER.error("Echec mise à jour statut 'Disponible' pour véhicule {} : {}", vehiculeId, e.getMessage());
+        }
+    }
+
+    public boolean hasInterventionEnCours(UUID idEvenement) {
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM intervention i
+                JOIN statut_intervention si ON si.id_statut_intervention = i.id_statut_intervention
+                WHERE i.id_evenement = :event AND lower(si.nom) = lower(:nom)
+                """, new MapSqlParameterSource()
+                .addValue("event", idEvenement)
+                .addValue("nom", STATUT_INTERVENTION_EN_COURS),
+                Integer.class);
+        return count != null && count > 0;
     }
 }

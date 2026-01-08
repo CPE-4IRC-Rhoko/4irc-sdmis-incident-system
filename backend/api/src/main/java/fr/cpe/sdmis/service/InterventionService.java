@@ -1,6 +1,7 @@
 package fr.cpe.sdmis.service;
 
 import fr.cpe.sdmis.dto.ValidationInterventionRequest;
+import fr.cpe.sdmis.dto.ClotureInterventionRequest;
 import fr.cpe.sdmis.repository.EvenementRepository;
 import fr.cpe.sdmis.repository.InterventionRepository;
 import fr.cpe.sdmis.repository.StatutEvenementRepository;
@@ -38,8 +39,9 @@ public class InterventionService {
         Set<UUID> vehiculesCibles = new HashSet<>(request.vehicules());
 
         // Mettre en "En cours" les interventions existantes pour les véhicules fournis
+        Instant now = Instant.now();
         vehiculesCibles.forEach(vehiculeId ->
-                interventionRepository.updateInterventionStatut(request.id_evenement(), vehiculeId, statutEnCours));
+                interventionRepository.updateInterventionStatutEnCours(request.id_evenement(), vehiculeId, statutEnCours, now));
 
         // Mettre les véhicules en "En route"
         vehiculesCibles.forEach(interventionRepository::updateVehiculeStatutEnRoute);
@@ -48,12 +50,23 @@ public class InterventionService {
         interventionRepository.annulerInterventionsEnAttente(request.id_evenement(), statutEnAttente, statutAnnule);
 
         // Créer des interventions "En cours" manquantes pour les véhicules fournis
-        Instant now = Instant.now();
         vehiculesCibles.forEach(vehiculeId ->
                 interventionRepository.insertInterventionEnCours(request.id_evenement(), vehiculeId, now, statutEnCours));
 
         // Mettre l'évènement en "En intervention"
         statutEvenementRepository.findIdByNom("En intervention")
                 .ifPresent(id -> evenementRepository.updateStatut(request.id_evenement(), id));
+    }
+
+    public void cloturerIntervention(ClotureInterventionRequest request) {
+        // Clôturer l'intervention et rendre le véhicule disponible
+        interventionRepository.cloturerIntervention(request.id_evenement(), request.id_vehicule());
+        interventionRepository.updateVehiculeStatutDisponible(request.id_vehicule());
+
+        // Si plus aucune intervention en cours pour l'évènement, passer l'évènement en "Résolu"
+        if (!interventionRepository.hasInterventionEnCours(request.id_evenement())) {
+            statutEvenementRepository.findIdByNom("Résolu")
+                    .ifPresent(id -> evenementRepository.updateStatut(request.id_evenement(), id));
+        }
     }
 }
