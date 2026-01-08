@@ -27,7 +27,7 @@ public class CalllAPIVehicule {
                 System.out.println("\n--- Données reçues de l'API ---");
                 for (VehiculeData v : vehicules) {
                     System.out.printf(Locale.US, "Véhicule [%s] : Position actuelle (Lat: %.6f, Lon: %.6f) -> Dest évènement [%s] (Lat: %.6f, Lon: %.6f)%n",
-                            v.idVehicule, v.vehiculeLat, v.vehiculeLon, v.idEvenement, v.evenementLat, v.evenementLon);
+                            v.idVehicule, v.vehiculeLat, v.vehiculeLon, v.idEvenement, v.evenementLat, v.evenementLon, v.plaqueImmat);
                 }
                 System.out.println("-------------------------------\n");
                 return vehicules;
@@ -45,5 +45,6 @@ public class CalllAPIVehicule {
         public String idEvenement;
         public double evenementLat;
         public double evenementLon;
+        public String plaqueImmat;
     }
 }

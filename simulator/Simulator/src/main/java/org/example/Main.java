@@ -57,7 +57,7 @@ public class Main {
          String ressources = "Eau=80";
 
          // 2. Envoi des données
-         emetteur.envoyerDonnees(monId, maLat, maLon, ressources);
+         //emetteur.envoyerDonnees(monId, maLat, maLon, ressources, );
 
          // IMPORTANT : Faire une petite pause si tu as plusieurs camions
          // pour ne pas saturer le tampon de réception de la Micro:bit

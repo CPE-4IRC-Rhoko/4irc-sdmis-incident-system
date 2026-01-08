@@ -45,13 +45,13 @@ public class VehiculeGPS {
         try {
 
             // Coordonnées fixes de la destination (ex: Gare Part-Dieu)
-            double DEST_LAT_FIXE = 45.765646;
-            double DEST_LON_FIXE = 4.865712;
+            //double DEST_LAT_FIXE = 45.765646;
+            //double DEST_LON_FIXE = 4.865712;
 
             // Utilisation des coordonnées dynamiques de l'API
             String url = String.format(Locale.US,
                     "http://localhost:5000/route/v1/driving/%f,%f;%f,%f?geometries=geojson&overview=full",
-                    v.vehiculeLon, v.vehiculeLat, DEST_LON_FIXE, DEST_LAT_FIXE);
+                    v.vehiculeLon, v.vehiculeLat, v.evenementLon, v.evenementLat);
 
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).build();
@@ -64,7 +64,7 @@ public class VehiculeGPS {
             if (coordinates.isMissingNode()) return;
 
             //int monEau = 85;
-            String ressources = "Eau=80";
+            String resources = "eau=80";
 
             for (int i = 0; i < coordinates.size() - 1; i++) {
                 double lon1 = coordinates.get(i).get(0).asDouble();
@@ -82,10 +82,8 @@ public class VehiculeGPS {
                     double currentLon = lon1 + (lon2 - lon1) * fraction;
 
                     // ENVOI MICRO:BIT
-                    System.out.printf(Locale.US, "ID: %s | Lat %.6f | Lon %.6f%n | Res %s\n" , v.idVehicule, currentLat, currentLon, ressources);
-                    emetteur.envoyerDonnees(v.idVehicule, currentLat, currentLon, "Eau=50");
-
-                    System.out.printf(Locale.US, "ID: %s | Lat %.6f | Lon %.6f%n", v.idVehicule, currentLat, currentLon);
+                    System.out.printf(Locale.US, "ID: %s | Lat %.6f | Lon %.6f%n | Res %s \n" , v.plaqueImmat, currentLat, currentLon, resources);
+                    emetteur.envoyerDonnees(v.plaqueImmat, currentLat, currentLon, resources);
                     Thread.sleep(RAFRAICHISSEMENT_MS);
                 }
             }
