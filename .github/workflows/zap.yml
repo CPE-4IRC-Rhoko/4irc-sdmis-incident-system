@@ -58,10 +58,7 @@ jobs:
       - name: ZAP Scan
         uses: zaproxy/action-api-scan@v0.10.0
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          format: openapi
           target: 'http://127.0.0.1:8080/v3/api-docs'
-          rules_file_name: '.zap/rules.tsv'
           cmd_options: >
             -a
             -J zap_api.json
