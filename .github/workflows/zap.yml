@@ -53,11 +53,12 @@ jobs:
       - name: ZAP Baseline Scan (API)
         uses: zaproxy/action-baseline@v0.10.0
         with:
-          target: 'http://127.0.0.1:8080/v3/api-docs'
+          target: 'http://127.0.0.1:8080'
           cmd_options: >
             -a
             -J zap_api.json
             -r zap_api.html
+            -O http://127.0.0.1:8080/v3/api-docs
             -d failOnRisk HIGH
           rules_file_name: '.zap/rules.tsv'
           fail_action: true
