@@ -55,18 +55,15 @@ jobs:
       - name: Fix workspace permissions
         run: sudo chmod -R a+w $GITHUB_WORKSPACE
 
-      - name: ZAP API Scan (OpenAPI)
-        run: |
-          docker run --rm \
-            -v $GITHUB_WORKSPACE:/zap/wrk:rw \
-            ghcr.io/zaproxy/zaproxy:stable \
-            zap.sh -cmd \
-              -port 8090 \
-              -openapiurl http://127.0.0.1:8080/v3/api-docs \
-              -openapitargeturl http://127.0.0.1:8080 \
-              -quickprogress \
-              -quickout /zap/wrk/zap_api.html \
-              -config rules.failonrisk=2
+      - name: OWASP ZAP - API Scan
+        uses: zaproxy/action-api-scan@v0.9.0
+        with:
+          target: "http://localhost:8080"
+          rules_file_name: ".zap/rules.tsv"
+          cmd_options: "-a -j -l WARN"
+          issue_title: "ZAP API Scan - Résultats de sécurité"
+          fail_action: false
+          artifact_name: "zap-api-scan"
           
       - name: ZAP Baseline Scan (FRONTEND)
         uses: zaproxy/action-full-scan@v0.10.0
