@@ -1,6 +1,7 @@
 package fr.cpe.sdmis.repository;
 
 import fr.cpe.sdmis.dto.InterventionResponse;
+import fr.cpe.sdmis.dto.InterventionSnapshotResponse;
 import fr.cpe.sdmis.messaging.InterventionMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +18,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.Optional;
 
 @Repository
 public class InterventionRepository {
@@ -28,6 +30,17 @@ public class InterventionRepository {
     private static final String STATUT_VEHICULE_EN_ROUTE = "En route";
     private static final String STATUT_INTERVENTION_TERMINEE = "Terminée";
     private static final String STATUT_VEHICULE_DISPONIBLE = "Disponible";
+    private static final String SNAPSHOT_QUERY = """
+            SELECT i.id_evenement,
+                   i.date_debut as date_debut_intervention,
+                   i.date_fin as date_fin_intervention,
+                   si.nom as status_intervention,
+                   v.id_vehicule,
+                   v.plaque_immat
+            FROM intervention i
+            JOIN vehicule v ON v.id_vehicule = i.id_vehicule
+            JOIN statut_intervention si ON si.id_statut_intervention = i.id_statut_intervention
+            """;
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
@@ -200,6 +213,32 @@ public class InterventionRepository {
                 .addValue("debut", Timestamp.from(dateDebut))
                 .addValue("vehicule", idVehicule)
                 .addValue("statut", statutEnCours));
+    }
+
+    public List<InterventionSnapshotResponse> findSnapshots() {
+        return jdbcTemplate.query(SNAPSHOT_QUERY, this::mapSnapshot);
+    }
+
+    public Optional<InterventionSnapshotResponse> findSnapshotByIds(UUID idEvenement, UUID idVehicule) {
+        List<InterventionSnapshotResponse> res = jdbcTemplate.query(
+                SNAPSHOT_QUERY + " WHERE i.id_evenement = :event AND i.id_vehicule = :vehicule",
+                new MapSqlParameterSource()
+                        .addValue("event", idEvenement)
+                        .addValue("vehicule", idVehicule),
+                this::mapSnapshot
+        );
+        return res.stream().findFirst();
+    }
+
+    private InterventionSnapshotResponse mapSnapshot(ResultSet rs, int rowNum) throws SQLException {
+        return new fr.cpe.sdmis.dto.InterventionSnapshotResponse(
+                rs.getObject("id_evenement", UUID.class),
+                rs.getTimestamp("date_debut_intervention") != null ? rs.getTimestamp("date_debut_intervention").toInstant() : null,
+                rs.getTimestamp("date_fin_intervention") != null ? rs.getTimestamp("date_fin_intervention").toInstant() : null,
+                rs.getString("status_intervention"),
+                rs.getObject("id_vehicule", UUID.class),
+                rs.getString("plaque_immat")
+        );
     }
 
     public void cloturerIntervention(UUID idEvenement, UUID idVehicule) {
