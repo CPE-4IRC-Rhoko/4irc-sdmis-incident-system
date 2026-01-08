@@ -1,107 +1,98 @@
 package org.example;
 
-import okhttp3.*;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.List;
+import java.util.Locale;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.IOException;
-import java.util.*;
 
 public class VehiculeGPS {
-    private static final String GEO_API_URL = "https://geo.api.gouv.fr/communes?nom=Lyon&fields=code,nom,bbox";
-    private final OkHttpClient client = new OkHttpClient();
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public double[] getBbox() throws IOException
-    {
-        Request request = new Request.Builder()
-                .url(GEO_API_URL)
-                .build();
+    private static final double VITESSE_KMH = 200.0;
+    private static final int RAFRAICHISSEMENT_MS = 50;
+    private static final double DISTANCE_PAR_PAS = (VITESSE_KMH / 3.6) * (RAFRAICHISSEMENT_MS / 1000.0);
 
-        try (Response response = client.newCall(request).execute()) {
-            if (!response.isSuccessful()) throw new IOException("Erreur API Geo.gouv.fr: " + response);
+    public static void main(String[] args) {
+        // 1. Appeler l'autre classe pour récupérer les données de l'API
+        CalllAPIVehicule apiCaller = new CalllAPIVehicule();
+        List<CalllAPIVehicule.VehiculeData> listeVehicules = apiCaller.fetchVehiculesEnRoute();
 
-            String body = response.body().string();
-            JsonNode root = objectMapper.readTree(body);
-            JsonNode communeNode = root.get(0);
-            ;
-
-            // --- RECUP DES POINT DE LA VILLE ---
-
-            //On récupère les coordonnées des points GPS
-            JsonNode coordonne = communeNode.path("bbox").path("coordinates").get(0);
-
-            //System.out.println(body);
-            //System.out.println(coordonne);
-
-            // --- DETERMINE LE MAX ET LE MIN DE CES POINTS ---
-
-            // Initialiser les variables pour stocker les extrémités
-            double minLon = Double.MAX_VALUE;
-            double maxLon = Double.MIN_VALUE;
-            double minLat = Double.MAX_VALUE;
-            double maxLat = Double.MIN_VALUE;
-
-            // On stock chaque point dans une variable afin de pouvoir les réutiliser
-            for (JsonNode point : coordonne) {
-                //System.out.println(point);
-                double lon = point.get(0).asDouble(); // index 0 → long
-                double lat = point.get(1).asDouble(); // index 1 → lat
-
-                // longitude minimale
-                if (lon < minLon) {
-                    minLon = lon;
-                }
-                // longitude maximale
-                if (lon > maxLon) {
-                    maxLon = lon;
-                }
-
-                // latitude minimale
-                if (lat < minLat) {
-                    minLat = lat;
-                }
-                // latitude maximale
-                if (lat > maxLat) {
-                    maxLat = lat;
-                }
-            }
-
-            /*
-            System.out.println("\n===Extrémité de la BBOX ===");
-            System.out.printf("  Longitude Min : %.5f\n", minLon);
-            System.out.printf("  Longitude Max : %.5f\n", maxLon);
-            System.out.printf("  Latitude Min  : %.5f\n", minLat);
-            System.out.printf("  Latitude Max  : %.5f\n", maxLat);
-            */
-
-            // --- GÉNÉRATION POINT ALÉATOIRE ---
-            Random rand = new Random();
-
-            double randomLat = minLat + (maxLat - minLat) * rand.nextDouble();
-            double randomLon = minLon + (maxLon - minLon) * rand.nextDouble();
-
-            /*
-            System.out.println("\n=== Point GPS aléatoire ===");
-            System.out.printf("Point aléatoire = lat= %.5f, lon= %.5f\n", randomLat, randomLon);
-            */
-
-            String url = String.format(
-                    Locale.US,
-                    "https://router.project-osrm.org/nearest/v1/driving/%.8f,%.8f",
-                    randomLon, randomLat
-            );
-
-            Request snapRequest = new Request.Builder().url(url).build();
-
-            try (Response snapResponse = client.newCall(snapRequest).execute()) {
-                JsonNode snapJson = objectMapper.readTree(snapResponse.body().string());
-                JsonNode location = snapJson.path("waypoints").get(0).path("location");
-
-                double roadLon = location.get(0).asDouble();
-                double roadLat = location.get(1).asDouble();
-
-                return new double[]{roadLat, roadLon};
-            }
+        if (listeVehicules.isEmpty()) {
+            System.out.println("Aucun véhicule à simuler.");
+            return;
         }
+
+        // 2. Initialiser l'émetteur Micro:bit une seule fois
+        MicrobitSender emetteur = new MicrobitSender("COM3");
+        try { Thread.sleep(2000); } catch (Exception e) {}
+
+        // 3. Boucler sur chaque véhicule récupéré
+        for (CalllAPIVehicule.VehiculeData v : listeVehicules) {
+            System.out.println("\n>>> Simulation du véhicule : " + v.idVehicule);
+            simulerTrajet(v, emetteur);
+        }
+
+        emetteur.close();
+        System.out.println("Toutes les simulations sont terminées.");
+    }
+
+    private static void simulerTrajet(CalllAPIVehicule.VehiculeData v, MicrobitSender emetteur) {
+        try {
+            // Utilisation des coordonnées dynamiques de l'API
+            String url = String.format(Locale.US,
+                    "http://localhost:5000/route/v1/driving/%f,%f;%f,%f?geometries=geojson&overview=full",
+                    v.vehiculeLon, v.vehiculeLat, v.evenementLon, v.evenementLat);
+
+            HttpClient client = HttpClient.newHttpClient();
+            HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).build();
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(response.body());
+            JsonNode coordinates = root.path("routes").get(0).path("geometry").path("coordinates");
+
+            if (coordinates.isMissingNode()) return;
+
+            int monEau = 85;
+
+            for (int i = 0; i < coordinates.size() - 1; i++) {
+                double lon1 = coordinates.get(i).get(0).asDouble();
+                double lat1 = coordinates.get(i).get(1).asDouble();
+                double lon2 = coordinates.get(i + 1).get(0).asDouble();
+                double lat2 = coordinates.get(i + 1).get(1).asDouble();
+
+                double distSegment = haversine(lat1, lon1, lat2, lon2);
+                int nbPas = (int) (distSegment / DISTANCE_PAR_PAS);
+                if (nbPas < 1) nbPas = 1;
+
+                for (int j = 0; j <= nbPas; j++) {
+                    double fraction = (double) j / nbPas;
+                    double currentLat = lat1 + (lat2 - lat1) * fraction;
+                    double currentLon = lon1 + (lon2 - lon1) * fraction;
+
+                    // ENVOI MICRO:BIT
+                    emetteur.envoyerDonnees(v.idVehicule, currentLat, currentLon, monEau);
+
+                    System.out.printf(Locale.US, "ID: %s | Lat %.6f | Lon %.6f%n", v.idVehicule, currentLat, currentLon);
+                    Thread.sleep(RAFRAICHISSEMENT_MS);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Erreur trajet " + v.idVehicule + " : " + e.getMessage());
+        }
+    }
+
+    private static double haversine(double lat1, double lon1, double lat2, double lon2) {
+        final int R = 6371000;
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 }

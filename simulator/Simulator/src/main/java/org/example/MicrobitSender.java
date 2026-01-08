@@ -50,8 +50,6 @@ public class MicrobitSender {
             // Trame
             String trame = String.format(Locale.US, "ID:%s;Geo:%.5f,%.5f;Eau:%d;Time:%s;\n", id, latitude, longitude, niveauEau, timestamp);
 
-
-
             // 2. Envoi sur le port série
             out.write(trame.getBytes());
             out.flush(); // Force l'envoi immédiat
