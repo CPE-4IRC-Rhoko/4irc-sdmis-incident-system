@@ -36,7 +36,7 @@ jobs:
       - name: ZAP Baseline Scan (API)
         uses: zaproxy/action-baseline@v0.10.0
         with:
-          target: 'http://host.docker.internal:8080'
+          target: 'http://127.0.0.1:8080'
           cmd_options: >
             -a
             -J zap_api.json
@@ -46,7 +46,7 @@ jobs:
       - name: ZAP Baseline Scan (FRONTEND)
         uses: zaproxy/action-baseline@v0.10.0
         with:
-          target: 'http://host.docker.internal:5173'
+          target: 'http://127.0.0.1:5173'
           cmd_options: >
             -a
             -J zap_frontend.json
