@@ -6,18 +6,17 @@ import sys
 from datetime import datetime, timezone
 
 # --- CONFIGURATION ---
-# Ton port Mac (vérifie avec 'ls /dev/tty.usbmodem*')
+# Port Mac (vérifie avec 'ls /dev/tty.usbmodem*')
 PORT_USB = "/dev/tty.usbmodem11202"
 BAUDRATE = 115200
 
 # 1. URL pour RECUPERER les clés (GET)
-# Doit renvoyer : [{"plaqueImmat": "AA...", "cleIdent": "Key..."}, ...]
 URL_API_KEYS = "https://api.4irc.hugorodrigues.fr/api/vehicules/cle-ident"
 
 # 2. URL pour ENVOYER les données reçues (POST)
 URL_API_DATA = "https://api.4irc.hugorodrigues.fr/api/vehicules/mise-a-jour"
 
-# FREQUENCE DE MISE A JOUR DES CLES (en secondes)
+# FREQUENCE DE MISE A JOUR DES CLES
 KEY_UPDATE_INTERVAL = 120  # 2 minutes
 
 def fetch_and_sync_keys(ser):
@@ -42,7 +41,7 @@ def fetch_and_sync_keys(ser):
     # 2. Injection dans la Micro:bit
     count = 0
     for vehicule in vehicules_list:
-        # Mapping selon ta structure JSON exacte
+        # Mapping selon ta structure JSON
         plaque = vehicule.get("plaqueImmat")  # Devient l'ID
         cle = vehicule.get("cleIdent")  # Devient la KEY
 
@@ -56,7 +55,7 @@ def fetch_and_sync_keys(ser):
             print(f"Injection : {plaque} -> Clé configurée")
             count += 1
 
-            # Pause nécessaire pour ne pas saturer le buffer série de la Micro:bit
+            # Pause pour ne pas saturer le buffer série de la Micro:bit
             time.sleep(0.15)
         else:
             print(f"Ignoré (Données incomplètes) : {vehicule}")
@@ -70,7 +69,7 @@ def demarrer_passerelle():
     try:
         # Ouverture Port Série
         ser = serial.Serial(PORT_USB, BAUDRATE, timeout=1)
-        # Attente stabilisation (reboot auto possible à l'ouverture)
+        # Attente stabilisation (reboot auto)
         time.sleep(2)
 
         # Initialisation du timer
@@ -83,7 +82,7 @@ def demarrer_passerelle():
         print("\nPasserelle prête. En attente de radio...")
 
         while True:
-            # --- AJOUT : GESTION DU TEMPS (AUTO-UPDATE) ---
+            # --- GESTION DU TEMPS (AUTO-UPDATE) ---
             current_time = time.time()
             if current_time - last_key_update > KEY_UPDATE_INTERVAL:
                 print("\n[Timer] Mise à jour automatique des clés...")
@@ -106,22 +105,59 @@ def demarrer_passerelle():
                         json_text = line[4:]
 
                         try:
-                            data = json.loads(json_text)
+                            # 1. Parsing des données brutes reçues de la Microbit
+                            raw_data = json.loads(json_text)
 
-                            # Conversion Timestamp Unix -> ISO String
-                            if "timestamp" in data and isinstance(data["timestamp"], (int, float)):
-                                dt = datetime.fromtimestamp(data["timestamp"], timezone.utc)
-                                data["timestamp"] = dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+                            # 2. Conversion Timestamp Unix -> Timestamp WEB ISO String
+                            ts_iso = None
+                            if "timestamp" in raw_data and isinstance(raw_data["timestamp"], (int, float)):
+                                dt = datetime.fromtimestamp(raw_data["timestamp"], timezone.utc)
+                                ts_iso = dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 
-                            # Envoi réel vers ton API de données
+                            # 3. Traitement ressources
+                            res_dict = {}
+
+                            # Option A: Format TEXTE (Nouveau code QG : raw_res="Eau=80,Gaz=10")
+                            if "raw_res" in raw_data:
+                                res_string = raw_data.get("raw_res", "")
+                                if res_string and res_string != "0":
+                                    try:
+                                        items = res_string.split(',')
+                                        for item in items:
+                                            if '=' in item:
+                                                key, val = item.split('=')
+                                                key = key.strip()
+                                                val = val.strip()
+                                                try:
+                                                    res_dict[key] = int(val)
+                                                except ValueError:
+                                                    res_dict[key] = val
+                                    except Exception:
+                                        print("Erreur parsing raw_res")
+
+                            # Option B: Format OBJET (Ancien code: ressources={"eau":85})
+                            elif "ressources" in raw_data and isinstance(raw_data["ressources"], dict):
+                                res_dict = raw_data["ressources"]
+
+                            # 4. Construction du paylod final pour l'API
+                            payload_api = {
+                                "plaqueImmat": raw_data.get("plaqueImmat") or raw_data.get("id"),
+                                "lat": raw_data.get("lat"),
+                                "lon": raw_data.get("lon"),
+                                "timestamp": ts_iso,
+                                "ressources": res_dict,
+                                "btn": raw_data.get("btn")
+                            }
+
+                            # 5. ENVOI
                             try:
-                                # On envoie vraiment la requête POST
-                                r = requests.post(URL_API_DATA, json=data)
+                                print(f"Payload envoyé à l'API : {json.dumps(payload_api)}")
+                                r = requests.post(URL_API_DATA, json=payload_api)
 
                                 if r.status_code in [200, 201]:
-                                    print("Donnée sauvegardée en BDD (200 OK)")
+                                    print(f"Donnée sauvegardée : {res_dict} (200 OK)")
                                 else:
-                                    print(f"Erreur BDD : {r.status_code}")
+                                    print(f"Erreur BDD : {r.status_code} - {r.text}")
 
                             except Exception as e:
                                 print(f"Erreur envoi POST : {e}")
