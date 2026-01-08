@@ -4,6 +4,7 @@ import java.util.UUID;
 
 public record VehiculeEnRouteResponse(
         UUID idVehicule,
+        String plaqueImmat,
         double vehiculeLat,
         double vehiculeLon,
         UUID idEvenement,
