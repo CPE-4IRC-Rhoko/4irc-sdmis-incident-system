@@ -20,6 +20,10 @@ interface Props {
   onSelectRessource?: (id: string) => void
   onClosePopups?: () => void
   onClickPointInteret?: () => void
+  statutEvenementParId?: Record<string, string>
+  interactionEnabled?: boolean
+  navigationEnabled?: boolean
+  compactMarkers?: boolean
   vue: VueCarte
   onMove: (vue: VueCarte) => void
 }
@@ -88,6 +92,10 @@ function MapView({
   onSelectRessource,
   onClosePopups,
   onClickPointInteret,
+  statutEvenementParId,
+  interactionEnabled = true,
+  navigationEnabled = true,
+  compactMarkers = false,
   vue,
   onMove,
 }: Props) {
@@ -154,14 +162,24 @@ function MapView({
         reuseMaps
         style={{ width: '100%', height: '100%' }}
         onMove={(evt) => onMove(evt.viewState)}
+        interactive={interactionEnabled}
+        dragPan={interactionEnabled}
+        scrollZoom={interactionEnabled}
+        doubleClickZoom={interactionEnabled}
+        touchZoomRotate={interactionEnabled}
+        onClick={() => onClosePopups?.()}
       >
-        <NavigationControl position="top-right" />
+        {navigationEnabled && <NavigationControl position="top-right" />}
         {pointInteretValide && (
           <Marker
             longitude={pointInteretValide.longitude}
             latitude={pointInteretValide.latitude}
             anchor="bottom"
-            onClick={onClickPointInteret}
+            onClick={(e) => {
+              const ev: any = e
+              ev?.originalEvent?.stopPropagation?.()
+              onClickPointInteret?.()
+            }}
           >
             <div
               className="marker marker-search"
@@ -176,19 +194,27 @@ function MapView({
             key={evt.id}
             longitude={evt.longitude}
             latitude={evt.latitude}
-            anchor="bottom"
-            onClick={() => {
+            anchor="center"
+            onClick={(e) => {
+              const ev: any = e
+              ev?.originalEvent?.stopPropagation?.()
               onSelectEvenement(evt.id)
             }}
           >
-            <div
-              className={`marker ${classeEvenement(evt.gravite)} ${
-                evenementSelectionneId === evt.id ? 'marker-active' : ''
-              }`}
-              title={evt.titre}
-            >
-              !
-            </div>
+            {compactMarkers ? (
+              <div className={`mini-marker ${classeEvenement(evt.gravite).split(' ').pop()}`}>
+                <span className="mini-marker-inner" />
+              </div>
+            ) : (
+              <div
+                className={`marker ${classeEvenement(evt.gravite)} ${
+                  evenementSelectionneId === evt.id ? 'marker-active' : ''
+                }`}
+                title={evt.titre}
+              >
+                !
+              </div>
+            )}
           </Marker>
         ))}
         {ressourcesAffichees.map((ressource) => (
@@ -201,7 +227,9 @@ function MapView({
             <div
               className="marker marker-vehicule"
               title={ressource.nom}
-              onClick={() => {
+              onClick={(e) => {
+                const ev: any = e
+                ev?.originalEvent?.stopPropagation?.()
                 onSelectRessource?.(ressource.id)
               }}
             >
@@ -222,8 +250,12 @@ function MapView({
             <div className="popup-content">
               <h4>{popupEvenement.titre}</h4>
               <p className="muted small">
-                Gravité : {popupEvenement.gravite} | Statut :{' '}
-                {popupEvenement.statut}
+                Gravité : {popupEvenement.gravite}
+              </p>
+              <p className="muted small">
+                Statut :{' '}
+                {statutEvenementParId?.[popupEvenement.id] ??
+                  popupEvenement.statut}
               </p>
               <p className="muted small">
                 {popupEvenement.latitude.toFixed(4)},{' '}
@@ -250,10 +282,25 @@ function MapView({
               <p className="muted small">
                 Statut : {popupRessource.disponibilite}
               </p>
+              {popupRessource.plaque && (
+                <p className="muted small">Plaque : {popupRessource.plaque}</p>
+              )}
               <p className="muted small">
                 {popupRessource.latitude.toFixed(4)},{' '}
                 {popupRessource.longitude.toFixed(4)}
               </p>
+              {popupRessource.equipements && popupRessource.equipements.length > 0 && (
+                <div className="muted small">
+                  Ressources :
+                  <ul>
+                    {popupRessource.equipements.map((eq) => (
+                      <li key={`${popupRessource.id}-${eq.nom}`}>
+                        {eq.nom} ({eq.contenance ?? 0})
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </Popup>
         )}

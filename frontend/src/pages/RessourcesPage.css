@@ -34,8 +34,8 @@
 
 .resources-toolbar .toolbar-input {
   flex: 1;
-  min-width: 400px;
-  max-width: 540px;
+  min-width: 300px;
+  max-width: 400px;
 }
 
 .resources-table-card {

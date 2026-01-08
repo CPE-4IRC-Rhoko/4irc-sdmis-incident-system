@@ -19,9 +19,11 @@ import {
   getTypesEvenement,
 } from '../services/evenements'
 import { getInterventions } from '../services/interventions'
+import { getVehiculesOperationnels } from '../services/vehicules'
 import { withBaseUrl } from '../services/api'
 import EvenementsPage from './EvenementsPage'
 import RessourcesPage from './RessourcesPage'
+import AffectationsPage from './AffectationsPage'
 import './QGPage.css'
 import '../components/IncidentForm.css'
 
@@ -96,6 +98,7 @@ const incidentDepuisApi = (evt: EvenementApi): Incident => ({
   latitude: evt.latitude,
   longitude: evt.longitude,
   derniereMiseAJour: new Date().toISOString(),
+  statutLabel: evt.nomStatut,
 })
 
 const ressourcesDepuisApi = (
@@ -127,6 +130,7 @@ const ressourcesDepuisApi = (
         disponibilite: 'OCCUPE',
         latitude: evt.latitude,
         longitude: evt.longitude,
+        equipements: [],
       } as Ressource
     })
     .filter(Boolean) as Ressource[]
@@ -151,7 +155,7 @@ function QGPage() {
     string | undefined
   >(undefined)
   const [vueCarte, setVueCarte] = useState<VueCarte>(vueInitiale)
-  const [sectionQG, setSectionQG] = useState<'TABLEAU' | 'EVENEMENTS' | 'RESSOURCES'>(
+  const [sectionQG, setSectionQG] = useState<'TABLEAU' | 'EVENEMENTS' | 'RESSOURCES' | 'AFFECTATIONS'>(
     'TABLEAU',
   )
   const [etatChargement, setEtatChargement] = useState<
@@ -174,6 +178,9 @@ function QGPage() {
   const [vehiculesSseOk, setVehiculesSseOk] = useState(false)
   const [popupEvenementId, setPopupEvenementId] = useState<string | null>(null)
   const [popupRessourceId, setPopupRessourceId] = useState<string | null>(null)
+  const [statutEvenementParId, setStatutEvenementParId] = useState<
+    Record<string, string>
+  >({})
 
   const handleSelectEvenement = (id: string) => {
     setEvenementSelectionneId(id)
@@ -338,11 +345,13 @@ function QGPage() {
       try {
         const [
           evtApi,
+          vehiculesApi,
           interventionsApi,
           severitesApi,
           typesApi,
         ] = await Promise.all([
           getEvenements(controller.signal),
+          getVehiculesOperationnels(controller.signal),
           getInterventions(controller.signal),
           getSeverites(controller.signal),
           getTypesEvenement(controller.signal),
@@ -351,6 +360,7 @@ function QGPage() {
         const incidents = evtApi.map(incidentDepuisApi)
         setEvenements(incidents)
         setEvenementsApi(evtApi)
+        setRessources(ressourcesDepuisApi(vehiculesApi, interventionsApi, evtApi))
         setInterventionsData(interventionsApi)
         const severitesTriees = [...severitesApi].sort(
           (a, b) =>
@@ -365,6 +375,11 @@ function QGPage() {
           .filter(Boolean)
           .sort((a, b) => (a === 'Déclaré' ? -1 : a.localeCompare(b)))
         setStatutsDisponibles(statuts.length > 0 ? statuts : ['Déclaré'])
+        const mapStatut: Record<string, string> = {}
+        evtApi.forEach((evt) => {
+          mapStatut[evt.id] = evt.nomStatut
+        })
+        setStatutEvenementParId(mapStatut)
         setEvenementSelectionneId((prev) =>
           prev && incidents.some((evt) => evt.id === prev)
             ? prev
@@ -415,6 +430,7 @@ function QGPage() {
           equipements?: Array<{ nomEquipement: string; contenanceCourante: number }>
         }>
         setRessources((prev) => {
+          console.info('Mise à jour SSE véhicules', data)
           const map = new Map(prev.map((r) => [r.id, r]))
           data.forEach((veh) => {
             const dispo =
@@ -427,12 +443,18 @@ function QGPage() {
               id: veh.id,
               nom: veh.caserne ? `Véhicule ${veh.caserne}` : `Véhicule ${veh.id.slice(0, 6)}`,
               type: 'Véhicule',
-            categorie: 'POMPIERS',
-            disponibilite: dispo,
-            latitude: veh.latitude,
-            longitude: veh.longitude,
+              categorie: 'POMPIERS',
+              disponibilite: dispo,
+              latitude: veh.latitude,
+              longitude: veh.longitude,
+              equipements:
+                veh.equipements?.map((eq) => ({
+                  nom: eq.nomEquipement,
+                  contenance: eq.contenanceCourante,
+                })) ?? map.get(veh.id)?.equipements ?? [],
+              plaque: map.get(veh.id)?.plaque ?? undefined,
+            })
           })
-        })
         return Array.from(map.values())
       })
       setVehiculesSseOk(true)
@@ -535,6 +557,15 @@ function QGPage() {
         >
           Ressources
         </button>
+        <button
+          className={`nav-item ${
+            sectionQG === 'AFFECTATIONS' ? 'nav-active' : ''
+          }`}
+          type="button"
+          onClick={() => setSectionQG('AFFECTATIONS')}
+        >
+          Affectations
+        </button>
         <button className="nav-item" type="button">
           Affectations
         </button>
@@ -557,6 +588,10 @@ function QGPage() {
       ) : sectionQG === 'RESSOURCES' ? (
         <div className="evenements-wrapper">
           <RessourcesPage />
+        </div>
+      ) : sectionQG === 'AFFECTATIONS' ? (
+        <div className="evenements-wrapper">
+          <AffectationsPage />
         </div>
       ) : (
         <>
@@ -643,12 +678,13 @@ function QGPage() {
               }
               evenementSelectionneId={evenementSelectionneId}
               popupEvenementId={popupEvenementId}
-              popupRessourceId={popupRessourceId}
-              onSelectEvenement={handleSelectEvenement}
-              onSelectRessource={handleSelectRessource}
-              onClosePopups={fermerPopups}
-              onClickPointInteret={
-                pointRecherche ? ouvrirCreationDepuisCarte : undefined
+            popupRessourceId={popupRessourceId}
+            statutEvenementParId={statutEvenementParId}
+            onSelectEvenement={handleSelectEvenement}
+            onSelectRessource={handleSelectRessource}
+            onClosePopups={fermerPopups}
+            onClickPointInteret={
+              pointRecherche ? ouvrirCreationDepuisCarte : undefined
               }
               vue={vueCarte}
               onMove={setVueCarte}
