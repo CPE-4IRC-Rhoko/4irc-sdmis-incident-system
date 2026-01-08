@@ -110,4 +110,14 @@ public class EvenementRepository implements IEvenementRepository {
             );
         }
     }
+
+    public void updateStatut(UUID idEvenement, UUID idStatut) {
+        jdbcTemplate.update("""
+                UPDATE evenement
+                SET id_statut = :statut
+                WHERE id_evenement = :id
+                """, new MapSqlParameterSource()
+                .addValue("statut", idStatut)
+                .addValue("id", idEvenement));
+    }
 }

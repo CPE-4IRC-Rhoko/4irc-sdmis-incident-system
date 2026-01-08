@@ -92,7 +92,8 @@ public class VehiculeRepository {
                 JOIN statut_vehicule sv ON sv.id_statut = v.id_statut
                 JOIN intervention i ON i.id_vehicule = v.id_vehicule
                 JOIN evenement e ON e.id_evenement = i.id_evenement
-                WHERE sv.nom_statut = 'En route'
+                join statut_evenement se ON se.id_statut = e.id_statut
+                WHERE sv.nom_statut = 'En route' and se.nom_statut = 'En intervention'
                 """, new VehiculeEnRouteRowMapper());
     }
 
