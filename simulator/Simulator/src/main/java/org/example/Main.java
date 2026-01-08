@@ -53,10 +53,11 @@ public class Main {
          String monId = "AA100AA";
          double maLat = 777; // Valeur calculée par ton simu
          double maLon = 777;  // Valeur calculée par ton simu
-         int monEau = 85;
+         //int monEau = 85;
+         String ressources = "Eau=80";
 
          // 2. Envoi des données
-         emetteur.envoyerDonnees(monId, maLat, maLon, monEau);
+         emetteur.envoyerDonnees(monId, maLat, maLon, ressources);
 
          // IMPORTANT : Faire une petite pause si tu as plusieurs camions
          // pour ne pas saturer le tampon de réception de la Micro:bit
