@@ -7,7 +7,7 @@ extern "C" {
 MicroBit uBit;
 
 // --- CONFIGURATION DES CLES ---
-uint8_t cleAES[16] = { 'V','i','n','c','e','n','t','L','e','P','l','u','B','o','1','2' };
+uint8_t cleAES[16] = { 'V','E','8','c','e','n','t','L','e','P','0','u','B','o','1','2' };
 uint8_t keysHMAC[7][16] = {
     { 'K','e','y','1','0','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA100AA (Index 0)
     { 'K','e','y','1','1','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA101AA (Index 1)
@@ -23,13 +23,13 @@ struct EtatCamion {
     bool actif;         
     ManagedString id;   // <--- STOCKAGE DE L'ID EN TEXTE (ex: "AA100AA")
     ManagedString geo;  
-    ManagedString eau;  
+    ManagedString res;  
     ManagedString time;  
     int sequence;       
     bool btnAppuye;     
 };
 
-// Notre flotte en mémoire (7 slots maximum pour cet exemple)
+// Notre flotte en mémoire (7 slots)
 EtatCamion flotte[7];
 
 // Buffers Radio
@@ -82,18 +82,18 @@ uint32_t calculerAuth(const char* data, int len, uint8_t* cle) {
 }
 
 PacketBuffer chiffrerSecurise(ManagedString message, int keyIdx) {
-    // 80 OCTETS
-    uint8_t buffer[80]; memset(buffer, 0, 80);
+    // 96 OCTETS
+    uint8_t buffer[96]; memset(buffer, 0, 96);
     int len = message.length(); 
-    if (len > 76) len = 76; 
+    if (len > 92) len = 92; 
     memcpy(buffer + 4, message.toCharArray(), len);
     
-    uint32_t auth = calculerAuth((const char*)(buffer + 4), 76, keysHMAC[keyIdx]);
+    uint32_t auth = calculerAuth((const char*)(buffer + 4), 92, keysHMAC[keyIdx]);
     memcpy(buffer, &auth, 4);
     
     AES_ctx ctx; AES_init_ctx(&ctx, cleAES);
-    for (int i = 0; i < 5; i++) AES_ECB_encrypt(&ctx, buffer + (i * 16));
-    return PacketBuffer(buffer, 80);
+    for (int i = 0; i < 6; i++) AES_ECB_encrypt(&ctx, buffer + (i * 16));
+    return PacketBuffer(buffer, 96);
 }
 
 ManagedString dechiffrerSecurise(PacketBuffer data, int keyIdx, bool* valide) {
@@ -128,7 +128,7 @@ void mettreAJourEtat(ManagedString ligneJava) {
     if (idx != -1) {
         flotte[idx].id = sId; // On stocke l'ID texte
         flotte[idx].geo = extractValue(ligneJava, "Geo:");
-        flotte[idx].eau = extractValue(ligneJava, "Eau:");
+        flotte[idx].res = extractValue(ligneJava, "Res:");
         flotte[idx].time = extractValue(ligneJava, "Time:");
         flotte[idx].actif = true; 
         
@@ -148,7 +148,7 @@ void envoyerCamionRadio(int index) {
     
     ManagedString payload = "ID:" + idString + 
                             ";Geo:" + flotte[index].geo + 
-                            ";Eau:" + flotte[index].eau + 
+                            ";Res:" + flotte[index].res + 
                             ";Btn:" + ManagedString(flotte[index].btnAppuye ? 1 : 0) + 
                             ";Seq:" + ManagedString(flotte[index].sequence) +
                             ";Time:" + flotte[index].time + ";";
@@ -174,7 +174,7 @@ void envoyerCamionRadio(int index) {
         uBit.sleep(100 + uBit.random(50));
         
         uint32_t start = uBit.systemTime();
-        while(uBit.systemTime() - start < 800) {
+        while(uBit.systemTime() - start < 400) {
             // Lecture Série continue
             if (uBit.serial.isReadable()) {
                 ManagedString s = uBit.serial.readUntil('\n');
@@ -261,7 +261,7 @@ int main() {
         if (!flotte[0].actif && !flotte[1].actif && !flotte[2].actif && !flotte[3].actif && !flotte[4].actif && !flotte[5].actif && !flotte[6].actif) {
             uBit.sleep(100);
         } else {
-            uBit.sleep(500); 
+            uBit.sleep(200); 
         }
     }
 }
