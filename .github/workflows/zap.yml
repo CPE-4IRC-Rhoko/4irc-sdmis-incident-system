@@ -62,7 +62,6 @@ jobs:
           artifact_name: ''
           format: openapi
           target: 'http://127.0.0.1:8080/v3/api-docs'
-          rules_file_name: '.zap/rules.tsv'
           cmd_options: >
             -J zap_api.json
             -r zap_api.html
