@@ -38,6 +38,8 @@ jobs:
             -J zap.json
             -r zap_report.html
           rules_file_name: '.zap/rules.tsv'
+          docker_run_opts: "-u root"
+
 
       - name: Upload ZAP reports
         uses: actions/upload-artifact@v4
