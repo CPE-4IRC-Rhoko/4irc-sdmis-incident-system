@@ -80,7 +80,7 @@ jobs:
           ls -al
           whoami
           pwd          
-          chmod 777 -R *
+          sudo chmod 777 -R *
           ls -al 
           touch report_json.json report_md.md report_html.html
 
