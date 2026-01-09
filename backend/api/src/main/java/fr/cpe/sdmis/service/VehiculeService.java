@@ -6,12 +6,14 @@ import fr.cpe.sdmis.dto.VehiculeUpdateRequest;
 import fr.cpe.sdmis.dto.VehiculeIdentResponse;
 import fr.cpe.sdmis.dto.VehiculeEnRouteResponse;
 import fr.cpe.sdmis.dto.VehiculeStatusUpdateRequest;
+import fr.cpe.sdmis.dto.EquipementVehiculeResponse;
 import fr.cpe.sdmis.repository.VehiculeRepository;
 import org.springframework.stereotype.Service;
 import fr.cpe.sdmis.service.SdmisSseService;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class VehiculeService {
@@ -58,5 +60,9 @@ public class VehiculeService {
         vehiculeRepository.updateVehiculeStatutEnIntervention(request.idVehicule());
         vehiculeRepository.findSnapshotById(request.idVehicule())
                 .ifPresent(snapshot -> sseService.broadcast("vehicules", List.of(snapshot)));
+    }
+
+    public List<EquipementVehiculeResponse> getEquipements(UUID idVehicule) {
+        return vehiculeRepository.findEquipementsByVehiculeId(idVehicule);
     }
 }
