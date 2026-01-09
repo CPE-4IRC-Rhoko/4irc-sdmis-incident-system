@@ -242,6 +242,7 @@ public class VehiculeRepository {
         return """
                 SELECT
                   v.id_vehicule,
+                  v.plaque_immat,
                   v.latitude,
                   v.longitude,
                   v.derniere_position_connue,
@@ -258,8 +259,8 @@ public class VehiculeRepository {
                     '[]'::json
                 ) AS equipements
                 FROM vehicule v
-                JOIN est_equipe_de eed ON eed.id_vehicule = v.id_vehicule
-                JOIN equipement e ON e.id_equipement = eed.id_equipement
+                LEFT JOIN est_equipe_de eed ON eed.id_vehicule = v.id_vehicule
+                LEFT JOIN equipement e ON e.id_equipement = eed.id_equipement
                 JOIN statut_vehicule sv ON sv.id_statut = v.id_statut
                 JOIN caserne c ON c.id_caserne = v.id_caserne
                 """ + where + """
