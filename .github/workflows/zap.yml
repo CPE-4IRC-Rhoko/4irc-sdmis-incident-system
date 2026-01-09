@@ -92,7 +92,6 @@ jobs:
           cmd_options: >
             -I
             -a
-            -l HIGH
             -d
             -r /zap/wrk/zap_frontend.html
             -j /zap/wrk/zap_frontend.json
