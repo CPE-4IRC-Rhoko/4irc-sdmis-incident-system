@@ -53,7 +53,7 @@ jobs:
           done
 
       - name: Fix workspace permissions
-        run: sudo chmod -R a+w $GITHUB_WORKSPACE
+        run: sudo chmod -R 777 ${{ github.workspace }}
 
       - name: ZAP Scan
         uses: zaproxy/action-api-scan@v0.10.0
@@ -63,32 +63,49 @@ jobs:
           target: 'http://127.0.0.1:8080/v3/api-docs'
           rules_file_name: '.zap/rules.tsv'
           cmd_options: >
-            -a
             -J zap_api.json
             -r zap_api.html
-          artifact_name:  'zap_api_report'
+        
+      - name: Upload ZAP reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-API-report
+          path: |
+            zap_api.json
+            zap_api.html
+
+      - name: remove common files of ZAP for FRONTEND
+        run: |
+          ls -al
+          whoami
+          pwd          
+          sudo chmod 777 -R *
+          ls -al 
+          rm report_md.md
+          ls -al
 
       - name: ZAP Baseline Scan (FRONTEND)
-        uses: zaproxy/action-baseline@v0.10.0
+        uses: zaproxy/action-full-scan@v0.10.0
         with:
           target: 'http://127.0.0.1:5173'
           cmd_options: >
+            -I
             -a
-            -J zap_frontend.json
-            -r zap_frontend.html
-            -d failOnRisk HIGH
+            -d
+            -r /zap/wrk/zap_frontend.html
+            -j /zap/wrk/zap_frontend.json
+            -w /zap/wrk/zap-frontend.md
           rules_file_name: '.zap/rules.tsv'
           fail_action: false
 
       - name: Upload ZAP reports
         uses: actions/upload-artifact@v4
         with:
-          name: zap-report
+          name: zap-frontend-report
           path: |
             zap_frontend.html
             zap_frontend.json
-            zap_api.html
-            zap_api.json
+            zap-frontend.md
 
       - name: Stop docker-compose
         if: always()
