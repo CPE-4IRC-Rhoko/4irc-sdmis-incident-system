@@ -74,8 +74,8 @@ jobs:
           target: 'http://127.0.0.1:5173'
           cmd_options: >
             -a
-            -J zap_frontend.json
-            -r zap_frontend.html
+            -J /zap/wrk/zap_frontend.json
+            -r /zap/wrk/zap_frontend.html
             -d failOnRisk HIGH
           rules_file_name: '.zap/rules.tsv'
           fail_action: false
