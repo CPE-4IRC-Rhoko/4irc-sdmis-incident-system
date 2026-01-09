@@ -279,27 +279,29 @@ function MapView({
             <div className="popup-content">
               <h4>{popupRessource.nom}</h4>
               <p className="muted small">
-                Statut : {popupRessource.disponibilite}
+                Statut : {popupRessource.statutBrut ?? popupRessource.disponibilite}
               </p>
-              {popupRessource.plaque && (
-                <p className="muted small">Plaque : {popupRessource.plaque}</p>
-              )}
+              <p className="muted small">
+                Plaque : {popupRessource.plaque ?? '—'}
+              </p>
               <p className="muted small">
                 {popupRessource.latitude.toFixed(4)},{' '}
                 {popupRessource.longitude.toFixed(4)}
               </p>
-              {popupRessource.equipements && popupRessource.equipements.length > 0 && (
-                <div className="muted small">
-                  Ressources :
+              <div className="muted small">
+                Ressources :
+                {popupRessource.equipements && popupRessource.equipements.length > 0 ? (
                   <ul>
                     {popupRessource.equipements.map((eq) => (
-                      <li key={`${popupRessource.id}-${eq.nom}`}>
-                        {eq.nom} ({eq.contenance ?? 0})
+                      <li key={`${popupRessource.id}-${eq.nom ?? 'equip'}`}>
+                        {eq.nom ?? 'Équipement'} ({eq.contenance ?? 0})
                       </li>
                     ))}
                   </ul>
-                </div>
-              )}
+                ) : (
+                  <p className="muted small">—</p>
+                )}
+              </div>
             </div>
           </Popup>
         )}
