@@ -1,10 +1,7 @@
 package org.example;
 
-import org.apache.logging.log4j.message.StringFormattedMessage;
-
 import java.io.IOException;
 import java.util.List;
-import java.time.Instant;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;

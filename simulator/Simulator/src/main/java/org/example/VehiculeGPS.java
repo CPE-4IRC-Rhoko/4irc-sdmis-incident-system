@@ -17,6 +17,7 @@ public class VehiculeGPS {
     private static final double DISTANCE_PAR_PAS = (VITESSE_KMH / 3.6) * (RAFRAICHISSEMENT_MS / 1000.0);
 
     public static void main(String[] args) {
+
         // 1. Appeler l'autre classe pour récupérer les données de l'API
         CalllAPIVehicule apiCaller = new CalllAPIVehicule();
         List<CalllAPIVehicule.VehiculeData> listeVehicules = apiCaller.fetchVehiculesEnRoute();
@@ -30,14 +31,18 @@ public class VehiculeGPS {
         MicrobitSender emetteur = new MicrobitSender("COM3");
         try { Thread.sleep(2000); } catch (Exception e) {}
 
-        // 3. Boucler sur chaque véhicule récupéré
+        DebutIntervention action = new DebutIntervention();
+
+        // 3. Boucler sur chaque véhicule récupéré => simuler son trajet + intervention
         for (CalllAPIVehicule.VehiculeData v : listeVehicules) {
             System.out.println("\n>>> Simulation du véhicule : " + v.vehiculeLat);
             System.out.println("\n>>> Latitude : " + v.vehiculeLat + "Longitude  :" + v.vehiculeLon);
             simulerTrajet(v, emetteur);
+            action.gererIntervention(v, emetteur);
         }
 
         emetteur.close();
+
         System.out.println("Toutes les simulations sont terminées.");
     }
 
@@ -64,7 +69,7 @@ public class VehiculeGPS {
             if (coordinates.isMissingNode()) return;
 
             //int monEau = 85;
-            String resources = "eau=80";
+            //String resources = "eau=80";
 
             for (int i = 0; i < coordinates.size() - 1; i++) {
                 double lon1 = coordinates.get(i).get(0).asDouble();
@@ -82,8 +87,8 @@ public class VehiculeGPS {
                     double currentLon = lon1 + (lon2 - lon1) * fraction;
 
                     // ENVOI MICRO:BIT
-                    System.out.printf(Locale.US, "ID: %s | Lat %.6f | Lon %.6f%n | Res %s \n" , v.plaqueImmat, currentLat, currentLon, resources);
-                    emetteur.envoyerDonnees(v.plaqueImmat, currentLat, currentLon, resources);
+                    System.out.printf(Locale.US, "ID: %s | Lat %.6f | Lon %.6f%n\n" , v.plaqueImmat, currentLat, currentLon);
+                    emetteur.envoyerDonnees(v.plaqueImmat, currentLat, currentLon, /*resources*/);
                     Thread.sleep(RAFRAICHISSEMENT_MS);
                 }
             }
