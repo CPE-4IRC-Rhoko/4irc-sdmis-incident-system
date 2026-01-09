@@ -50,16 +50,16 @@ jobs:
       - name: Fix workspace permissions
         run: sudo chmod -R a+w $GITHUB_WORKSPACE
 
-      - name: OWASP ZAP - API Scan
-        uses: zaproxy/action-api-scan@v0.9.0
+      - name: ZAP Scan
+        uses: zaproxy/action-api-scan@v0.10.0
         with:
-          target: "http://localhost:8080/api"
-          rules_file_name: ".zap/rules.tsv"
-          cmd_options: "-a -j -l WARN"
-          issue_title: "ZAP API Scan - Résultats de sécurité"
-          fail_action: false
-          artifact_name: "zap-api-scan"
-          
+          token: ${{ secrets.GITHUB_TOKEN }}
+          format: openapi
+          target: 'http://127.0.0.1:8080/v3/api-docs'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'
+          artifact_name:  'zap_api_report'
+
       - name: ZAP Baseline Scan (FRONTEND)
         uses: zaproxy/action-baseline@v0.10.0
         with:
