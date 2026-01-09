@@ -43,10 +43,8 @@ type FormulaireCarte = {
   longitude: number
   nomTypeEvenement: string
   nomSeverite: string
-  nomStatut: string
   idTypeEvenement?: string
   idSeverite?: string
-  idStatut?: string
 }
 
 const vueInitiale: VueCarte = {
@@ -185,6 +183,7 @@ const ressourcesDepuisEtat = (
       disponibilite: disponibiliteDepuisStatutVehicule(vehicule.statut),
       latitude: vehicule.latitude,
       longitude: vehicule.longitude,
+      statutBrut: vehicule.statut,
       equipements:
         vehicule.equipements?.map((eq) => ({
           nom: eq.nomEquipement,
@@ -213,6 +212,7 @@ const ressourcesDepuisEtat = (
             nom: eq.nomEquipement,
             contenance: eq.contenanceCourante,
           })) ?? [],
+        statutBrut: vehicule?.statut,
         plaque: intervention.plaqueImmat ?? vehicule?.plaqueImmat,
       } as Ressource
     })
@@ -256,7 +256,6 @@ function QGPage() {
   const [formChargement, setFormChargement] = useState(false)
   const [types, setTypes] = useState<TypeEvenementReference[]>([])
   const [severites, setSeverites] = useState<SeveriteReference[]>([])
-  const [statutsDisponibles, setStatutsDisponibles] = useState<string[]>([])
   const [, setInterventionsData] = useState<InterventionSnapshot[]>([])
   const [, setVehiculesData] = useState<VehiculeSnapshot[]>([])
   const [popupEvenementId, setPopupEvenementId] = useState<string | null>(null)
@@ -434,10 +433,6 @@ function QGPage() {
     if (!pointRecherche) return
     const typeRef = types[0]
     const severiteRef = severites[0]
-    const statutRef =
-      statutsDisponibles.find((s) => s.toLowerCase().includes('déclar')) ??
-      statutsDisponibles[0] ??
-      'Déclaré'
     setFormErreur(null)
     setFormChargement(false)
     setFormCarte({
@@ -446,7 +441,6 @@ function QGPage() {
       longitude: pointRecherche.longitude,
       nomTypeEvenement: typeRef?.nom ?? '',
       nomSeverite: severiteRef?.nomSeverite ?? '',
-      nomStatut: statutRef,
       idTypeEvenement: typeRef?.id,
       idSeverite: severiteRef?.id,
     })
@@ -471,11 +465,10 @@ function QGPage() {
     setFormErreur(null)
     if (
       !formCarte.nomTypeEvenement ||
-      !formCarte.nomSeverite ||
-      !formCarte.nomStatut
+      !formCarte.nomSeverite
     ) {
       setFormErreur(
-        'Sélectionnez un type, une gravité et un statut pour créer un événement.',
+        'Sélectionnez un type et une gravité pour créer un événement.',
       )
       return
     }
@@ -487,14 +480,11 @@ function QGPage() {
         longitude: Number(formCarte.longitude),
         nomTypeEvenement: formCarte.nomTypeEvenement,
         nomSeverite: formCarte.nomSeverite,
-        nomStatut: formCarte.nomStatut,
+        nomStatut: 'Déclaré',
       }
       const created = await createEvenement(payload)
       const incident = incidentDepuisApi(created)
       setEvenements((prev) => [incident, ...prev])
-      setStatutsDisponibles((prev) =>
-        Array.from(new Set([created.nomStatut, ...prev])),
-      )
       setEvenementSelectionneId(created.id)
       setFormCarte(null)
       setPointRecherche(null)
@@ -613,12 +603,6 @@ function QGPage() {
         )
         setSeverites(severitesTriees)
         setTypes(typesApi)
-        const statuts = Array.from(
-          new Set(['Déclaré', ...evtApi.map((evt) => evt.nomStatut)]),
-        )
-          .filter(Boolean)
-          .sort((a, b) => (a === 'Déclaré' ? -1 : a.localeCompare(b)))
-        setStatutsDisponibles(statuts.length > 0 ? statuts : ['Déclaré'])
         const mapStatut: Record<string, string> = {}
         evtApi.forEach((evt) => {
           mapStatut[evt.id] = evt.nomStatut
@@ -942,7 +926,23 @@ function QGPage() {
                     className={`priority-item ${
                       evenementSelectionneId === evt.id ? 'priority-active' : ''
                     }`}
-                    onClick={() => setEvenementSelectionneId(evt.id)}
+                    onClick={() => {
+                      setEvenementSelectionneId(evt.id)
+                      const incidentCible = evenements.find(
+                        (inc) => inc.id === evt.id,
+                      )
+                      if (incidentCible) {
+                        setVueCarte((prev) => ({
+                          ...prev,
+                          latitude: incidentCible.latitude,
+                          longitude: incidentCible.longitude,
+                          zoom: Math.max(prev.zoom, 14),
+                          transitionDuration: 800,
+                        }))
+                        setPopupEvenementId(incidentCible.id)
+                        setPopupRessourceId(null)
+                      }
+                    }}
                   >
                     <div className="priority-top">
                       <span
@@ -969,6 +969,13 @@ function QGPage() {
             <section className="card-block">
               <div className="card-header">
                 <h4>État des ressources</h4>
+                <button
+                  className="link"
+                  type="button"
+                  onClick={() => setSectionQG('RESSOURCES')}
+                >
+                  Tout voir
+                </button>
               </div>
               <div className="resource-bars">
                 {Array.from(ressourcesParCategorie.entries()).map(
@@ -1093,27 +1100,6 @@ function QGPage() {
                   {severites.map((sev) => (
                     <option key={sev.id} value={sev.id}>
                       {sev.nomSeverite} ({sev.valeurEchelle})
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Statut
-                <select
-                  value={formCarte.nomStatut}
-                  onChange={(e) =>
-                    mettreAJourFormCarte('nomStatut', e.target.value)
-                  }
-                  required
-                >
-                  {statutsDisponibles.length === 0 && (
-                    <option value="" disabled>
-                      Aucun statut disponible pour le moment
-                    </option>
-                  )}
-                  {statutsDisponibles.map((statut) => (
-                    <option key={statut} value={statut}>
-                      {statut}
                     </option>
                   ))}
                 </select>

@@ -11,6 +11,7 @@ export interface Ressource {
   latitude: number
   longitude: number
   plaque?: string
+  statutBrut?: string
   equipements?: Array<{ nom: string; contenance: number }>
 }
 

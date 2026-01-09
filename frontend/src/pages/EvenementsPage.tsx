@@ -4,7 +4,7 @@ import './EvenementsPage.css'
 import '../components/IncidentForm.css'
 import {
   createEvenement,
-  getEvenements,
+  getEvenementsSnapshots,
   getSeverites,
   getTypesEvenement,
 } from '../services/evenements'
@@ -13,7 +13,7 @@ import {
   type EvenementSnapshot,
   type InterventionSnapshot,
 } from '../services/sse'
-import { getInterventions } from '../services/interventions'
+import { getInterventionsSnapshots } from '../services/interventions'
 import type {
   EvenementApi,
   EvenementCreatePayload,
@@ -95,6 +95,50 @@ const formatCoord = (value: number) => value.toFixed(4)
 const localisationLisible = (evt: EvenementApi) =>
   `${formatCoord(evt.latitude)}, ${formatCoord(evt.longitude)}`
 
+const STATUT_CREATION_FIXE = 'Déclaré'
+
+const enrichirEvenementAvecRefs = (
+  evt: EvenementApi,
+  types: TypeEvenementReference[],
+  severites: SeveriteReference[],
+): EvenementApi => {
+  const typeRef =
+    types.find((type) => type.id === evt.idTypeEvenement) ??
+    types.find(
+      (type) =>
+        type.nom.toLowerCase() === evt.nomTypeEvenement.toLowerCase(),
+    )
+  const severiteRef =
+    severites.find((sev) => sev.id === evt.idSeverite) ??
+    severites.find(
+      (sev) =>
+        sev.nomSeverite.toLowerCase() === evt.nomSeverite.toLowerCase(),
+    )
+  return {
+    ...evt,
+    idTypeEvenement: evt.idTypeEvenement || typeRef?.id || '',
+    idSeverite: evt.idSeverite || severiteRef?.id || '',
+    nomStatut: evt.nomStatut || STATUT_CREATION_FIXE,
+  }
+}
+
+const evenementDepuisSnapshot = (
+  snapshot: EvenementSnapshot,
+): EvenementApi => ({
+  id: snapshot.idEvenement,
+  description: snapshot.description,
+  latitude: snapshot.latitude,
+  longitude: snapshot.longitude,
+  idTypeEvenement: '',
+  idStatut: '',
+  idSeverite: '',
+  nomTypeEvenement: snapshot.typeEvenement,
+  nomStatut: snapshot.statutEvenement,
+  nomSeverite: snapshot.severite,
+  valeurEchelle: snapshot.echelleSeverite,
+  nbVehiculesNecessaire: snapshot.nbVehiculesNecessaire ?? null,
+})
+
 function EvenementsPage() {
   const [evenements, setEvenements] = useState<EvenementApi[]>([])
   const [severites, setSeverites] = useState<SeveriteReference[]>([])
@@ -148,21 +192,24 @@ function EvenementsPage() {
       setEtat('loading')
       setErreur(null)
       try {
-        const [evtApi, interventionsApi, severitesApi, typesApi] = await Promise.all([
-          getEvenements(controller.signal),
-          getInterventions(controller.signal),
+        const [evtSnapshots, interventionsApi, severitesApi, typesApi] = await Promise.all([
+          getEvenementsSnapshots(controller.signal),
+          getInterventionsSnapshots(controller.signal),
           getSeverites(controller.signal),
           getTypesEvenement(controller.signal),
         ])
+        const evtApi = evtSnapshots
+          .map(evenementDepuisSnapshot)
+          .map((evt) => enrichirEvenementAvecRefs(evt, typesApi, severitesApi))
         setEvenements(evtApi)
         setInterventions(
           interventionsApi.map((intervention) => ({
             idEvenement: intervention.idEvenement,
             idVehicule: intervention.idVehicule,
-            statusIntervention: intervention.nomStatutIntervention,
-            dateDebutIntervention: intervention.dateDebut,
-            dateFinIntervention: intervention.dateFin,
-            plaqueImmat: undefined,
+            statusIntervention: intervention.statusIntervention,
+            dateDebutIntervention: intervention.dateDebutIntervention,
+            dateFinIntervention: intervention.dateFinIntervention,
+            plaqueImmat: intervention.plaqueImmat,
           })),
         )
         const severitesTriees = [...severitesApi].sort(
@@ -198,29 +245,38 @@ function EvenementsPage() {
     return () => controller.abort()
   }, [refreshKey])
 
-const appliquerSnapshotsEvenements = useCallback((snapshots: EvenementSnapshot[]) => {
-  if (snapshots.length === 0) return
-  setEvenements((prev) => {
-    const map = new Map(prev.map((evt) => [evt.id, evt]))
-    snapshots.forEach((snapshot) => {
-      const courant = map.get(snapshot.idEvenement)
-      map.set(snapshot.idEvenement, {
-        ...courant,
-        id: snapshot.idEvenement,
-        description: snapshot.description,
-        latitude: snapshot.latitude,
-        longitude: snapshot.longitude,
-        idTypeEvenement: courant?.idTypeEvenement ?? '',
-        idStatut: courant?.idStatut ?? '',
-        idSeverite: courant?.idSeverite ?? '',
-        nomTypeEvenement: snapshot.typeEvenement,
-        nomStatut: snapshot.statutEvenement,
-        nomSeverite: snapshot.severite,
-        valeurEchelle: snapshot.echelleSeverite,
-        nbVehiculesNecessaire:
-            snapshot.nbVehiculesNecessaire ??
-            courant?.nbVehiculesNecessaire ??
-            null,
+const appliquerSnapshotsEvenements = useCallback(
+  (snapshots: EvenementSnapshot[]) => {
+    if (snapshots.length === 0) return
+    setEvenements((prev) => {
+      const map = new Map(prev.map((evt) => [evt.id, evt]))
+      snapshots.forEach((snapshot) => {
+        const courant = map.get(snapshot.idEvenement)
+        const enrichi = enrichirEvenementAvecRefs(
+          {
+            ...courant,
+            id: snapshot.idEvenement,
+            description: snapshot.description,
+            latitude: snapshot.latitude,
+            longitude: snapshot.longitude,
+            idTypeEvenement: courant?.idTypeEvenement ?? '',
+            idStatut: courant?.idStatut ?? '',
+            idSeverite: courant?.idSeverite ?? '',
+            nomTypeEvenement: snapshot.typeEvenement,
+            nomStatut: snapshot.statutEvenement,
+            nomSeverite: snapshot.severite,
+            valeurEchelle: snapshot.echelleSeverite,
+            nbVehiculesNecessaire:
+              snapshot.nbVehiculesNecessaire ??
+              courant?.nbVehiculesNecessaire ??
+              null,
+          },
+          types,
+          severites,
+        )
+        map.set(snapshot.idEvenement, {
+          ...courant,
+          ...enrichi,
         })
       })
       const next = Array.from(map.values())
@@ -229,7 +285,9 @@ const appliquerSnapshotsEvenements = useCallback((snapshots: EvenementSnapshot[]
       )
       return next
     })
-  }, [])
+  },
+  [types, severites],
+)
 
   const appliquerSnapshotsInterventions = useCallback(
     (snapshots: InterventionSnapshot[]) => {
@@ -291,7 +349,9 @@ const appliquerSnapshotsEvenements = useCallback((snapshots: EvenementSnapshot[]
         const correspondSeverite =
           filtreSeverite === 'toutes' || evt.idSeverite === filtreSeverite
         const correspondStatut =
-          filtreStatut === 'tous' || evt.idStatut === filtreStatut
+          filtreStatut === 'tous' ||
+          evt.idStatut === filtreStatut ||
+          evt.nomStatut === filtreStatut
         return correspondTexte && correspondSeverite && correspondStatut
       })
       .sort(
@@ -315,6 +375,10 @@ const appliquerSnapshotsEvenements = useCallback((snapshots: EvenementSnapshot[]
       setSelectedId(evenementsFiltres[0].id)
     }
   }, [evenementsFiltres, selectedId])
+
+  useEffect(() => {
+    setPage(1)
+  }, [filtreTexte, filtreSeverite, filtreStatut])
 
   const totalPages = Math.max(1, Math.ceil(evenementsFiltres.length / pageSize))
   const evenementsPage = useMemo(() => {
@@ -368,31 +432,38 @@ const appliquerSnapshotsEvenements = useCallback((snapshots: EvenementSnapshot[]
     setFormError(null)
     const typeRef = types[0]
     const severiteRef = severites[0]
-    const statutRef =
-      statutsDisponibles.find((s) =>
-        s.nom.toLowerCase().includes('déclar'),
-      ) ?? statutsDisponibles[0]
     setFormState({
       description: '',
       latitude: evenements[0]?.latitude ?? 45.7578,
       longitude: evenements[0]?.longitude ?? 4.8351,
       nomTypeEvenement: typeRef?.nom ?? '',
       nomSeverite: severiteRef?.nomSeverite ?? '',
-      nomStatut: statutRef?.nom ?? 'Déclaré',
+      nomStatut: STATUT_CREATION_FIXE,
       idTypeEvenement: typeRef?.id,
       idSeverite: severiteRef?.id,
-      idStatut: statutRef?.id,
+      idStatut: undefined,
     })
   }
 
   const ouvrirEdition = (evt: EvenementApi) => {
     setFormMode('edition')
     setFormError(null)
-    const typeRef = types.find((type) => type.id === evt.idTypeEvenement)
-    const severiteRef = severites.find((sev) => sev.id === evt.idSeverite)
-    const statutRef = statutsDisponibles.find(
-      (statut) => statut.id === evt.idStatut,
-    )
+    const typeRef =
+      types.find((type) => type.id === evt.idTypeEvenement) ??
+      types.find(
+        (type) =>
+          type.nom.toLowerCase() === evt.nomTypeEvenement.toLowerCase(),
+      )
+    const severiteRef =
+      severites.find((sev) => sev.id === evt.idSeverite) ??
+      severites.find(
+        (sev) => sev.nomSeverite.toLowerCase() === evt.nomSeverite.toLowerCase(),
+      )
+    const statutRef =
+      statutsDisponibles.find((statut) => statut.id === evt.idStatut) ??
+      statutsDisponibles.find(
+        (statut) => statut.nom.toLowerCase() === evt.nomStatut.toLowerCase(),
+      )
     setFormState({
       id: evt.id,
       description: evt.description,
@@ -401,9 +472,9 @@ const appliquerSnapshotsEvenements = useCallback((snapshots: EvenementSnapshot[]
       nomTypeEvenement: typeRef?.nom ?? evt.nomTypeEvenement,
       nomSeverite: severiteRef?.nomSeverite ?? evt.nomSeverite,
       nomStatut: statutRef?.nom ?? evt.nomStatut,
-      idTypeEvenement: evt.idTypeEvenement,
-      idSeverite: evt.idSeverite,
-      idStatut: evt.idStatut,
+      idTypeEvenement: typeRef?.id ?? evt.idTypeEvenement ?? evt.nomTypeEvenement,
+      idSeverite: severiteRef?.id ?? evt.idSeverite ?? evt.nomSeverite,
+      idStatut: statutRef?.id ?? evt.idStatut ?? evt.nomStatut,
     })
   }
 
@@ -421,13 +492,6 @@ const appliquerSnapshotsEvenements = useCallback((snapshots: EvenementSnapshot[]
   const soumettreFormulaire = async () => {
     if (!formState || !formMode) return
     setFormError(null)
-
-    if (!formState.nomStatut) {
-      setFormError(
-        'Choisissez un statut (aucune référence de statut encore fournie par l’API).',
-      )
-      return
-    }
 
     if (formMode === 'edition') {
       if (!formState.id) {
@@ -473,7 +537,7 @@ const appliquerSnapshotsEvenements = useCallback((snapshots: EvenementSnapshot[]
       const severiteRef = severites.find(
         (sev) => sev.id === formState.idSeverite,
       )
-      const statutNom = formState.nomStatut ?? undefined
+      const statutNom = formMode === 'creation' ? STATUT_CREATION_FIXE : formState.nomStatut ?? undefined
 
       if (!typeRef || !severiteRef || !statutNom) {
         setFormError(
@@ -820,27 +884,28 @@ const appliquerSnapshotsEvenements = useCallback((snapshots: EvenementSnapshot[]
                   ))}
                 </select>
               </label>
+            {formMode === 'edition' && (
               <label>
                 Statut
                 <select
                   value={formState.idStatut}
-                onChange={(e) => {
-                  const value = e.target.value
-                  const ref = statutsDisponibles.find(
-                    (statut) => statut.id === value,
-                  )
-                  setFormState((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          idStatut: value,
-                          nomStatut: ref?.nom ?? prev.nomStatut,
-                        }
-                      : prev,
-                  )
-                }}
-                required
-              >
+                  onChange={(e) => {
+                    const value = e.target.value
+                    const ref = statutsDisponibles.find(
+                      (statut) => statut.id === value,
+                    )
+                    setFormState((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            idStatut: value,
+                            nomStatut: ref?.nom ?? prev.nomStatut,
+                          }
+                        : prev,
+                    )
+                  }}
+                  required
+                >
                   {statutsDisponibles.length === 0 && (
                     <option value="" disabled>
                       Aucun statut disponible pour le moment
@@ -853,6 +918,7 @@ const appliquerSnapshotsEvenements = useCallback((snapshots: EvenementSnapshot[]
                   ))}
                 </select>
               </label>
+            )}
             </div>
 
             <div className="form-grid">
