@@ -2,20 +2,22 @@ package fr.cpe.sdmis.api;
 
 import fr.cpe.sdmis.dto.VehiculeOperationnelResponse;
 import fr.cpe.sdmis.dto.VehiculeUpdateRequest;
-import fr.cpe.sdmis.dto.VehiculeSnapshotResponse;
 import fr.cpe.sdmis.dto.VehiculeIdentResponse;
 import fr.cpe.sdmis.dto.VehiculeEnRouteResponse;
 import fr.cpe.sdmis.dto.VehiculeStatusUpdateRequest;
+import fr.cpe.sdmis.dto.VehiculeSnapshotResponse;
+import fr.cpe.sdmis.dto.EquipementVehiculeResponse;
 import fr.cpe.sdmis.service.VehiculeService;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/vehicules")
@@ -37,15 +39,19 @@ public class VehiculeController {
         vehiculeService.updateVehicule(request);
     }
 
-    @GetMapping(value = "/sse", produces = "text/event-stream")
-    public SseEmitter sseVehicules() {
-        List<VehiculeSnapshotResponse> snapshots = vehiculeService.snapshots();
-        return vehiculeService.subscribeSnapshots(snapshots);
+    @GetMapping("/snapshots")
+    public List<VehiculeSnapshotResponse> snapshots() {
+        return vehiculeService.snapshots();
     }
 
     @GetMapping("/cle-ident")
     public List<VehiculeIdentResponse> identifiants() {
         return vehiculeService.getIdentifiants();
+    }
+
+    @GetMapping("/{id}/equipements")
+    public List<EquipementVehiculeResponse> equipements(@PathVariable("id") UUID idVehicule) {
+        return vehiculeService.getEquipements(idVehicule);
     }
 
     @GetMapping("/en-route")

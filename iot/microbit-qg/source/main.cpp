@@ -1,14 +1,14 @@
 #include "MicroBit.h"
 #include <string.h> 
-#include <vector> // Si supporté, sinon tableau fixe
+#include <vector> 
 extern "C" {
 #include "aes.h"
 }
 
 MicroBit uBit;
 
-// --- 1. CLE AES (Toujours en dur) ---
-uint8_t cleAES[16] = { 'V','i','n','c','e','n','t','L','e','P','l','u','B','o','1','2' };
+// --- 1. CLE AES (Doit être IDENTIQUE au Terrain) ---
+uint8_t cleAES[16] = { 'V','E','8','c','e','n','t','L','e','P','0','u','B','o','1','2' };
 
 // --- 2. GESTION DYNAMIQUE DES CLES HMAC ---
 // Structure pour stocker une paire ID <-> Clé
@@ -18,7 +18,7 @@ struct KeyEntry {
     bool valid;
 };
 
-// Stockage en RAM (Max 10 camions pour l'exemple, à ajuster selon mémoire)
+// Stockage RAM (10 camions)
 KeyEntry keyStore[10]; 
 
 // Initialisation du stockage
@@ -100,11 +100,11 @@ PacketBuffer chiffrerReponse(ManagedString message, uint8_t* cleSpecifique) {
 
 ManagedString dechiffrerIntelligent(PacketBuffer data, bool* authValide, ManagedString* idDetecte) {
     *authValide = false;
-    if (data.length() < 80) return ManagedString("");
+    if (data.length() < 96) return ManagedString("");
     
-    uint8_t buffer[80]; memcpy(buffer, data.getBytes(), 80);
+    uint8_t buffer[96]; memcpy(buffer, data.getBytes(), 96);
     AES_ctx ctx; AES_init_ctx(&ctx, cleAES);
-    for (int i = 0; i < 5; i++) AES_ECB_decrypt(&ctx, buffer + (i * 16));
+    for (int i = 0; i < 6; i++) AES_ECB_decrypt(&ctx, buffer + (i * 16));
 
     char* texteDebut = (char*)(buffer + 4);
     
@@ -123,12 +123,12 @@ ManagedString dechiffrerIntelligent(PacketBuffer data, bool* authValide, Managed
     if (!cleSpecifique) return ManagedString("ERR_UNKNOWN_ID");
 
     uint32_t authRecu; memcpy(&authRecu, buffer, 4);
-    uint32_t authCalc = calculerAuth(texteDebut, 76, cleSpecifique);
+    uint32_t authCalc = calculerAuth(texteDebut, 92, cleSpecifique);
 
     if (authRecu != authCalc) return ManagedString("ERR_BAD_SIGNATURE");
 
     *authValide = true;
-    int realLen = 76; while (realLen > 0 && buffer[4 + realLen - 1] == 0) realLen--;
+    int realLen = 92; while (realLen > 0 && buffer[4 + realLen - 1] == 0) realLen--;
     return ManagedString(texteDebut, realLen);
 }
 
@@ -155,7 +155,7 @@ void traiterDonnees() {
         uBit.display.image.setPixelValue(2, 2, 255); 
         
         ManagedString sGeo = extractJSONValue(msg, "Geo:");
-        ManagedString sEau = extractJSONValue(msg, "Eau:");
+        ManagedString sRes = extractJSONValue(msg, "Res:");
         ManagedString sBtn = extractJSONValue(msg, "Btn:");
         ManagedString sSeq = extractJSONValue(msg, "Seq:");
         ManagedString sTime = extractJSONValue(msg, "Time:");
@@ -173,7 +173,7 @@ void traiterDonnees() {
         uBit.serial.send("EXP:{\"plaqueImmat\":\"" + idRecu + "\"" + 
                          ",\"lat\":" + sLat + ",\"lon\":" + sLon +
                          ",\"timestamp\":" + sTime + 
-                         ",\"ressources\":{\"eau\":" + sEau + "}" +
+                         ",\"raw_res\":\"" + sRes + "\"" +
                          ",\"btn\":" + sBtn + "}\r\n");
         
         // ACK

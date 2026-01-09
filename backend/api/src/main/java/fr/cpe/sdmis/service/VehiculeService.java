@@ -6,8 +6,10 @@ import fr.cpe.sdmis.dto.VehiculeUpdateRequest;
 import fr.cpe.sdmis.dto.VehiculeIdentResponse;
 import fr.cpe.sdmis.dto.VehiculeEnRouteResponse;
 import fr.cpe.sdmis.dto.VehiculeStatusUpdateRequest;
+import fr.cpe.sdmis.dto.EquipementVehiculeResponse;
 import fr.cpe.sdmis.repository.VehiculeRepository;
 import org.springframework.stereotype.Service;
+import fr.cpe.sdmis.service.SdmisSseService;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
@@ -17,11 +19,11 @@ import java.util.UUID;
 public class VehiculeService {
 
     private final VehiculeRepository vehiculeRepository;
-    private final VehiculeSseService vehiculeSseService;
+    private final SdmisSseService sseService;
 
-    public VehiculeService(VehiculeRepository vehiculeRepository, VehiculeSseService vehiculeSseService) {
+    public VehiculeService(VehiculeRepository vehiculeRepository, SdmisSseService sseService) {
         this.vehiculeRepository = vehiculeRepository;
-        this.vehiculeSseService = vehiculeSseService;
+        this.sseService = sseService;
     }
 
     public List<VehiculeOperationnelResponse> findOperationnels() {
@@ -30,7 +32,8 @@ public class VehiculeService {
 
     public void updateVehicule(VehiculeUpdateRequest request) {
         vehiculeRepository.updateVehicule(request);
-        vehiculeRepository.findSnapshotByPlaque(request.plaqueImmat()).ifPresent(vehiculeSseService::broadcastSnapshot);
+        vehiculeRepository.findSnapshotByPlaque(request.plaqueImmat())
+                .ifPresent(snapshot -> sseService.broadcast("vehicules", List.of(snapshot)));
     }
 
     public List<VehiculeSnapshotResponse> snapshots() {
@@ -38,11 +41,11 @@ public class VehiculeService {
     }
 
     public void broadcastAll() {
-        vehiculeSseService.broadcastSnapshots(snapshots());
+        sseService.broadcast("vehicules", snapshots());
     }
 
-    public SseEmitter subscribeSnapshots(List<VehiculeSnapshotResponse> initialSnapshots) {
-        return vehiculeSseService.subscribe(initialSnapshots);
+    public SseEmitter subscribeSnapshots() {
+        return sseService.subscribe();
     }
 
     public List<VehiculeIdentResponse> getIdentifiants() {
@@ -55,5 +58,11 @@ public class VehiculeService {
 
     public void setVehiculeEnIntervention(VehiculeStatusUpdateRequest request) {
         vehiculeRepository.updateVehiculeStatutEnIntervention(request.idVehicule());
+        vehiculeRepository.findSnapshotById(request.idVehicule())
+                .ifPresent(snapshot -> sseService.broadcast("vehicules", List.of(snapshot)));
+    }
+
+    public List<EquipementVehiculeResponse> getEquipements(UUID idVehicule) {
+        return vehiculeRepository.findEquipementsByVehiculeId(idVehicule);
     }
 }

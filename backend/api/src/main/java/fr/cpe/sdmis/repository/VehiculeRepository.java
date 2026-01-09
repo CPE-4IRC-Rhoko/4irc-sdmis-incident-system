@@ -7,6 +7,7 @@ import fr.cpe.sdmis.dto.EquipementContenanceResponse;
 import fr.cpe.sdmis.dto.VehiculeIdentResponse;
 import fr.cpe.sdmis.dto.VehiculeEnRouteResponse;
 import fr.cpe.sdmis.dto.VehiculeStatusUpdateRequest;
+import fr.cpe.sdmis.dto.EquipementVehiculeResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
@@ -90,13 +91,26 @@ public class VehiculeRepository {
                        v.longitude AS v_lon,
                        i.id_evenement,
                        e.latitude AS e_lat,
-                       e.longitude AS e_lon
+                       e.longitude AS e_lon,
+                       COALESCE(
+                         JSON_AGG(
+                           JSON_BUILD_OBJECT(
+                             'nom_equipement', eq.nom_equipement,
+                             'contenance_courante', eed.contenance_courante_
+                           )
+                           ORDER BY eq.nom_equipement
+                         ) FILTER (WHERE eq.id_equipement IS NOT NULL),
+                         '[]'::json
+                       ) AS equipements
                 FROM vehicule v
                 JOIN statut_vehicule sv ON sv.id_statut = v.id_statut
                 JOIN intervention i ON i.id_vehicule = v.id_vehicule
                 JOIN evenement e ON e.id_evenement = i.id_evenement
-                join statut_evenement se ON se.id_statut = e.id_statut
+                JOIN statut_evenement se ON se.id_statut = e.id_statut
+                LEFT JOIN est_equipe_de eed ON eed.id_vehicule = v.id_vehicule
+                LEFT JOIN equipement eq ON eq.id_equipement = eed.id_equipement
                 WHERE sv.nom_statut = 'En route' and se.nom_statut = 'En intervention'
+                GROUP BY v.id_vehicule, v.plaque_immat, v.latitude, v.longitude, i.id_evenement, e.latitude, e.longitude
                 """, new VehiculeEnRouteRowMapper());
     }
 
@@ -180,6 +194,7 @@ public class VehiculeRepository {
         @Override
         public VehiculeSnapshotResponse mapRow(ResultSet rs, int rowNum) throws SQLException {
             UUID id = rs.getObject("id_vehicule", UUID.class);
+            String plaque = rs.getString("plaque_immat");
             double lat = rs.getDouble("latitude");
             double lon = rs.getDouble("longitude");
             OffsetDateTime derniere = rs.getTimestamp("derniere_position_connue")
@@ -207,7 +222,7 @@ public class VehiculeRepository {
                 }
             }
 
-            return new VehiculeSnapshotResponse(id, lat, lon, derniere, statut, caserne, equipements);
+            return new VehiculeSnapshotResponse(id, plaque, lat, lon, derniere, statut, caserne, equipements);
         }
     }
 
@@ -225,6 +240,23 @@ public class VehiculeRepository {
     private static class VehiculeEnRouteRowMapper implements RowMapper<VehiculeEnRouteResponse> {
         @Override
         public VehiculeEnRouteResponse mapRow(ResultSet rs, int rowNum) throws SQLException {
+            List<EquipementContenanceResponse> equipements = new ArrayList<>();
+            Object rawEquipements = rs.getObject("equipements");
+            if (rawEquipements != null) {
+                try {
+                    String json = rawEquipements.toString();
+                    com.fasterxml.jackson.databind.ObjectMapper om = new com.fasterxml.jackson.databind.ObjectMapper();
+                    List<Map<String, Object>> list = om.readValue(json, om.getTypeFactory().constructCollectionType(List.class, Map.class));
+                    for (Map<String, Object> map : list) {
+                        String nom = (String) map.get("nom_equipement");
+                        Integer contenance = map.get("contenance_courante") != null
+                                ? ((Number) map.get("contenance_courante")).intValue()
+                                : null;
+                        equipements.add(new EquipementContenanceResponse(nom, contenance));
+                    }
+                } catch (Exception ignored) {
+                }
+            }
             return new VehiculeEnRouteResponse(
                     rs.getObject("id_vehicule", UUID.class),
                     rs.getString("plaque_immat"),
@@ -232,9 +264,24 @@ public class VehiculeRepository {
                     rs.getDouble("v_lon"),
                     rs.getObject("id_evenement", UUID.class),
                     rs.getDouble("e_lat"),
-                    rs.getDouble("e_lon")
+                    rs.getDouble("e_lon"),
+                    equipements
             );
         }
+    }
+
+    public List<EquipementVehiculeResponse> findEquipementsByVehiculeId(UUID idVehicule) {
+        return jdbcTemplate.query("""
+                SELECT e.nom_equipement, eed.contenance_courante_
+                FROM est_equipe_de eed
+                JOIN equipement e ON e.id_equipement = eed.id_equipement
+                WHERE eed.id_vehicule = :vehicule
+                ORDER BY e.nom_equipement
+                """, new MapSqlParameterSource("vehicule", idVehicule), (rs, rowNum) ->
+                new EquipementVehiculeResponse(
+                        rs.getString("nom_equipement"),
+                        (Integer) rs.getObject("contenance_courante_")
+                ));
     }
 
     private String baseSnapshotQuery(String whereClause) {
@@ -242,6 +289,7 @@ public class VehiculeRepository {
         return """
                 SELECT
                   v.id_vehicule,
+                  v.plaque_immat,
                   v.latitude,
                   v.longitude,
                   v.derniere_position_connue,
@@ -258,12 +306,12 @@ public class VehiculeRepository {
                     '[]'::json
                 ) AS equipements
                 FROM vehicule v
-                JOIN est_equipe_de eed ON eed.id_vehicule = v.id_vehicule
-                JOIN equipement e ON e.id_equipement = eed.id_equipement
+                LEFT JOIN est_equipe_de eed ON eed.id_vehicule = v.id_vehicule
+                LEFT JOIN equipement e ON e.id_equipement = eed.id_equipement
                 JOIN statut_vehicule sv ON sv.id_statut = v.id_statut
                 JOIN caserne c ON c.id_caserne = v.id_caserne
                 """ + where + """
-                GROUP BY v.id_vehicule, v.latitude, v.longitude, v.derniere_position_connue, sv.nom_statut, c.nom_de_la_caserne
+                GROUP BY v.id_vehicule, v.plaque_immat, v.latitude, v.longitude, v.derniere_position_connue, sv.nom_statut, c.nom_de_la_caserne
                 ORDER BY v.id_vehicule
                 """;
     }
