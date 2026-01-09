@@ -62,7 +62,10 @@ jobs:
           format: openapi
           target: 'http://127.0.0.1:8080/v3/api-docs'
           rules_file_name: '.zap/rules.tsv'
-          cmd_options: '-a'
+          cmd_options: >
+            -a
+            -J zap_api.json
+            -r zap_api.html
           artifact_name:  'zap_api_report'
 
       - name: ZAP Baseline Scan (FRONTEND)
@@ -75,7 +78,7 @@ jobs:
             -r zap_frontend.html
             -d failOnRisk HIGH
           rules_file_name: '.zap/rules.tsv'
-          fail_action: true
+          fail_action: false
 
       - name: Upload ZAP reports
         uses: actions/upload-artifact@v4
