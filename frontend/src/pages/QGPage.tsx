@@ -294,7 +294,7 @@ function QGPage() {
         statut: vehicule.statut,
         caserne: vehicule.caserne,
         equipements: vehicule.equipements,
-        plaqueImmat: undefined,
+        plaqueImmat: vehicule.plaqueImmat,
       }))
       vehiculesRef.current = vehiculesMaj
       setVehiculesData(vehiculesMaj)
@@ -574,7 +574,7 @@ function QGPage() {
           statut: vehicule.statut,
           caserne: vehicule.caserne,
           equipements: vehicule.equipements,
-          plaqueImmat: undefined,
+          plaqueImmat: vehicule.plaqueImmat,
         }))
         const interventionsInitial: InterventionSnapshot[] =
           interventionsSnapshots.map((intervention) => ({

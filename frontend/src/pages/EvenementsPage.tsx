@@ -393,9 +393,13 @@ const appliquerSnapshotsEvenements = useCallback(
     const besoinsRessources = evenementsRecents.filter(
       (evt) => (evt.nbVehiculesNecessaire ?? 0) > 0,
     ).length
-    const clotures = evenementsRecents.filter((evt) => estCloture(evt.nomStatut)).length
-    const actifs = evenementsRecents.filter((evt) => estActif(evt.nomStatut)).length
     const limite = Date.now() - 24 * 60 * 60 * 1000
+    const clotures = evenementsRecents.filter((evt) => {
+      if (!estCloture(evt.nomStatut)) return false
+      const fin = finParEvenement.get(evt.id)
+      return !fin || fin >= limite
+    }).length
+    const actifs = evenementsRecents.filter((evt) => estActif(evt.nomStatut)).length
     const geres24h = new Set<string>()
     interventions.forEach((intervention) => {
       const debut = intervention.dateDebutIntervention
@@ -416,7 +420,6 @@ const appliquerSnapshotsEvenements = useCallback(
       critiques: severiteCritique,
       besoinsRessources,
       clotures,
-      geres24h: geres24h.size,
     }
   }, [evenementsRecents, interventions])
 
@@ -596,10 +599,6 @@ const appliquerSnapshotsEvenements = useCallback(
 
       <div className="events-metrics">
         <div className="metric-card">
-          <p className="muted small">Événements gérés (24h)</p>
-          <h3>{metriques.geres24h}</h3>
-        </div>
-        <div className="metric-card">
           <p className="muted small">Événements actifs</p>
           <h3>{metriques.actifs}</h3>
         </div>
@@ -608,7 +607,7 @@ const appliquerSnapshotsEvenements = useCallback(
           <h3>{metriques.critiques}</h3>
         </div>
         <div className="metric-card success">
-          <p className="muted small">Événements clôturés</p>
+          <p className="muted small">Événements clôturés (24h)</p>
           <h3>{metriques.clotures}</h3>
         </div>
       </div>
