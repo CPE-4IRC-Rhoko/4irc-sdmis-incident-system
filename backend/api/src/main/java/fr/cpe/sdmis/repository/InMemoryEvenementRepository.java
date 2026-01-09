@@ -60,6 +60,28 @@ public class InMemoryEvenementRepository implements IEvenementRepository {
         return Optional.ofNullable(store.get(idEvenement)).map(this::toSnapshot);
     }
 
+    @Override
+    public void update(UUID idEvenement, String description, double latitude, double longitude, UUID idTypeEvenement, UUID idSeverite) {
+        Evenement existing = store.get(idEvenement);
+        if (existing == null) {
+            return;
+        }
+        store.put(idEvenement, new Evenement(
+                idEvenement,
+                description,
+                latitude,
+                longitude,
+                idTypeEvenement,
+                existing.idStatut(),
+                idSeverite,
+                existing.nomTypeEvenement(),
+                existing.nomStatut(),
+                existing.nomSeverite(),
+                existing.valeurEchelle(),
+                existing.nbVehiculesNecessaire()
+        ));
+    }
+
     private EvenementSnapshotResponse toSnapshot(Evenement evenement) {
         return new EvenementSnapshotResponse(
                 evenement.id(),

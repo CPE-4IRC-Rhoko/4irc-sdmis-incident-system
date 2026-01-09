@@ -17,4 +17,6 @@ public interface IEvenementRepository {
     List<EvenementSnapshotResponse> findSnapshots();
 
     Optional<EvenementSnapshotResponse> findSnapshotById(UUID idEvenement);
+
+    void update(UUID idEvenement, String description, double latitude, double longitude, UUID idTypeEvenement, UUID idSeverite);
 }

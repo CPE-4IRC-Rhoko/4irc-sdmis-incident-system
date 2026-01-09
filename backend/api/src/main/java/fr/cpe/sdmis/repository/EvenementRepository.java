@@ -151,6 +151,25 @@ public class EvenementRepository implements IEvenementRepository {
         return res.stream().findFirst();
     }
 
+    @Override
+    public void update(UUID idEvenement, String description, double latitude, double longitude, UUID idTypeEvenement, UUID idSeverite) {
+        jdbcTemplate.update("""
+                UPDATE evenement
+                SET description = :description,
+                    latitude = :latitude,
+                    longitude = :longitude,
+                    id_type_evenement = :id_type_evenement,
+                    id_severite = :id_severite
+                WHERE id_evenement = :id
+                """, new MapSqlParameterSource()
+                .addValue("description", description)
+                .addValue("latitude", latitude)
+                .addValue("longitude", longitude)
+                .addValue("id_type_evenement", idTypeEvenement)
+                .addValue("id_severite", idSeverite)
+                .addValue("id", idEvenement));
+    }
+
     private EvenementSnapshotResponse mapSnapshot(ResultSet rs, int rowNum) throws SQLException {
         return new EvenementSnapshotResponse(
                 rs.getObject("id_evenement", UUID.class),
