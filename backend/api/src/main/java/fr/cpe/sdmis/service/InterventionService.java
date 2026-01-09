@@ -95,30 +95,6 @@ public class InterventionService {
         if (!updated.isEmpty()) {
             sseService.broadcast("interventions", updated);
         }
-
-        broadcastSnapshotsFor(request.id_evenement(), java.util.Set.of(request.id_vehicule()));
-    }
-
-    private void broadcastSnapshotsFor(UUID idEvenement, Set<UUID> vehicules) {
-        List<InterventionSnapshotResponse> updated = new ArrayList<>();
-        for (UUID vehiculeId : vehicules) {
-            interventionRepository.findSnapshotByIds(idEvenement, vehiculeId).ifPresent(updated::add);
-        }
-        if (!updated.isEmpty()) {
-            sseService.broadcast("interventions", updated);
-        }
-
-        broadcastSnapshotsFor(request.id_evenement(), java.util.Set.of(request.id_vehicule()));
-    }
-
-    private void broadcastSnapshotsFor(UUID idEvenement, Set<UUID> vehicules) {
-        List<InterventionSnapshotResponse> updated = new ArrayList<>();
-        for (UUID vehiculeId : vehicules) {
-            interventionRepository.findSnapshotByIds(idEvenement, vehiculeId).ifPresent(updated::add);
-        }
-        if (!updated.isEmpty()) {
-            sseService.broadcast("interventions", updated);
-        }
     }
 
     private void broadcastEvenementSnapshot(UUID idEvenement) {
