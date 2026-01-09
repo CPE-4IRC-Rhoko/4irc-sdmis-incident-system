@@ -180,6 +180,7 @@ public class VehiculeRepository {
         @Override
         public VehiculeSnapshotResponse mapRow(ResultSet rs, int rowNum) throws SQLException {
             UUID id = rs.getObject("id_vehicule", UUID.class);
+            String plaque = rs.getString("plaque_immat");
             double lat = rs.getDouble("latitude");
             double lon = rs.getDouble("longitude");
             OffsetDateTime derniere = rs.getTimestamp("derniere_position_connue")
@@ -207,7 +208,7 @@ public class VehiculeRepository {
                 }
             }
 
-            return new VehiculeSnapshotResponse(id, lat, lon, derniere, statut, caserne, equipements);
+            return new VehiculeSnapshotResponse(id, plaque, lat, lon, derniere, statut, caserne, equipements);
         }
     }
 
@@ -264,7 +265,7 @@ public class VehiculeRepository {
                 JOIN statut_vehicule sv ON sv.id_statut = v.id_statut
                 JOIN caserne c ON c.id_caserne = v.id_caserne
                 """ + where + """
-                GROUP BY v.id_vehicule, v.latitude, v.longitude, v.derniere_position_connue, sv.nom_statut, c.nom_de_la_caserne
+                GROUP BY v.id_vehicule, v.plaque_immat, v.latitude, v.longitude, v.derniere_position_connue, sv.nom_statut, c.nom_de_la_caserne
                 ORDER BY v.id_vehicule
                 """;
     }
