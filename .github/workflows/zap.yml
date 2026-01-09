@@ -82,7 +82,8 @@ jobs:
           pwd          
           sudo chmod 777 -R *
           ls -al 
-          touch report_json.json report_md.md report_html.html
+          rm report_md.md
+          ls -al
 
       - name: ZAP Baseline Scan (FRONTEND)
         uses: zaproxy/action-full-scan@v0.9.0
