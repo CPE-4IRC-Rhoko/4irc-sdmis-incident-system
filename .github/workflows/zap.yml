@@ -53,7 +53,7 @@ jobs:
           done
 
       - name: Fix workspace permissions
-        run: sudo chmod -R a+w $GITHUB_WORKSPACE
+        run: sudo chmod -R 777 ${{ github.workspace }}
 
       - name: ZAP Scan
         uses: zaproxy/action-api-scan@v0.10.0
