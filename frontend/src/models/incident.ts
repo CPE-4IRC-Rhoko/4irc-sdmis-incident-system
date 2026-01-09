@@ -6,6 +6,7 @@ export interface Incident {
   titre: string
   description?: string
   statut: StatutIncident
+  statutLabel?: string
   gravite: GraviteIncident
   latitude: number
   longitude: number

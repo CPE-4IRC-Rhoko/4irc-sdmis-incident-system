@@ -55,14 +55,13 @@ jobs:
       - name: Fix workspace permissions
         run: sudo chmod -R 777 ${{ github.workspace }}
 
-      - name: ZAP Scan
+      -   
         uses: zaproxy/action-api-scan@v0.10.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           artifact_name: ''
           format: openapi
           target: 'http://127.0.0.1:8080/v3/api-docs'
-          rules_file_name: '.zap/rules.tsv'
           cmd_options: >
             -J zap_api.json
             -r zap_api.html
@@ -88,7 +87,8 @@ jobs:
       - name: ZAP Baseline Scan (FRONTEND)
         run: |
           docker run --rm \
-            -v ${{ github.workspace }}:/zap/wrk/:rw \
+            --network="host" \
+            -v ${{ github.workspace }}:/home/zap/wrk/:rw \
             -t ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
             -t http://127.0.0.1:5173 \
