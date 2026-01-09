@@ -1,33 +1,54 @@
 import serial
+import serial.tools.list_ports
 import requests
 import json
 import time
 import sys
+import os
 from datetime import datetime, timezone
 
-# --- CONFIGURATION ---
-# Port Mac (vérifie avec 'ls /dev/tty.usbmodem*')
-PORT_USB = "/dev/tty.usbmodem11202"
-BAUDRATE = 115200
+# Nom du fichier de configuration
+CONFIG_FILE = "config.json"
 
-# 1. URL pour RECUPERER les clés (GET)
-URL_API_KEYS = "https://api.4irc.hugorodrigues.fr/api/vehicules/cle-ident"
 
-# 2. URL pour ENVOYER les données reçues (POST)
-URL_API_DATA = "https://api.4irc.hugorodrigues.fr/api/vehicules/mise-a-jour"
+def charger_config():
+    """Charge la configuration depuis le fichier JSON."""
+    if not os.path.exists(CONFIG_FILE):
+        print(f"Erreur : Le fichier {CONFIG_FILE} est introuvable.")
+        print("   -> Veuillez créer ce fichier à côté du script.")
+        sys.exit(1)
 
-# FREQUENCE DE MISE A JOUR DES CLES
-KEY_UPDATE_INTERVAL = 120  # 2 minutes
+    with open(CONFIG_FILE, 'r') as f:
+        return json.load(f)
 
-def fetch_and_sync_keys(ser):
+
+def trouver_port_microbit(config_port):
+    """Trouve le port USB. Si 'AUTO', cherche une Micro:bit."""
+    if config_port != "AUTO":
+        return config_port
+
+    print("Recherche automatique de la Micro:bit...")
+    ports = list(serial.tools.list_ports.comports())
+    for p in ports:
+        # Identifiants USB classiques des Micro:bit
+        if "0D28" in p.hwid or "Micro:bit" in p.description or "BBC" in p.description:
+            print(f"Micro:bit détectée sur : {p.device}")
+            return p.device
+
+    print("Aucune Micro:bit détectée automatiquement.")
+    print("   -> Modifiez config.json avec le port exact (ex: COM3 ou /dev/tty...)")
+    sys.exit(1)
+
+def fetch_and_sync_keys(ser, config):
+    url = config["api_url_keys"]
     print(f"--- Synchronisation des clés depuis l'API ---")
-    print(f"GET {URL_API_KEYS}...")
+    print(f"GET {url}...")
 
     vehicules_list = []
 
     # 1. Récupération Web
     try:
-        resp = requests.get(URL_API_KEYS)
+        resp = requests.get(url)
         if resp.status_code == 200:
             vehicules_list = resp.json()
             print(f"API a répondu : {len(vehicules_list)} véhicules trouvés.")
@@ -64,11 +85,14 @@ def fetch_and_sync_keys(ser):
 
 
 def demarrer_passerelle():
-    print(f"--- Démarrage Passerelle QG sur {PORT_USB} ---")
+    config = charger_config()
+    port = trouver_port_microbit(config["port_usb"])
+    baud = config["baudrate"]
+    print(f"--- Démarrage Passerelle QG sur {port} ---")
 
     try:
         # Ouverture Port Série
-        ser = serial.Serial(PORT_USB, BAUDRATE, timeout=1)
+        ser = serial.Serial(port, baud, timeout=1)
         # Attente stabilisation (reboot auto)
         time.sleep(2)
 
@@ -76,7 +100,7 @@ def demarrer_passerelle():
         last_key_update = time.time()
 
         # ETAPE 1 : CONFIGURATION AU DEMARRAGE
-        fetch_and_sync_keys(ser)
+        fetch_and_sync_keys(ser, config)
 
         # ETAPE 2 : ECOUTE ET TRANSFERT
         print("\nPasserelle prête. En attente de radio...")
@@ -84,9 +108,9 @@ def demarrer_passerelle():
         while True:
             # --- GESTION DU TEMPS (AUTO-UPDATE) ---
             current_time = time.time()
-            if current_time - last_key_update > KEY_UPDATE_INTERVAL:
+            if current_time - last_key_update > config["update_interval_sec"]:
                 print("\n[Timer] Mise à jour automatique des clés...")
-                fetch_and_sync_keys(ser)
+                fetch_and_sync_keys(ser, config)
                 last_key_update = current_time
                 print("[Timer] Retour à l'écoute radio...\n")
             # ----------------------------------------------
@@ -152,7 +176,7 @@ def demarrer_passerelle():
                             # 5. ENVOI
                             try:
                                 print(f"Payload envoyé à l'API : {json.dumps(payload_api)}")
-                                r = requests.post(URL_API_DATA, json=payload_api)
+                                r = requests.post(config["api_url_data"], json=payload_api)
 
                                 if r.status_code in [200, 201]:
                                     print(f"Donnée sauvegardée : {res_dict} (200 OK)")
@@ -169,7 +193,7 @@ def demarrer_passerelle():
                     pass
 
     except serial.SerialException:
-        print(f"\nERREUR CRITIQUE : Impossible d'ouvrir {PORT_USB}")
+        print(f"\nERREUR CRITIQUE : Impossible d'ouvrir {port}")
         print("   -> Vérifie que le câble est branché.")
         print("   -> Vérifie qu'un autre logiciel d'écoute ne bloque pas le port.")
 
