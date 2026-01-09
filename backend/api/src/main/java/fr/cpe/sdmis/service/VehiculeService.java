@@ -56,5 +56,7 @@ public class VehiculeService {
 
     public void setVehiculeEnIntervention(VehiculeStatusUpdateRequest request) {
         vehiculeRepository.updateVehiculeStatutEnIntervention(request.idVehicule());
+        vehiculeRepository.findSnapshotById(request.idVehicule())
+                .ifPresent(snapshot -> sseService.broadcast("vehicules", List.of(snapshot)));
     }
 }

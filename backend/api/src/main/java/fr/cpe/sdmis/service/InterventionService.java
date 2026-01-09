@@ -7,6 +7,7 @@ import fr.cpe.sdmis.repository.EvenementRepository;
 import fr.cpe.sdmis.repository.InterventionRepository;
 import fr.cpe.sdmis.repository.StatutEvenementRepository;
 import fr.cpe.sdmis.repository.StatutInterventionRepository;
+import fr.cpe.sdmis.repository.VehiculeRepository;
 import org.springframework.stereotype.Service;
 import fr.cpe.sdmis.service.SdmisSseService;
 
@@ -24,17 +25,20 @@ public class InterventionService {
     private final StatutInterventionRepository statutInterventionRepository;
     private final StatutEvenementRepository statutEvenementRepository;
     private final EvenementRepository evenementRepository;
+    private final VehiculeRepository vehiculeRepository;
     private final SdmisSseService sseService;
 
     public InterventionService(InterventionRepository interventionRepository,
                                StatutInterventionRepository statutInterventionRepository,
                                StatutEvenementRepository statutEvenementRepository,
                                EvenementRepository evenementRepository,
+                               VehiculeRepository vehiculeRepository,
                                SdmisSseService sseService) {
         this.interventionRepository = interventionRepository;
         this.statutInterventionRepository = statutInterventionRepository;
         this.statutEvenementRepository = statutEvenementRepository;
         this.evenementRepository = evenementRepository;
+        this.vehiculeRepository = vehiculeRepository;
         this.sseService = sseService;
     }
 
@@ -52,6 +56,7 @@ public class InterventionService {
 
         // Mettre les véhicules en "En route"
         vehiculesCibles.forEach(interventionRepository::updateVehiculeStatutEnRoute);
+        broadcastVehicules(vehiculesCibles);
 
         // Annuler les interventions restées en attente
         interventionRepository.annulerInterventionsEnAttente(request.id_evenement(), statutEnAttente, statutAnnule);
@@ -74,6 +79,7 @@ public class InterventionService {
         // Clôturer l'intervention et rendre le véhicule disponible
         interventionRepository.cloturerIntervention(request.id_evenement(), request.id_vehicule());
         interventionRepository.updateVehiculeStatutDisponible(request.id_vehicule());
+        broadcastVehicules(java.util.Set.of(request.id_vehicule()));
 
         // Si plus aucune intervention en cours pour l'évènement, passer l'évènement en "Résolu"
         if (!interventionRepository.hasInterventionEnCours(request.id_evenement())) {
@@ -100,5 +106,15 @@ public class InterventionService {
     private void broadcastEvenementSnapshot(UUID idEvenement) {
         evenementRepository.findSnapshotById(idEvenement)
                 .ifPresent(snapshot -> sseService.broadcast("evenements", List.of(snapshot)));
+    }
+
+    private void broadcastVehicules(Set<UUID> vehicules) {
+        List<fr.cpe.sdmis.dto.VehiculeSnapshotResponse> updated = new ArrayList<>();
+        for (UUID vehiculeId : vehicules) {
+            vehiculeRepository.findSnapshotById(vehiculeId).ifPresent(updated::add);
+        }
+        if (!updated.isEmpty()) {
+            sseService.broadcast("vehicules", updated);
+        }
     }
 }

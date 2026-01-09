@@ -5,6 +5,7 @@ import fr.cpe.sdmis.messaging.EventMessage;
 import fr.cpe.sdmis.messaging.InterventionMessage;
 import fr.cpe.sdmis.service.SdmisSseService;
 import fr.cpe.sdmis.repository.InterventionRepository;
+import fr.cpe.sdmis.repository.VehiculeRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -19,15 +20,18 @@ public class DecisionMessagingService {
     private final RabbitTemplate rabbitTemplate;
     private final RabbitQueues queues;
     private final InterventionRepository interventionRepository;
+    private final VehiculeRepository vehiculeRepository;
     private final SdmisSseService sseService;
 
     public DecisionMessagingService(RabbitTemplate rabbitTemplate,
                                     RabbitQueues queues,
                                     InterventionRepository interventionRepository,
+                                    VehiculeRepository vehiculeRepository,
                                     SdmisSseService sseService) {
         this.rabbitTemplate = rabbitTemplate;
         this.queues = queues;
         this.interventionRepository = interventionRepository;
+        this.vehiculeRepository = vehiculeRepository;
         this.sseService = sseService;
     }
 
@@ -53,5 +57,7 @@ public class DecisionMessagingService {
         interventionRepository.saveFromMessage(interventionMessage);
         interventionRepository.findSnapshotByIds(interventionMessage.getIdEvenement(), interventionMessage.getVehiculeId())
                 .ifPresent(snapshot -> sseService.broadcast("interventions", List.of(snapshot)));
+        vehiculeRepository.findSnapshotById(interventionMessage.getVehiculeId())
+                .ifPresent(snapshot -> sseService.broadcast("vehicules", List.of(snapshot)));
     }
 }
