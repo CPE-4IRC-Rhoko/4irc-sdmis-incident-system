@@ -79,9 +79,10 @@ jobs:
         run: |
           ls -al
           whoami
-          pwd
+          pwd          
+          chmod 777 -R *
+          ls -al 
           touch report_json.json report_md.md report_html.html
-          chmod 777 report_json.json report_md.md report_html.html
 
       - name: ZAP Baseline Scan (FRONTEND)
         uses: zaproxy/action-full-scan@v0.9.0
