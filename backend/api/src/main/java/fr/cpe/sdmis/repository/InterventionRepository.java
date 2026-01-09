@@ -49,15 +49,30 @@ public class InterventionRepository {
     }
 
     public void saveFromMessage(InterventionMessage message) {
-        UUID statutInterventionId = resolveStatutIntervention();
+        UUID statutInterventionAttente = resolveStatutIntervention();
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("id_evenement", message.getIdEvenement())
                 .addValue("date_debut", null)
                 .addValue("date_fin", null)
                 .addValue("id_vehicule", message.getVehiculeId())
-                .addValue("id_statut_intervention", statutInterventionId);
+                .addValue("id_statut_intervention", statutInterventionAttente);
 
         try {
+            int updated = jdbcTemplate.update("""
+                    UPDATE intervention
+                    SET id_statut_intervention = :statut_attente
+                    WHERE id_evenement = :id_evenement
+                      AND id_vehicule = :id_vehicule
+                    """, new MapSqlParameterSource()
+                    .addValue("statut_attente", statutInterventionAttente)
+                    .addValue("id_evenement", message.getIdEvenement())
+                    .addValue("id_vehicule", message.getVehiculeId()));
+            if (updated > 0) {
+                LOGGER.info("Intervention existante mise en 'En attente' pour évènement {} avec véhicule {}", message.getIdEvenement(), message.getVehiculeId());
+                updateVehiculeStatutProposition(message.getVehiculeId());
+                return;
+            }
+
             int rows = jdbcTemplate.update("""
                     INSERT INTO intervention (id_evenement, date_debut, date_fin, id_vehicule, id_statut_intervention)
                     VALUES (:id_evenement, :date_debut, :date_fin, :id_vehicule, :id_statut_intervention)
@@ -217,6 +232,14 @@ public class InterventionRepository {
 
     public List<InterventionSnapshotResponse> findSnapshots() {
         return jdbcTemplate.query(SNAPSHOT_QUERY, this::mapSnapshot);
+    }
+
+    public List<InterventionSnapshotResponse> findSnapshotsByEvenement(UUID idEvenement) {
+        return jdbcTemplate.query(
+                SNAPSHOT_QUERY + " WHERE i.id_evenement = :event",
+                new MapSqlParameterSource("event", idEvenement),
+                this::mapSnapshot
+        );
     }
 
     public Optional<InterventionSnapshotResponse> findSnapshotByIds(UUID idEvenement, UUID idVehicule) {

@@ -7,6 +7,7 @@ import fr.cpe.sdmis.dto.EquipementContenanceResponse;
 import fr.cpe.sdmis.dto.VehiculeIdentResponse;
 import fr.cpe.sdmis.dto.VehiculeEnRouteResponse;
 import fr.cpe.sdmis.dto.VehiculeStatusUpdateRequest;
+import fr.cpe.sdmis.dto.EquipementVehiculeResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
@@ -236,6 +237,20 @@ public class VehiculeRepository {
                     rs.getDouble("e_lon")
             );
         }
+    }
+
+    public List<EquipementVehiculeResponse> findEquipementsByVehiculeId(UUID idVehicule) {
+        return jdbcTemplate.query("""
+                SELECT e.nom_equipement, eed.contenance_courante_
+                FROM est_equipe_de eed
+                JOIN equipement e ON e.id_equipement = eed.id_equipement
+                WHERE eed.id_vehicule = :vehicule
+                ORDER BY e.nom_equipement
+                """, new MapSqlParameterSource("vehicule", idVehicule), (rs, rowNum) ->
+                new EquipementVehiculeResponse(
+                        rs.getString("nom_equipement"),
+                        (Integer) rs.getObject("contenance_courante_")
+                ));
     }
 
     private String baseSnapshotQuery(String whereClause) {
