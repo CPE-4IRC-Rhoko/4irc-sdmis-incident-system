@@ -240,6 +240,7 @@ function RessourcesPage() {
         v.id.toLowerCase().includes(texte) ||
         (v.plaque ?? '').toLowerCase().includes(texte) ||
         v.statut.toLowerCase().includes(texte) ||
+        texte.includes(v.statut.toLowerCase()) ||
         (v.incidentNom ?? '').toLowerCase().includes(texte) ||
         (v.equipements ?? []).some((eq) =>
           `${eq.nomEquipement ?? ''}`.toLowerCase().includes(texte),
