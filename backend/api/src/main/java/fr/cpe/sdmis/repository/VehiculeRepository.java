@@ -91,13 +91,26 @@ public class VehiculeRepository {
                        v.longitude AS v_lon,
                        i.id_evenement,
                        e.latitude AS e_lat,
-                       e.longitude AS e_lon
+                       e.longitude AS e_lon,
+                       COALESCE(
+                         JSON_AGG(
+                           JSON_BUILD_OBJECT(
+                             'nom_equipement', eq.nom_equipement,
+                             'contenance_courante', eed.contenance_courante_
+                           )
+                           ORDER BY eq.nom_equipement
+                         ) FILTER (WHERE eq.id_equipement IS NOT NULL),
+                         '[]'::json
+                       ) AS equipements
                 FROM vehicule v
                 JOIN statut_vehicule sv ON sv.id_statut = v.id_statut
                 JOIN intervention i ON i.id_vehicule = v.id_vehicule
                 JOIN evenement e ON e.id_evenement = i.id_evenement
-                join statut_evenement se ON se.id_statut = e.id_statut
+                JOIN statut_evenement se ON se.id_statut = e.id_statut
+                LEFT JOIN est_equipe_de eed ON eed.id_vehicule = v.id_vehicule
+                LEFT JOIN equipement eq ON eq.id_equipement = eed.id_equipement
                 WHERE sv.nom_statut = 'En route' and se.nom_statut = 'En intervention'
+                GROUP BY v.id_vehicule, v.plaque_immat, v.latitude, v.longitude, i.id_evenement, e.latitude, e.longitude
                 """, new VehiculeEnRouteRowMapper());
     }
 
@@ -227,6 +240,23 @@ public class VehiculeRepository {
     private static class VehiculeEnRouteRowMapper implements RowMapper<VehiculeEnRouteResponse> {
         @Override
         public VehiculeEnRouteResponse mapRow(ResultSet rs, int rowNum) throws SQLException {
+            List<EquipementContenanceResponse> equipements = new ArrayList<>();
+            Object rawEquipements = rs.getObject("equipements");
+            if (rawEquipements != null) {
+                try {
+                    String json = rawEquipements.toString();
+                    com.fasterxml.jackson.databind.ObjectMapper om = new com.fasterxml.jackson.databind.ObjectMapper();
+                    List<Map<String, Object>> list = om.readValue(json, om.getTypeFactory().constructCollectionType(List.class, Map.class));
+                    for (Map<String, Object> map : list) {
+                        String nom = (String) map.get("nom_equipement");
+                        Integer contenance = map.get("contenance_courante") != null
+                                ? ((Number) map.get("contenance_courante")).intValue()
+                                : null;
+                        equipements.add(new EquipementContenanceResponse(nom, contenance));
+                    }
+                } catch (Exception ignored) {
+                }
+            }
             return new VehiculeEnRouteResponse(
                     rs.getObject("id_vehicule", UUID.class),
                     rs.getString("plaque_immat"),
@@ -234,7 +264,8 @@ public class VehiculeRepository {
                     rs.getDouble("v_lon"),
                     rs.getObject("id_evenement", UUID.class),
                     rs.getDouble("e_lat"),
-                    rs.getDouble("e_lon")
+                    rs.getDouble("e_lon"),
+                    equipements
             );
         }
     }
