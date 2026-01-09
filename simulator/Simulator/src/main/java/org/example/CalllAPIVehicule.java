@@ -5,7 +5,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.List;
-import java.util.Locale;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,11 +31,13 @@ public class CalllAPIVehicule {
                 List<VehiculeData> vehicules = new ObjectMapper().readValue(response.body(), new TypeReference<List<VehiculeData>>() {});
 
                 // --- RECUPERATION DES DOONNES LORS DU MATCH ---
-                System.out.println("\n--- Données reçues de l'API ---");
+                //System.out.println("\n--- Données reçues de l'API ---");
+                /*
                 for (VehiculeData v : vehicules)
                     {
                         System.out.printf(Locale.US, "Véhicule [%s] : Position actuelle (Lat: %.6f, Lon: %.6f) -> Dest évènement [%s] (Lat: %.6f, Lon: %.6f)%n",v.idVehicule, v.vehiculeLat, v.vehiculeLon, v.idEvenement, v.evenementLat, v.evenementLon, v.plaqueImmat);
                     }
+                */
                 return vehicules;
             }
         } catch (Exception e) {

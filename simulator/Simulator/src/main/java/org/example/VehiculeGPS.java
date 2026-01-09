@@ -47,11 +47,9 @@ public class VehiculeGPS {
                         new Thread(() -> {
                             try {
                                 System.out.println("\n>>> NOUVEAU VÉHICULE DÉTECTÉ : " + v.idVehicule);
-                                
                                 simulerTrajet(v, emetteur);
                                 action.gererIntervention(v, emetteur);
                                 cloture.cloturerIntervention(v);
-                                
                             } finally {
                                 // 3. UNE FOIS FINI : On le retire du registre
                                 // pour qu'il puisse repartir sur une autre mission plus tard
@@ -61,9 +59,8 @@ public class VehiculeGPS {
                         }).start();
                     }
                 }
-
                 // 4. On attend 5 ou 10 secondes avant de redemander à l'API
-                Thread.sleep(5000);
+                Thread.sleep(10000);
 
             } catch (Exception e) {
                 System.err.println("Erreur dans la boucle de surveillance : " + e.getMessage());
