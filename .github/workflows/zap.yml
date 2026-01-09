@@ -65,12 +65,11 @@ jobs:
           cmd_options: >
             -J zap_api.json
             -r zap_api.html
-          artifact_name:  'zap_api_report'
         
       - name: Upload ZAP reports
         uses: actions/upload-artifact@v4
         with:
-          name: zap-report
+          name: zap-API-report
           path: |
             zap_api.json
             zap_api.html
@@ -102,7 +101,7 @@ jobs:
       - name: Upload ZAP reports
         uses: actions/upload-artifact@v4
         with:
-          name: zap-report
+          name: zap-frontend-report
           path: |
             zap_frontend.html
             zap_frontend.json
