@@ -66,6 +66,18 @@ jobs:
             -J zap_api.json
             -r zap_api.html
           artifact_name:  'zap_api_report'
+        
+      - name: Upload ZAP reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: |
+            zap_api.json
+            zap_api.html
+
+      - name: remove common files of ZAP for FRONTEND
+        run: |
+          rm report_json.json report_md.md report_html.html
 
       - name: ZAP Baseline Scan (FRONTEND)
         uses: zaproxy/action-full-scan@v0.9.0
@@ -78,7 +90,7 @@ jobs:
             -d
             -r /zap/wrk/zap_frontend.html
             -j /zap/wrk/zap_frontend.json
-            -w /zap/wrk/zap-report.md
+            -w /zap/wrk/zap-frontend.md
           rules_file_name: '.zap/rules.tsv'
           fail_action: false
 
@@ -89,8 +101,7 @@ jobs:
           path: |
             zap_frontend.html
             zap_frontend.json
-            zap_api.html
-            zap_api.json
+            zap-frontend.md
 
       - name: Stop docker-compose
         if: always()
