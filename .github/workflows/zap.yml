@@ -88,9 +88,9 @@ jobs:
       - name: ZAP Baseline Scan (FRONTEND)
         run: |
           docker run --rm \
+            --network="host" \
             -v ${{ github.workspace }}:/zap/wrk/:rw \
             -t ghcr.io/zaproxy/zaproxy:stable \
-            --network="host" \
             zap-baseline.py \
             -t http://127.0.0.1:5173 \
             -c .zap/rules.tsv \
