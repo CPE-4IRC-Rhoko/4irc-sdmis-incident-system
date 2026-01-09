@@ -63,7 +63,6 @@ jobs:
           target: 'http://127.0.0.1:8080/v3/api-docs'
           rules_file_name: '.zap/rules.tsv'
           cmd_options: >
-            -a
             -J zap_api.json
             -r zap_api.html
           artifact_name:  'zap_api_report'
@@ -73,10 +72,11 @@ jobs:
         with:
           target: 'http://127.0.0.1:5173'
           cmd_options: >
+            -I
             -a
-            -j /zap/wrk/zap_frontend.json
+            -l HIGH
             -r /zap/wrk/zap_frontend.html
-            -d failOnRisk HIGH
+            -j /zap/wrk/zap_frontend.json
           rules_file_name: '.zap/rules.tsv'
           fail_action: false
 
