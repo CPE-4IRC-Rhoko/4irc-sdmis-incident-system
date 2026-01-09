@@ -1,10 +1,7 @@
 package org.example;
 
-import org.apache.logging.log4j.message.StringFormattedMessage;
-
 import java.io.IOException;
 import java.util.List;
-import java.time.Instant;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -40,32 +37,9 @@ public class Main {
       };
 
       // 🔹 Thread 2 : Véhicule
-      Runnable threadVehicule = () -> {
-
-         // 1. Initialisation (à faire une seule fois au début)
-         // Remplace "COM3" par le bon port de ta Micro:bit Terrain
-         MicrobitSender emetteur = new MicrobitSender("COM3");
-
-         // Attendre 2 secondes que le port soit prêt (recommandé)
-         try { Thread.sleep(2000); } catch (Exception e) {}
-
-         // Tes calculs actuels...
-         String monId = "AA105AA";
-         double maLat = 777; // Valeur calculée par ton simu
-         double maLon = 777;  // Valeur calculée par ton simu
-         //int monEau = 85;
-         String ressources = "Eau=80";
-
-         // 2. Envoi des données
-         //emetteur.envoyerDonnees(monId, maLat, maLon, ressources, );
-
-         // IMPORTANT : Faire une petite pause si tu as plusieurs camions
-         // pour ne pas saturer le tampon de réception de la Micro:bit
-         try { Thread.sleep(50); } catch (Exception e) {}
-
-         // 3. Fermeture à la fin
-         emetteur.close();
-
+      Runnable threadVehicule = () -> 
+      {
+         System.err.println("Thread Véhicule démarré.");
       };
 
       // Création des threads

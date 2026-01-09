@@ -16,3 +16,7 @@ PG_ADMIN/
 
 #Ignorer les fichiers simu carte
 simulator/donnees/
+simulator/.idea/
+*.iml
+jdk/
+*.jdk
