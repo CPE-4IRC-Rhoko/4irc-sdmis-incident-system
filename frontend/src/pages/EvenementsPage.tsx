@@ -1,13 +1,19 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Modal from '../components/Modal'
 import './EvenementsPage.css'
 import '../components/IncidentForm.css'
 import {
   createEvenement,
-  getEvenements,
+  getEvenementsSnapshots,
   getSeverites,
   getTypesEvenement,
 } from '../services/evenements'
+import {
+  subscribeSdmisSse,
+  type EvenementSnapshot,
+  type InterventionSnapshot,
+} from '../services/sse'
+import { getInterventionsSnapshots } from '../services/interventions'
 import type {
   EvenementApi,
   EvenementCreatePayload,
@@ -63,17 +69,48 @@ const classStatut = (statut: string) => {
     texte.includes('résol') ||
     texte.includes('resol') ||
     texte.includes('clos') ||
-    texte.includes('clôt')
+    texte.includes('clôt') ||
+    texte.includes('annul')
   ) {
     return 'statut-resolu'
   }
   return 'statut-neutre'
 }
 
+const estCloture = (statut: string) => {
+  const texte = statut.toLowerCase()
+  return (
+    texte.includes('résol') ||
+    texte.includes('resol') ||
+    texte.includes('clos') ||
+    texte.includes('clôt') ||
+    texte.includes('annul')
+  )
+}
+
+const estActif = (statut: string) => !estCloture(statut)
+
 const formatCoord = (value: number) => value.toFixed(4)
 
 const localisationLisible = (evt: EvenementApi) =>
   `${formatCoord(evt.latitude)}, ${formatCoord(evt.longitude)}`
+
+const evenementDepuisSnapshot = (
+  snapshot: EvenementSnapshot,
+): EvenementApi => ({
+  id: snapshot.idEvenement,
+  description: snapshot.description,
+  latitude: snapshot.latitude,
+  longitude: snapshot.longitude,
+  idTypeEvenement: '',
+  idStatut: '',
+  idSeverite: '',
+  nomTypeEvenement: snapshot.typeEvenement,
+  nomStatut: snapshot.statutEvenement,
+  nomSeverite: snapshot.severite,
+  valeurEchelle: snapshot.echelleSeverite,
+  nbVehiculesNecessaire: snapshot.nbVehiculesNecessaire ?? null,
+})
 
 function EvenementsPage() {
   const [evenements, setEvenements] = useState<EvenementApi[]>([])
@@ -95,11 +132,13 @@ function EvenementsPage() {
   const [formState, setFormState] = useState<FormState | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [formLoading, setFormLoading] = useState(false)
+  const [interventions, setInterventions] = useState<InterventionSnapshot[]>([])
 
   const statutsDisponibles = useMemo(() => {
     const map = new Map<string, string>()
     evenements.forEach((evt) => {
-      map.set(evt.idStatut, evt.nomStatut)
+      const key = evt.idStatut || evt.nomStatut
+      map.set(key, evt.nomStatut)
     })
     if (map.size === 0) {
       map.set('default', 'Déclaré')
@@ -113,12 +152,24 @@ function EvenementsPage() {
       setEtat('loading')
       setErreur(null)
       try {
-        const [evtApi, severitesApi, typesApi] = await Promise.all([
-          getEvenements(controller.signal),
+        const [evtSnapshots, interventionsSnapshots, severitesApi, typesApi] = await Promise.all([
+          getEvenementsSnapshots(controller.signal),
+          getInterventionsSnapshots(controller.signal),
           getSeverites(controller.signal),
           getTypesEvenement(controller.signal),
         ])
+        const evtApi = evtSnapshots.map(evenementDepuisSnapshot)
         setEvenements(evtApi)
+        setInterventions(
+          interventionsSnapshots.map((intervention) => ({
+            idEvenement: intervention.idEvenement,
+            idVehicule: intervention.idVehicule,
+            statusIntervention: intervention.statusIntervention,
+            dateDebutIntervention: intervention.dateDebutIntervention,
+            dateFinIntervention: intervention.dateFinIntervention,
+            plaqueImmat: intervention.plaqueImmat,
+          })),
+        )
         const severitesTriees = [...severitesApi].sort(
           (a, b) =>
             Number.parseInt(a.valeurEchelle, 10) -
@@ -151,6 +202,70 @@ function EvenementsPage() {
     void charger()
     return () => controller.abort()
   }, [refreshKey])
+
+  const appliquerSnapshotsEvenements = useCallback((snapshots: EvenementSnapshot[]) => {
+    if (snapshots.length === 0) return
+    setEvenements((prev) => {
+      const map = new Map(prev.map((evt) => [evt.id, evt]))
+      snapshots.forEach((snapshot) => {
+        const courant = map.get(snapshot.idEvenement)
+        map.set(snapshot.idEvenement, {
+          ...courant,
+          id: snapshot.idEvenement,
+          description: snapshot.description,
+          latitude: snapshot.latitude,
+          longitude: snapshot.longitude,
+          idTypeEvenement: courant?.idTypeEvenement ?? '',
+          idStatut: courant?.idStatut ?? '',
+          idSeverite: courant?.idSeverite ?? '',
+          nomTypeEvenement: snapshot.typeEvenement,
+          nomStatut: snapshot.statutEvenement,
+          nomSeverite: snapshot.severite,
+          valeurEchelle: snapshot.echelleSeverite,
+          nbVehiculesNecessaire:
+            snapshot.nbVehiculesNecessaire ??
+            courant?.nbVehiculesNecessaire ??
+            null,
+        })
+      })
+      const next = Array.from(map.values())
+      setSelectedId((prev) =>
+        prev && next.some((evt) => evt.id === prev) ? prev : next[0]?.id ?? null,
+      )
+      return next
+    })
+  }, [])
+
+  const appliquerSnapshotsInterventions = useCallback(
+    (snapshots: InterventionSnapshot[]) => {
+      if (snapshots.length === 0) return
+      setInterventions((prev) => {
+        const map = new Map(
+          prev.map((intervention) => [
+            `${intervention.idEvenement}-${intervention.idVehicule}`,
+            intervention,
+          ]),
+        )
+        snapshots.forEach((intervention) => {
+          map.set(
+            `${intervention.idEvenement}-${intervention.idVehicule}`,
+            intervention,
+          )
+        })
+        return Array.from(map.values())
+      })
+    },
+    [],
+  )
+
+  useEffect(() => {
+    const es = subscribeSdmisSse({
+      onEvenements: appliquerSnapshotsEvenements,
+      onInterventions: appliquerSnapshotsInterventions,
+      onError: (err) => console.error('SSE événements (onglet)', err),
+    })
+    return () => es.close()
+  }, [appliquerSnapshotsEvenements, appliquerSnapshotsInterventions])
 
   const evenementsFiltres = useMemo(() => {
     const recherche = filtreTexte.trim().toLowerCase()
@@ -207,22 +322,32 @@ function EvenementsPage() {
     const besoinsRessources = evenements.filter(
       (evt) => (evt.nbVehiculesNecessaire ?? 0) > 0,
     ).length
-    const clotures = evenements.filter((evt) => {
-      const statut = evt.nomStatut.toLowerCase()
-      return (
-        statut.includes('résol') ||
-        statut.includes('resol') ||
-        statut.includes('clos') ||
-        statut.includes('clôt')
-      )
-    }).length
+    const clotures = evenements.filter((evt) => estCloture(evt.nomStatut)).length
+    const actifs = evenements.filter((evt) => estActif(evt.nomStatut)).length
+    const limite = Date.now() - 24 * 60 * 60 * 1000
+    const geres24h = new Set<string>()
+    interventions.forEach((intervention) => {
+      const debut = intervention.dateDebutIntervention
+        ? new Date(intervention.dateDebutIntervention).getTime()
+        : null
+      const fin = intervention.dateFinIntervention
+        ? new Date(intervention.dateFinIntervention).getTime()
+        : null
+      if (
+        (debut && debut >= limite) ||
+        (fin && fin >= limite)
+      ) {
+        geres24h.add(intervention.idEvenement)
+      }
+    })
     return {
-      total: evenements.length,
+      actifs,
       critiques: severiteCritique,
       besoinsRessources,
       clotures,
+      geres24h: geres24h.size,
     }
-  }, [evenements])
+  }, [evenements, interventions])
 
   const remettreAZeroForm = () => {
     setFormMode(null)
@@ -400,8 +525,12 @@ function EvenementsPage() {
 
       <div className="events-metrics">
         <div className="metric-card">
+          <p className="muted small">Événements gérés (24h)</p>
+          <h3>{metriques.geres24h}</h3>
+        </div>
+        <div className="metric-card">
           <p className="muted small">Événements actifs</p>
-          <h3>{metriques.total}</h3>
+          <h3>{metriques.actifs}</h3>
         </div>
         <div className="metric-card severe">
           <p className="muted small">Gravité critique</p>
@@ -501,7 +630,7 @@ function EvenementsPage() {
                   <th>Gravité</th>
                   <th>Localisation</th>
                   <th>Échelle</th>
-                  <th>Ressources</th>
+                  <th>Ressources recommandées</th>
                   <th>Statut</th>
                 </tr>
               </thead>
