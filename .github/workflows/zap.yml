@@ -77,6 +77,9 @@ jobs:
 
       - name: remove common files of ZAP for FRONTEND
         run: |
+          ls -al
+          whoami
+          pwd
           touch report_json.json report_md.md report_html.html
           chmod 777 report_json.json report_md.md report_html.html
 
