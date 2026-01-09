@@ -91,6 +91,7 @@ jobs:
             -v ${{ github.workspace }}:/home/zap/wrk/:rw \
             -t ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
+            --network="host"
             -t http://127.0.0.1:5173 \
             -c .zap/rules.tsv \
             -r zap_frontend.html \
