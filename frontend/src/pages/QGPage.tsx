@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import MapView, { type VueCarte } from '../components/MapView'
 import Modal from '../components/Modal'
 import {
@@ -10,17 +10,20 @@ import type {
   Ressource,
 } from '../models/resource'
 import type { EvenementApi, SeveriteReference, TypeEvenementReference } from '../models/evenement'
-import type { VehiculeOperationnel } from '../models/vehicule'
-import type { InterventionApi } from '../models/intervention'
 import {
   createEvenement,
-  getEvenements,
+  getEvenementsSnapshots,
   getSeverites,
   getTypesEvenement,
 } from '../services/evenements'
-import { getInterventions } from '../services/interventions'
-import { getVehiculesOperationnels } from '../services/vehicules'
-import { withBaseUrl } from '../services/api'
+import { getInterventionsSnapshots } from '../services/interventions'
+import { getVehiculesSnapshots } from '../services/vehicules'
+import {
+  subscribeSdmisSse,
+  type EvenementSnapshot,
+  type InterventionSnapshot,
+  type VehiculeSnapshot,
+} from '../services/sse'
 import EvenementsPage from './EvenementsPage'
 import RessourcesPage from './RessourcesPage'
 import AffectationsPage from './AffectationsPage'
@@ -61,7 +64,8 @@ const normaliserStatutIncident = (statutTexte: string): StatutIncident => {
     texte.includes('résol') ||
     texte.includes('resol') ||
     texte.includes('clos') ||
-    texte.includes('clôt')
+    texte.includes('clôt') ||
+    texte.includes('annul')
   ) {
     return 'CLOTURE'
   }
@@ -69,6 +73,17 @@ const normaliserStatutIncident = (statutTexte: string): StatutIncident => {
     return 'EN_COURS'
   }
   return 'NOUVEAU'
+}
+
+const estStatutCloture = (statutTexte: string) => {
+  const texte = (statutTexte ?? '').toLowerCase()
+  return (
+    texte.includes('résol') ||
+    texte.includes('resol') ||
+    texte.includes('clos') ||
+    texte.includes('clôt') ||
+    texte.includes('annul')
+  )
 }
 
 const normaliserGravite = (
@@ -101,36 +116,104 @@ const incidentDepuisApi = (evt: EvenementApi): Incident => ({
   statutLabel: evt.nomStatut,
 })
 
-const ressourcesDepuisApi = (
-  vehicules: VehiculeOperationnel[],
-  interventions: InterventionApi[],
+const evenementDepuisSnapshot = (
+  snapshot: EvenementSnapshot,
+): EvenementApi => ({
+  id: snapshot.idEvenement,
+  description: snapshot.description,
+  latitude: snapshot.latitude,
+  longitude: snapshot.longitude,
+  idTypeEvenement: '',
+  idStatut: '',
+  idSeverite: '',
+  nomTypeEvenement: snapshot.typeEvenement,
+  nomStatut: snapshot.statutEvenement,
+  nomSeverite: snapshot.severite,
+  valeurEchelle: snapshot.echelleSeverite,
+  nbVehiculesNecessaire: snapshot.nbVehiculesNecessaire ?? null,
+})
+
+const disponibiliteDepuisStatutVehicule = (
+  statut: string,
+): Ressource['disponibilite'] => {
+  const texte = (statut ?? '').toLowerCase()
+  if (
+    texte.includes('intervention') ||
+    texte.includes('cours') ||
+    texte.includes('route') ||
+    texte.includes('occup')
+  ) {
+    return 'OCCUPE'
+  }
+  if (texte.includes('dispon')) return 'DISPONIBLE'
+  return 'HORS_LIGNE'
+}
+
+const interventionEstActive = (intervention: InterventionSnapshot) => {
+  const statut = (intervention.statusIntervention ?? '').toLowerCase()
+  if (
+    statut.includes('annul') ||
+    statut.includes('term') ||
+    statut.includes('clos') ||
+    intervention.dateFinIntervention
+  ) {
+    return false
+  }
+  return true
+}
+
+const ressourcesDepuisEtat = (
+  vehicules: VehiculeSnapshot[],
+  interventions: InterventionSnapshot[],
   evenements: EvenementApi[],
 ): Ressource[] => {
   const mapEvenements = new Map(evenements.map((evt) => [evt.id, evt]))
+  const interventionsActives = interventions.filter(interventionEstActive)
+  const vehiculesEngages = new Set(
+    interventionsActives.map((intervention) => intervention.idVehicule),
+  )
 
-  const disponibles: Ressource[] = vehicules.map((vehicule) => ({
-    id: vehicule.id,
-    nom: `Véhicule ${vehicule.id.slice(0, 8)}`,
-    type: 'Véhicule',
-    categorie: 'POMPIERS',
-    disponibilite: 'DISPONIBLE',
-    latitude: vehicule.latitude,
-    longitude: vehicule.longitude,
-  }))
+  const disponibles: Ressource[] = vehicules
+    .filter((vehicule) => !vehiculesEngages.has(vehicule.id))
+    .map((vehicule) => ({
+      id: vehicule.id,
+      nom: vehicule.caserne
+        ? `Véhicule ${vehicule.caserne}`
+        : `Véhicule ${vehicule.id.slice(0, 8)}`,
+      type: 'Véhicule',
+      categorie: 'POMPIERS',
+      disponibilite: disponibiliteDepuisStatutVehicule(vehicule.statut),
+      latitude: vehicule.latitude,
+      longitude: vehicule.longitude,
+      equipements:
+        vehicule.equipements?.map((eq) => ({
+          nom: eq.nomEquipement,
+          contenance: eq.contenanceCourante,
+        })) ?? [],
+      plaque: vehicule.plaqueImmat,
+    }))
 
-  const engages: Ressource[] = interventions
+  const engages: Ressource[] = interventionsActives
     .map((intervention) => {
       const evt = mapEvenements.get(intervention.idEvenement)
       if (!evt) return null
+      const vehicule = vehicules.find(
+        (veh) => veh.id === intervention.idVehicule,
+      )
       return {
         id: intervention.idVehicule,
-        nom: `Véhicule engagé • ${intervention.nomStatutIntervention}`,
+        nom: `Véhicule engagé • ${intervention.statusIntervention}`,
         type: 'Affecté',
         categorie: 'POMPIERS',
         disponibilite: 'OCCUPE',
         latitude: evt.latitude,
         longitude: evt.longitude,
-        equipements: [],
+        equipements:
+          vehicule?.equipements?.map((eq) => ({
+            nom: eq.nomEquipement,
+            contenance: eq.contenanceCourante,
+          })) ?? [],
+        plaque: intervention.plaqueImmat ?? vehicule?.plaqueImmat,
       } as Ressource
     })
     .filter(Boolean) as Ressource[]
@@ -174,13 +257,17 @@ function QGPage() {
   const [types, setTypes] = useState<TypeEvenementReference[]>([])
   const [severites, setSeverites] = useState<SeveriteReference[]>([])
   const [statutsDisponibles, setStatutsDisponibles] = useState<string[]>([])
-  const [interventionsData, setInterventionsData] = useState<InterventionApi[]>([])
-  const [vehiculesSseOk, setVehiculesSseOk] = useState(false)
+  const [, setInterventionsData] = useState<InterventionSnapshot[]>([])
+  const [, setVehiculesData] = useState<VehiculeSnapshot[]>([])
   const [popupEvenementId, setPopupEvenementId] = useState<string | null>(null)
   const [popupRessourceId, setPopupRessourceId] = useState<string | null>(null)
   const [statutEvenementParId, setStatutEvenementParId] = useState<
     Record<string, string>
   >({})
+  const evenementsRef = useRef<EvenementApi[]>([])
+  const interventionsRef = useRef<InterventionSnapshot[]>([])
+  const vehiculesRef = useRef<VehiculeSnapshot[]>([])
+  const vehiculesSseOkRef = useRef(false)
 
   const handleSelectEvenement = (id: string) => {
     setEvenementSelectionneId(id)
@@ -196,6 +283,138 @@ function QGPage() {
   const fermerPopups = () => {
     setPopupEvenementId(null)
     setPopupRessourceId(null)
+  }
+
+  const chargerVehiculesFallback = async () => {
+    try {
+      const vehiculesApi = await getVehiculesSnapshots()
+      const vehiculesMaj = vehiculesApi.map((vehicule) => ({
+        id: vehicule.id,
+        latitude: vehicule.latitude,
+        longitude: vehicule.longitude,
+        statut: vehicule.statut,
+        caserne: vehicule.caserne,
+        equipements: vehicule.equipements,
+        plaqueImmat: undefined,
+      }))
+      vehiculesRef.current = vehiculesMaj
+      setVehiculesData(vehiculesMaj)
+      setRessources(
+        ressourcesDepuisEtat(
+          vehiculesMaj,
+          interventionsRef.current,
+          evenementsRef.current,
+        ),
+      )
+      setEtatChargement((prev) => (prev === 'ready' ? prev : 'ready'))
+    } catch (error) {
+      console.error('Fallback véhicules échoué', error)
+    }
+  }
+
+  const mettreAJourEvenementsSnapshots = (snapshots: EvenementSnapshot[]) => {
+    if (snapshots.length === 0) return
+    setEvenementsApi((prev) => {
+      const map = new Map(prev.map((evt) => [evt.id, evt]))
+      snapshots.forEach((snapshot) => {
+        const courant = map.get(snapshot.idEvenement)
+        map.set(snapshot.idEvenement, {
+          ...courant,
+          id: snapshot.idEvenement,
+          description: snapshot.description,
+          latitude: snapshot.latitude,
+          longitude: snapshot.longitude,
+          nomStatut: snapshot.statutEvenement,
+          nomTypeEvenement: snapshot.typeEvenement,
+          nomSeverite: snapshot.severite,
+          valeurEchelle: snapshot.echelleSeverite,
+          nbVehiculesNecessaire:
+            snapshot.nbVehiculesNecessaire ??
+            courant?.nbVehiculesNecessaire ??
+            null,
+          idTypeEvenement: courant?.idTypeEvenement ?? '',
+          idStatut: courant?.idStatut ?? '',
+          idSeverite: courant?.idSeverite ?? '',
+        })
+      })
+      const next = Array.from(map.values())
+      evenementsRef.current = next
+      const mapStatut: Record<string, string> = {}
+      next.forEach((evt) => {
+        mapStatut[evt.id] = evt.nomStatut
+      })
+      setStatutEvenementParId(mapStatut)
+      setEvenements(next.map(incidentDepuisApi))
+      setEvenementSelectionneId((prev) =>
+        prev && next.some((evt) => evt.id === prev) ? prev : next[0]?.id,
+      )
+      setRessources(
+        ressourcesDepuisEtat(
+          vehiculesRef.current,
+          interventionsRef.current,
+          next,
+        ),
+      )
+      return next
+    })
+  }
+
+  const mettreAJourInterventionsSnapshots = (
+    snapshots: InterventionSnapshot[],
+  ) => {
+    if (snapshots.length === 0) return
+    setInterventionsData((prev) => {
+      const map = new Map(
+        prev.map((intervention) => [
+          `${intervention.idEvenement}-${intervention.idVehicule}`,
+          intervention,
+        ]),
+      )
+      snapshots.forEach((intervention) => {
+        map.set(
+          `${intervention.idEvenement}-${intervention.idVehicule}`,
+          intervention,
+        )
+      })
+      const next = Array.from(map.values())
+      interventionsRef.current = next
+      setRessources(
+        ressourcesDepuisEtat(
+          vehiculesRef.current,
+          next,
+          evenementsRef.current,
+        ),
+      )
+      return next
+    })
+  }
+
+  const mettreAJourVehiculesSnapshots = (snapshots: VehiculeSnapshot[]) => {
+    if (snapshots.length === 0) return
+    setVehiculesData((prev) => {
+      const map = new Map(prev.map((veh) => [veh.id, veh]))
+      snapshots.forEach((vehicule) => {
+        const courant = map.get(vehicule.id)
+        map.set(vehicule.id, {
+          ...courant,
+          ...vehicule,
+          equipements: vehicule.equipements ?? courant?.equipements ?? [],
+          plaqueImmat: vehicule.plaqueImmat ?? courant?.plaqueImmat,
+        })
+      })
+      const next = Array.from(map.values())
+      vehiculesRef.current = next
+      setRessources(
+        ressourcesDepuisEtat(
+          next,
+          interventionsRef.current,
+          evenementsRef.current,
+        ),
+      )
+      return next
+    })
+    vehiculesSseOkRef.current = true
+    setEtatChargement((prev) => (prev === 'ready' ? prev : 'ready'))
   }
 
   const choisirSuggestion = (suggestion: SuggestionAdresse) => {
@@ -344,24 +563,49 @@ function QGPage() {
       setErreurChargement(null)
       try {
         const [
-          evtApi,
-          vehiculesApi,
-          interventionsApi,
+          evtSnapshots,
+          vehiculesSnapshots,
+          interventionsSnapshots,
           severitesApi,
           typesApi,
         ] = await Promise.all([
-          getEvenements(controller.signal),
-          getVehiculesOperationnels(controller.signal),
-          getInterventions(controller.signal),
+          getEvenementsSnapshots(controller.signal),
+          getVehiculesSnapshots(controller.signal),
+          getInterventionsSnapshots(controller.signal),
           getSeverites(controller.signal),
           getTypesEvenement(controller.signal),
         ])
 
+        const evtApi = evtSnapshots.map(evenementDepuisSnapshot)
+        const vehiculesInitial = vehiculesSnapshots.map((vehicule) => ({
+          id: vehicule.id,
+          latitude: vehicule.latitude,
+          longitude: vehicule.longitude,
+          statut: vehicule.statut,
+          caserne: vehicule.caserne,
+          equipements: vehicule.equipements,
+          plaqueImmat: undefined,
+        }))
+        const interventionsInitial: InterventionSnapshot[] =
+          interventionsSnapshots.map((intervention) => ({
+            idEvenement: intervention.idEvenement,
+            idVehicule: intervention.idVehicule,
+            statusIntervention: intervention.statusIntervention,
+            dateDebutIntervention: intervention.dateDebutIntervention,
+            dateFinIntervention: intervention.dateFinIntervention,
+            plaqueImmat: intervention.plaqueImmat,
+          }))
         const incidents = evtApi.map(incidentDepuisApi)
         setEvenements(incidents)
         setEvenementsApi(evtApi)
-        setRessources(ressourcesDepuisApi(vehiculesApi, interventionsApi, evtApi))
-        setInterventionsData(interventionsApi)
+        setVehiculesData(vehiculesInitial)
+        setInterventionsData(interventionsInitial)
+        evenementsRef.current = evtApi
+        vehiculesRef.current = vehiculesInitial
+        interventionsRef.current = interventionsInitial
+        setRessources(
+          ressourcesDepuisEtat(vehiculesInitial, interventionsInitial, evtApi),
+        )
         const severitesTriees = [...severitesApi].sort(
           (a, b) =>
             Number.parseInt(a.valeurEchelle, 10) -
@@ -402,77 +646,21 @@ function QGPage() {
   }, [])
 
   useEffect(() => {
-    const url = withBaseUrl('/api/vehicules/sse')
-    const es = new EventSource(url)
-    const chargerFallback = async () => {
-      try {
-        const { getVehiculesOperationnels } = await import(
-          '../services/vehicules'
-        )
-        const vehiculesApi = await getVehiculesOperationnels()
-        setRessources(
-          ressourcesDepuisApi(vehiculesApi, interventionsData, evenementsApi),
-        )
-        setEtatChargement((prev) => (prev === 'ready' ? prev : 'ready'))
-      } catch (error) {
-        console.error('Fallback véhicules échoué', error)
-      }
-    }
-
-    es.addEventListener('vehicules', (event) => {
-      try {
-        const data = JSON.parse((event as MessageEvent).data) as Array<{
-          id: string
-          latitude: number
-          longitude: number
-          statut: string
-          caserne?: string
-          equipements?: Array<{ nomEquipement: string; contenanceCourante: number }>
-        }>
-        setRessources((prev) => {
-          console.info('Mise à jour SSE véhicules', data)
-          const map = new Map(prev.map((r) => [r.id, r]))
-          data.forEach((veh) => {
-            const dispo =
-              veh.statut.toLowerCase().includes('intervention')
-                ? 'OCCUPE'
-                : veh.statut.toLowerCase().includes('dispon')
-                  ? 'DISPONIBLE'
-                  : 'HORS_LIGNE'
-            map.set(veh.id, {
-              id: veh.id,
-              nom: veh.caserne ? `Véhicule ${veh.caserne}` : `Véhicule ${veh.id.slice(0, 6)}`,
-              type: 'Véhicule',
-              categorie: 'POMPIERS',
-              disponibilite: dispo,
-              latitude: veh.latitude,
-              longitude: veh.longitude,
-              equipements:
-                veh.equipements?.map((eq) => ({
-                  nom: eq.nomEquipement,
-                  contenance: eq.contenanceCourante,
-                })) ?? map.get(veh.id)?.equipements ?? [],
-              plaque: map.get(veh.id)?.plaque ?? undefined,
-            })
-          })
-        return Array.from(map.values())
-      })
-      setVehiculesSseOk(true)
-      setEtatChargement((prev) => (prev === 'ready' ? prev : 'ready'))
-      } catch (error) {
-        console.error('Erreur SSE vehicules', error)
-      }
+    const es = subscribeSdmisSse({
+      onVehicules: mettreAJourVehiculesSnapshots,
+      onInterventions: mettreAJourInterventionsSnapshots,
+      onEvenements: mettreAJourEvenementsSnapshots,
+      onError: (err) => {
+        console.error('SSE temps réel', err)
+        if (!vehiculesSseOkRef.current) {
+          void chargerVehiculesFallback()
+        }
+      },
     })
-    es.onerror = (err) => {
-      console.error('SSE vehicules erreur', err)
-      if (!vehiculesSseOk) {
-        void chargerFallback()
-      }
-    }
     return () => {
       es.close()
     }
-  }, [evenementsApi, interventionsData, vehiculesSseOk])
+  }, [])
 
   const derniereMiseAJour = useMemo(
     () =>
@@ -481,6 +669,11 @@ function QGPage() {
         minute: '2-digit',
       }),
     [evenements, ressources],
+  )
+
+  const evenementsCarte = useMemo(
+    () => evenements.filter((evt) => evt.statut !== 'CLOTURE'),
+    [evenements],
   )
 
   const evenementsActifs = useMemo(
@@ -499,7 +692,8 @@ function QGPage() {
       : Math.round((ressourcesEngagees.length / ressources.length) * 100)
 
   const evenementsPrioritaires = useMemo(() => {
-    const ordonner = [...evenementsApi].sort((a, b) => {
+    const actifs = evenementsApi.filter((evt) => !estStatutCloture(evt.nomStatut))
+    const ordonner = [...actifs].sort((a, b) => {
       const gravA = Number.parseInt(a.valeurEchelle ?? '0', 10)
       const gravB = Number.parseInt(b.valeurEchelle ?? '0', 10)
       return gravB - gravA
@@ -665,7 +859,7 @@ function QGPage() {
               )}
             </div>
             <MapView
-              evenements={evenements}
+              evenements={evenementsCarte}
               ressources={ressources}
               pointInteret={
                 pointRecherche

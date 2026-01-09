@@ -1,12 +1,18 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './AffectationsPage.css'
-import { getEvenements } from '../services/evenements'
-import { getVehiculesOperationnels } from '../services/vehicules'
-import { getInterventions } from '../services/interventions'
+import { getEvenementsSnapshots } from '../services/evenements'
+import { getVehiculesSnapshots } from '../services/vehicules'
+import { getInterventionsSnapshots } from '../services/interventions'
 import type { EvenementApi } from '../models/evenement'
 import Modal from '../components/Modal'
 import { postValidationAffectation } from '../services/affectations'
 import MapView, { type VueCarte } from '../components/MapView'
+import {
+  subscribeSdmisSse,
+  type EvenementSnapshot,
+  type InterventionSnapshot,
+  type VehiculeSnapshot,
+} from '../services/sse'
 
 type VehiculePropose = {
   id: string
@@ -20,6 +26,33 @@ type VehiculePropose = {
   longitude?: number
 }
 
+const interventionActive = (intervention: InterventionSnapshot) => {
+  const statut = (intervention.statusIntervention ?? '').toLowerCase()
+  if (
+    statut.includes('annul') ||
+    statut.includes('term') ||
+    statut.includes('clos') ||
+    intervention.dateFinIntervention
+  ) {
+    return false
+  }
+  return true
+}
+
+const statutVehiculeDepuisTexte = (statut: string) => {
+  const texte = (statut ?? '').toLowerCase()
+  if (
+    texte.includes('intervention') ||
+    texte.includes('route') ||
+    texte.includes('cours')
+  ) {
+    return 'En intervention'
+  }
+  if (texte.includes('dispon')) return 'Disponible'
+  if (texte.includes('maint') || texte.includes('hors')) return 'Maintenance'
+  return 'Indisponible'
+}
+
 function AffectationsPage() {
   const [evenements, setEvenements] = useState<EvenementApi[]>([])
   const [vehicules, setVehicules] = useState<VehiculePropose[]>([])
@@ -30,14 +63,8 @@ function AffectationsPage() {
   const [modalListe, setModalListe] = useState(false)
   const [erreur, setErreur] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const [vueMiniCarte, setVueMiniCarte] = useState<VueCarte>({
-    latitude: 45.75,
-    longitude: 4.85,
-    zoom: 12,
-    bearing: 0,
-    pitch: 0,
-    padding: { top: 0, bottom: 0, left: 0, right: 0 },
-  })
+  const vehiculesRef = useRef<VehiculePropose[]>([])
+  const interventionsRef = useRef<InterventionSnapshot[]>([])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -45,32 +72,57 @@ function AffectationsPage() {
       setErreur(null)
       try {
         const [evtApi, vehApi, interventionsApi] = await Promise.all([
-          getEvenements(controller.signal),
-          getVehiculesOperationnels(controller.signal),
-          getInterventions(controller.signal),
+          getEvenementsSnapshots(controller.signal),
+          getVehiculesSnapshots(controller.signal),
+          getInterventionsSnapshots(controller.signal),
         ])
-        setEvenements(evtApi)
+        const evenementsDepuisSnapshots = evtApi.map((snapshot) => ({
+          id: snapshot.idEvenement,
+          description: snapshot.description,
+          latitude: snapshot.latitude,
+          longitude: snapshot.longitude,
+          idTypeEvenement: '',
+          idStatut: '',
+          idSeverite: '',
+          nomTypeEvenement: snapshot.typeEvenement,
+          nomStatut: snapshot.statutEvenement,
+          nomSeverite: snapshot.severite,
+          valeurEchelle: snapshot.echelleSeverite,
+          nbVehiculesNecessaire: snapshot.nbVehiculesNecessaire ?? null,
+        }))
+        setEvenements(evenementsDepuisSnapshots)
+        const interventionsInitial: InterventionSnapshot[] = interventionsApi.map(
+          (intervention) => ({
+            idEvenement: intervention.idEvenement,
+            idVehicule: intervention.idVehicule,
+            statusIntervention: intervention.statusIntervention,
+            dateDebutIntervention: intervention.dateDebutIntervention,
+            dateFinIntervention: intervention.dateFinIntervention,
+            plaqueImmat: intervention.plaqueImmat,
+          }),
+        )
         const engages = new Set(
-          interventionsApi.map((intervention) => intervention.idVehicule),
+          interventionsInitial
+            .filter(interventionActive)
+            .map((intervention) => intervention.idVehicule),
         )
         const propositions = vehApi.slice(0, 3).map((v) => v.id)
-        setSelectionEvtId(evtApi[0]?.id ?? null)
+        setSelectionEvtId(evenementsDepuisSnapshots[0]?.id ?? null)
         setSelectionVehicules(new Set(propositions))
-        setVehicules(
-          vehApi.map((vehicule) => ({
-            id: vehicule.id,
-            nom: `Véhicule ${vehicule.id.slice(0, 6)}`,
-            caserne: vehicule.idStatut ? '' : '',
-            statut: engages.has(vehicule.id)
-              ? 'En intervention'
-              : vehicule.operationnel
-                ? 'Disponible'
-                : 'Indisponible',
-            proposition: propositions.includes(vehicule.id),
-            latitude: vehicule.latitude,
-            longitude: vehicule.longitude,
-          })),
-        )
+        const views = vehApi.map((vehicule) => ({
+          id: vehicule.id,
+          nom: `Véhicule ${vehicule.id.slice(0, 6)}`,
+          caserne: vehicule.caserne ?? '',
+          statut: engages.has(vehicule.id)
+            ? 'En intervention'
+            : statutVehiculeDepuisTexte(vehicule.statut),
+          proposition: propositions.includes(vehicule.id),
+          latitude: vehicule.latitude,
+          longitude: vehicule.longitude,
+        }))
+        setVehicules(views)
+        vehiculesRef.current = views
+        interventionsRef.current = interventionsInitial
       } catch (error) {
         if (controller.signal.aborted) return
         setErreur(
@@ -84,25 +136,150 @@ function AffectationsPage() {
     return () => controller.abort()
   }, [])
 
+  const appliquerSnapshotsEvenements = useCallback((snapshots: EvenementSnapshot[]) => {
+    if (snapshots.length === 0) return
+    setEvenements((prev) => {
+      const map = new Map(prev.map((evt) => [evt.id, evt]))
+      snapshots.forEach((snapshot) => {
+        const courant = map.get(snapshot.idEvenement)
+        map.set(snapshot.idEvenement, {
+          ...courant,
+          id: snapshot.idEvenement,
+          description: snapshot.description,
+          latitude: snapshot.latitude,
+          longitude: snapshot.longitude,
+          idTypeEvenement: courant?.idTypeEvenement ?? '',
+          idStatut: courant?.idStatut ?? '',
+          idSeverite: courant?.idSeverite ?? '',
+          nomTypeEvenement: snapshot.typeEvenement,
+          nomStatut: snapshot.statutEvenement,
+          nomSeverite: snapshot.severite,
+          valeurEchelle: snapshot.echelleSeverite,
+          nbVehiculesNecessaire:
+            snapshot.nbVehiculesNecessaire ??
+            courant?.nbVehiculesNecessaire ??
+            null,
+        })
+      })
+      const next = Array.from(map.values())
+      setSelectionEvtId((prev) =>
+        prev && next.some((evt) => evt.id === prev) ? prev : next[0]?.id ?? null,
+      )
+      return next
+    })
+  }, [])
+
+  const appliquerSnapshotsInterventions = useCallback(
+    (snapshots: InterventionSnapshot[]) => {
+      if (snapshots.length === 0) return
+      const map = new Map(
+        interventionsRef.current.map((intervention) => [
+          `${intervention.idEvenement}-${intervention.idVehicule}`,
+          intervention,
+        ]),
+      )
+      snapshots.forEach((intervention) => {
+        map.set(
+          `${intervention.idEvenement}-${intervention.idVehicule}`,
+          intervention,
+        )
+      })
+      const next = Array.from(map.values())
+      interventionsRef.current = next
+      const engagements = new Set(
+        next
+          .filter(interventionActive)
+          .map((intervention) => intervention.idVehicule),
+      )
+      setVehicules((prev) => {
+        const updated = prev.map((vehicule) => {
+          const statutActuel = vehicule.statut
+          const statut = engagements.has(vehicule.id)
+            ? 'En intervention'
+            : statutActuel === 'Maintenance' || statutActuel === 'Indisponible'
+              ? statutActuel
+              : 'Disponible'
+          return { ...vehicule, statut }
+        })
+        vehiculesRef.current = updated
+        return updated
+      })
+    },
+    [],
+  )
+
+  const appliquerSnapshotsVehicules = useCallback(
+    (snapshots: VehiculeSnapshot[]) => {
+      if (snapshots.length === 0) return
+      const engagements = new Set(
+        interventionsRef.current
+          .filter(interventionActive)
+          .map((intervention) => intervention.idVehicule),
+      )
+      setVehicules((prev) => {
+        const map = new Map(prev.map((vehicule) => [vehicule.id, vehicule]))
+        snapshots.forEach((vehicule) => {
+          const precedent = map.get(vehicule.id)
+          map.set(vehicule.id, {
+            ...precedent,
+            id: vehicule.id,
+            nom: precedent?.nom ?? `Véhicule ${vehicule.id.slice(0, 6)}`,
+            statut: engagements.has(vehicule.id)
+              ? 'En intervention'
+              : statutVehiculeDepuisTexte(vehicule.statut),
+            proposition: precedent?.proposition ?? false,
+            latitude: vehicule.latitude,
+            longitude: vehicule.longitude,
+            caserne: precedent?.caserne,
+          })
+        })
+        const updated = Array.from(map.values()).map((vehicule) =>
+          engagements.has(vehicule.id)
+            ? { ...vehicule, statut: 'En intervention' }
+            : vehicule,
+        )
+        vehiculesRef.current = updated
+        return updated
+      })
+    },
+    [],
+  )
+
+  useEffect(() => {
+    const es = subscribeSdmisSse({
+      onEvenements: appliquerSnapshotsEvenements,
+      onInterventions: appliquerSnapshotsInterventions,
+      onVehicules: appliquerSnapshotsVehicules,
+      onError: (err) => console.error('SSE affectations', err),
+    })
+    return () => es.close()
+  }, [
+    appliquerSnapshotsEvenements,
+    appliquerSnapshotsInterventions,
+    appliquerSnapshotsVehicules,
+  ])
+
   const evenementSelectionne = useMemo(
     () => evenements.find((e) => e.id === selectionEvtId) ?? null,
     [evenements, selectionEvtId],
+  )
+
+  const vueMiniCarte = useMemo<VueCarte>(
+    () => ({
+      latitude: evenementSelectionne?.latitude ?? 45.75,
+      longitude: evenementSelectionne?.longitude ?? 4.85,
+      zoom: evenementSelectionne ? 14 : 12,
+      bearing: 0,
+      pitch: 0,
+      padding: { top: 0, bottom: 0, left: 0, right: 0 },
+    }),
+    [evenementSelectionne],
   )
 
   const vehiculesDisponibles = useMemo(
     () => vehicules.filter((v) => v.statut.toLowerCase().includes('dispo')),
     [vehicules],
   )
-
-  useEffect(() => {
-    if (!evenementSelectionne) return
-    setVueMiniCarte((prev) => ({
-      ...prev,
-      latitude: evenementSelectionne.latitude,
-      longitude: evenementSelectionne.longitude,
-      zoom: 14,
-    }))
-  }, [evenementSelectionne])
 
   const toggleVehicule = (id: string) => {
     setSelectionVehicules((prev) => {
@@ -168,7 +345,7 @@ function AffectationsPage() {
                 popupEvenementId={evenementSelectionne.id}
                 popupRessourceId={null}
                 onSelectEvenement={() => undefined}
-                onMove={setVueMiniCarte}
+                onMove={() => undefined}
                 vue={vueMiniCarte}
                 interactionEnabled={false}
                 onSelectRessource={() => undefined}
@@ -178,7 +355,7 @@ function AffectationsPage() {
               />
             )}
           </div>
-          <p className="muted small">Incident sélectionné</p>
+          <p className="muted small">Evenement sélectionné</p>
           {evenementSelectionne ? (
             <>
               <h3>{evenementSelectionne.nomTypeEvenement}</h3>
@@ -196,7 +373,7 @@ function AffectationsPage() {
               </p>
             </>
           ) : (
-            <p className="muted">Aucun incident sélectionné</p>
+            <p className="muted">Aucun événement sélectionné</p>
           )}
           <label className="select-evt">
             Choisir un événement

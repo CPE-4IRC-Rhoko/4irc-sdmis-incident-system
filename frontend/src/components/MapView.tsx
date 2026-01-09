@@ -129,7 +129,9 @@ function MapView({
       sources: {
         osm: {
           type: 'raster',
-          tiles: ['https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'],
+          tiles: [
+            'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+          ],
           tileSize: 256,
           attribution,
         },
@@ -176,8 +178,7 @@ function MapView({
             latitude={pointInteretValide.latitude}
             anchor="bottom"
             onClick={(e) => {
-              const ev: any = e
-              ev?.originalEvent?.stopPropagation?.()
+              e.originalEvent?.stopPropagation()
               onClickPointInteret?.()
             }}
           >
@@ -196,8 +197,7 @@ function MapView({
             latitude={evt.latitude}
             anchor="center"
             onClick={(e) => {
-              const ev: any = e
-              ev?.originalEvent?.stopPropagation?.()
+              e.originalEvent?.stopPropagation()
               onSelectEvenement(evt.id)
             }}
           >
@@ -223,15 +223,14 @@ function MapView({
             longitude={ressource.longitude}
             latitude={ressource.latitude}
             anchor="bottom"
+            onClick={(e) => {
+              e.originalEvent?.stopPropagation()
+              onSelectRessource?.(ressource.id)
+            }}
           >
             <div
               className="marker marker-vehicule"
               title={ressource.nom}
-              onClick={(e) => {
-                const ev: any = e
-                ev?.originalEvent?.stopPropagation?.()
-                onSelectRessource?.(ressource.id)
-              }}
             >
               <VehicleIcon color={couleurRessource(ressource.disponibilite)} />
             </div>

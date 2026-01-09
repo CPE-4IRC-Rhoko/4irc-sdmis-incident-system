@@ -4,6 +4,7 @@ import type {
   SeveriteReference,
   TypeEvenementReference,
 } from '../models/evenement'
+import type { EvenementSnapshot } from './sse'
 import { parseJson, withBaseUrl } from './api'
 
 export const getEvenements = async (
@@ -48,4 +49,14 @@ export const createEvenement = async (
     body: JSON.stringify(payload),
   })
   return parseJson<EvenementApi>(response)
+}
+
+export const getEvenementsSnapshots = async (
+  signal?: AbortSignal,
+): Promise<EvenementSnapshot[]> => {
+  const response = await fetch(withBaseUrl('/api/evenements/snapshots'), {
+    headers: { Accept: 'application/json' },
+    signal,
+  })
+  return parseJson<EvenementSnapshot[]>(response)
 }
