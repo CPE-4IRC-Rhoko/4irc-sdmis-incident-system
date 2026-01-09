@@ -4,7 +4,7 @@ import './EvenementsPage.css'
 import '../components/IncidentForm.css'
 import {
   createEvenement,
-  getEvenementsSnapshots,
+  getEvenements,
   getSeverites,
   getTypesEvenement,
 } from '../services/evenements'
@@ -13,7 +13,7 @@ import {
   type EvenementSnapshot,
   type InterventionSnapshot,
 } from '../services/sse'
-import { getInterventionsSnapshots } from '../services/interventions'
+import { getInterventions } from '../services/interventions'
 import type {
   EvenementApi,
   EvenementCreatePayload,
@@ -95,23 +95,6 @@ const formatCoord = (value: number) => value.toFixed(4)
 const localisationLisible = (evt: EvenementApi) =>
   `${formatCoord(evt.latitude)}, ${formatCoord(evt.longitude)}`
 
-const evenementDepuisSnapshot = (
-  snapshot: EvenementSnapshot,
-): EvenementApi => ({
-  id: snapshot.idEvenement,
-  description: snapshot.description,
-  latitude: snapshot.latitude,
-  longitude: snapshot.longitude,
-  idTypeEvenement: '',
-  idStatut: '',
-  idSeverite: '',
-  nomTypeEvenement: snapshot.typeEvenement,
-  nomStatut: snapshot.statutEvenement,
-  nomSeverite: snapshot.severite,
-  valeurEchelle: snapshot.echelleSeverite,
-  nbVehiculesNecessaire: snapshot.nbVehiculesNecessaire ?? null,
-})
-
 function EvenementsPage() {
   const [evenements, setEvenements] = useState<EvenementApi[]>([])
   const [severites, setSeverites] = useState<SeveriteReference[]>([])
@@ -134,6 +117,19 @@ function EvenementsPage() {
   const [formLoading, setFormLoading] = useState(false)
   const [interventions, setInterventions] = useState<InterventionSnapshot[]>([])
 
+  const finParEvenement = useMemo(() => {
+    const map = new Map<string, number>()
+    interventions.forEach((intervention) => {
+      if (!intervention.dateFinIntervention) return
+      const fin = new Date(intervention.dateFinIntervention).getTime()
+      const current = map.get(intervention.idEvenement)
+      if (!current || fin > current) {
+        map.set(intervention.idEvenement, fin)
+      }
+    })
+    return map
+  }, [interventions])
+
   const statutsDisponibles = useMemo(() => {
     const map = new Map<string, string>()
     evenements.forEach((evt) => {
@@ -152,22 +148,21 @@ function EvenementsPage() {
       setEtat('loading')
       setErreur(null)
       try {
-        const [evtSnapshots, interventionsSnapshots, severitesApi, typesApi] = await Promise.all([
-          getEvenementsSnapshots(controller.signal),
-          getInterventionsSnapshots(controller.signal),
+        const [evtApi, interventionsApi, severitesApi, typesApi] = await Promise.all([
+          getEvenements(controller.signal),
+          getInterventions(controller.signal),
           getSeverites(controller.signal),
           getTypesEvenement(controller.signal),
         ])
-        const evtApi = evtSnapshots.map(evenementDepuisSnapshot)
         setEvenements(evtApi)
         setInterventions(
-          interventionsSnapshots.map((intervention) => ({
+          interventionsApi.map((intervention) => ({
             idEvenement: intervention.idEvenement,
             idVehicule: intervention.idVehicule,
-            statusIntervention: intervention.statusIntervention,
-            dateDebutIntervention: intervention.dateDebutIntervention,
-            dateFinIntervention: intervention.dateFinIntervention,
-            plaqueImmat: intervention.plaqueImmat,
+            statusIntervention: intervention.nomStatutIntervention,
+            dateDebutIntervention: intervention.dateDebut,
+            dateFinIntervention: intervention.dateFin,
+            plaqueImmat: undefined,
           })),
         )
         const severitesTriees = [...severitesApi].sort(
@@ -203,26 +198,26 @@ function EvenementsPage() {
     return () => controller.abort()
   }, [refreshKey])
 
-  const appliquerSnapshotsEvenements = useCallback((snapshots: EvenementSnapshot[]) => {
-    if (snapshots.length === 0) return
-    setEvenements((prev) => {
-      const map = new Map(prev.map((evt) => [evt.id, evt]))
-      snapshots.forEach((snapshot) => {
-        const courant = map.get(snapshot.idEvenement)
-        map.set(snapshot.idEvenement, {
-          ...courant,
-          id: snapshot.idEvenement,
-          description: snapshot.description,
-          latitude: snapshot.latitude,
-          longitude: snapshot.longitude,
-          idTypeEvenement: courant?.idTypeEvenement ?? '',
-          idStatut: courant?.idStatut ?? '',
-          idSeverite: courant?.idSeverite ?? '',
-          nomTypeEvenement: snapshot.typeEvenement,
-          nomStatut: snapshot.statutEvenement,
-          nomSeverite: snapshot.severite,
-          valeurEchelle: snapshot.echelleSeverite,
-          nbVehiculesNecessaire:
+const appliquerSnapshotsEvenements = useCallback((snapshots: EvenementSnapshot[]) => {
+  if (snapshots.length === 0) return
+  setEvenements((prev) => {
+    const map = new Map(prev.map((evt) => [evt.id, evt]))
+    snapshots.forEach((snapshot) => {
+      const courant = map.get(snapshot.idEvenement)
+      map.set(snapshot.idEvenement, {
+        ...courant,
+        id: snapshot.idEvenement,
+        description: snapshot.description,
+        latitude: snapshot.latitude,
+        longitude: snapshot.longitude,
+        idTypeEvenement: courant?.idTypeEvenement ?? '',
+        idStatut: courant?.idStatut ?? '',
+        idSeverite: courant?.idSeverite ?? '',
+        nomTypeEvenement: snapshot.typeEvenement,
+        nomStatut: snapshot.statutEvenement,
+        nomSeverite: snapshot.severite,
+        valeurEchelle: snapshot.echelleSeverite,
+        nbVehiculesNecessaire:
             snapshot.nbVehiculesNecessaire ??
             courant?.nbVehiculesNecessaire ??
             null,
@@ -267,9 +262,21 @@ function EvenementsPage() {
     return () => es.close()
   }, [appliquerSnapshotsEvenements, appliquerSnapshotsInterventions])
 
+  const evenementsRecents = useMemo(() => {
+    const limite = Date.now() - 24 * 60 * 60 * 1000
+    return evenements.filter((evt) => {
+      if (!estCloture(evt.nomStatut)) return true
+      const fin = finParEvenement.get(evt.id)
+      if (fin && fin < limite) {
+        return false
+      }
+      return true
+    })
+  }, [evenements, finParEvenement])
+
   const evenementsFiltres = useMemo(() => {
     const recherche = filtreTexte.trim().toLowerCase()
-    return [...evenements]
+    return [...evenementsRecents]
       .filter((evt) => {
         const correspondTexte =
           recherche.length === 0 ||
@@ -290,7 +297,7 @@ function EvenementsPage() {
       .sort(
         (a, b) => poidsSeverite(b.nomSeverite) - poidsSeverite(a.nomSeverite),
       )
-  }, [evenements, filtreTexte, filtreSeverite, filtreStatut])
+  }, [evenementsRecents, filtreTexte, filtreSeverite, filtreStatut])
 
   useEffect(() => {
     if (evenementsFiltres.length === 0) {
@@ -316,14 +323,14 @@ function EvenementsPage() {
   }, [evenementsFiltres, page])
 
   const metriques = useMemo(() => {
-    const severiteCritique = evenements.filter(
+    const severiteCritique = evenementsRecents.filter(
       (evt) => niveauSeverite(evt.nomSeverite) === 'critique',
     ).length
-    const besoinsRessources = evenements.filter(
+    const besoinsRessources = evenementsRecents.filter(
       (evt) => (evt.nbVehiculesNecessaire ?? 0) > 0,
     ).length
-    const clotures = evenements.filter((evt) => estCloture(evt.nomStatut)).length
-    const actifs = evenements.filter((evt) => estActif(evt.nomStatut)).length
+    const clotures = evenementsRecents.filter((evt) => estCloture(evt.nomStatut)).length
+    const actifs = evenementsRecents.filter((evt) => estActif(evt.nomStatut)).length
     const limite = Date.now() - 24 * 60 * 60 * 1000
     const geres24h = new Set<string>()
     interventions.forEach((intervention) => {
@@ -347,7 +354,7 @@ function EvenementsPage() {
       clotures,
       geres24h: geres24h.size,
     }
-  }, [evenements, interventions])
+  }, [evenementsRecents, interventions])
 
   const remettreAZeroForm = () => {
     setFormMode(null)
@@ -625,7 +632,6 @@ function EvenementsPage() {
             <table className="events-table">
               <thead>
                 <tr>
-                  <th>ID</th>
                   <th>Type</th>
                   <th>Gravité</th>
                   <th>Localisation</th>
@@ -644,7 +650,6 @@ function EvenementsPage() {
                       ouvrirEdition(evt)
                     }}
                   >
-                    <td className="id-cell">#{evt.id.slice(0, 8)}</td>
                     <td>
                       <div className="table-primary">{evt.nomTypeEvenement}</div>
                       <p className="muted small">{evt.description}</p>
