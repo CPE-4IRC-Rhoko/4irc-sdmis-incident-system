@@ -8,6 +8,7 @@ import fr.cpe.sdmis.dto.VehiculeIdentResponse;
 import fr.cpe.sdmis.dto.VehiculeEnRouteResponse;
 import fr.cpe.sdmis.dto.VehiculeStatusUpdateRequest;
 import fr.cpe.sdmis.dto.EquipementVehiculeResponse;
+import fr.cpe.sdmis.dto.VehiculeCreateRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
@@ -17,11 +18,13 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.sql.Timestamp;
 import java.sql.ResultSetMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -132,6 +135,56 @@ public class VehiculeRepository {
             LOGGER.error("Statut véhicule 'En intervention' introuvable, mise à jour ignorée");
         } catch (DataAccessException e) {
             LOGGER.error("Echec mise à jour statut 'En intervention' pour véhicule {} : {}", idVehicule, e.getMessage());
+        }
+    }
+
+    public UUID createVehicule(VehiculeCreateRequest request) {
+        UUID statutMaintenance = resolveStatutVehicule("En maintenance");
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("plaque", request.plaqueImmat())
+                .addValue("cle", request.cleIdent())
+                .addValue("caserne", request.idCaserne())
+                .addValue("statut", statutMaintenance)
+                .addValue("ts", Timestamp.from(Instant.now()));
+
+        UUID vehiculeId = jdbcTemplate.queryForObject("""
+                INSERT INTO vehicule (plaque_immat, latitude, longitude, derniere_position_connue, cle_ident, id_caserne, id_statut)
+                SELECT :plaque, c.latitude, c.longitude, :ts, :cle, c.id_caserne, :statut
+                FROM caserne c
+                WHERE c.id_caserne = :caserne
+                RETURNING id_vehicule
+                """, params, UUID.class);
+        if (vehiculeId == null) {
+            throw new IllegalStateException("Création du véhicule échouée (caserne introuvable ?)");
+        }
+
+        if (request.equipements() != null) {
+            request.equipements().forEach(equipementId -> {
+                try {
+                    jdbcTemplate.update("""
+                            INSERT INTO est_equipe_de (id_vehicule, id_equipement, contenance_courante_)
+                            VALUES (:vehicule, :equipement, 0)
+                            ON CONFLICT DO NOTHING
+                            """, new MapSqlParameterSource()
+                            .addValue("vehicule", vehiculeId)
+                            .addValue("equipement", equipementId));
+                } catch (DataAccessException ex) {
+                    LOGGER.error("Echec insertion équipement {} pour véhicule {} : {}", equipementId, vehiculeId, ex.getMessage());
+                }
+            });
+        }
+        return vehiculeId;
+    }
+
+    private UUID resolveStatutVehicule(String nom) {
+        try {
+            return jdbcTemplate.queryForObject("""
+                    SELECT id_statut
+                    FROM statut_vehicule
+                    WHERE lower(nom_statut) = lower(:nom)
+                    """, new MapSqlParameterSource("nom", nom), UUID.class);
+        } catch (EmptyResultDataAccessException e) {
+            throw new IllegalStateException("Statut véhicule introuvable : " + nom);
         }
     }
 
