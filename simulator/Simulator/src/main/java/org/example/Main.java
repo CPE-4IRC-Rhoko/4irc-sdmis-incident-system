@@ -37,7 +37,7 @@ public class Main {
       };
 
       // 🔹 Thread 2 : Véhicule
-      Runnable threadVehicule = () -> 
+      Runnable threadVehicule = () ->
       {
          System.err.println("Thread Véhicule démarré.");
       };

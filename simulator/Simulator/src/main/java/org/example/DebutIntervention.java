@@ -12,12 +12,14 @@ public class DebutIntervention {
             Random random = new Random();
 
             // 1. Calcul du temps d'intervention (0 à 120 secondes)
-            int dureeSecondes = random.nextInt(121); 
+            int dureeSecondes = random.nextInt(121);
+
+            String NomEquipement = v.getNomEquipement();
+            Integer contenance = v.getContenanceCourante();
             
             // 2. Calcul de la consommation (ex: part d'un niveau actuel et consomme entre 10 et 40)
-            int niveauEauInitial = 100; 
-            int consommationTotale = random.nextInt(31) + 10; // Entre 10 et 40 d'eau consommée
-            int niveauEauFinal = Math.max(0, niveauEauInitial - consommationTotale);
+            int consommationTotale = random.nextInt(31) + 10; // Entre 10% et 40% d'eau consommée
+            int niveauEauFinal = Math.max(0, contenance - consommationTotale);
 
             System.out.println("\n>>> DÉBUT DE L'INTERVENTION [" + v.plaqueImmat + "]");
             System.out.println("Durée prévue : " + dureeSecondes + "s | Consommation prévue : " + consommationTotale + "%");
@@ -27,16 +29,13 @@ public class DebutIntervention {
                 
                 // Calcul de l'eau en temps réel (dégressif)
                 double progression = (dureeSecondes == 0) ? 1 : (double) i / dureeSecondes;
-                int eauActuelle = (int) (niveauEauInitial - (progression * (niveauEauInitial - niveauEauFinal)));
+                int eauActuelle = (int) (contenance - (progression * (contenance - niveauEauFinal)));
 
                 // Envoi à la Micro:bit (Position fixe car le véhicule est arrêté)
                 //String ressources = "eau=" + eauActuelle;
-                emetteur.envoyerDonnees(v.plaqueImmat, v.evenementLat, v.evenementLon, /*ressources*/);
-
-                // Affichage console
-                System.out.printf(Locale.US, "[ACTION] %s - Eau: %d%% | Temps restant: %ds%n", 
-                                  v.plaqueImmat, eauActuelle, (dureeSecondes - i));
-
+                emetteur.envoyerDonnees(v.plaqueImmat, v.evenementLat, v.evenementLon, NomEquipement, eauActuelle);
+                System.out.printf(Locale.US, "[ACTION] %s - Eau: %d%% | Temps restant: %ds%n", v.plaqueImmat, eauActuelle, (dureeSecondes - i));
+                
                 Thread.sleep(MISE_A_JOUR_MS);
             }
 
