@@ -12,10 +12,10 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: read
+      contents: write
       issues: write
       security-events: write
-      
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -28,7 +28,7 @@ jobs:
           docker compose \
             --env-file .env.ci \
             -f docker-compose.yaml.local \
-            up -d --build
+            up -d --build frontend api db 
 
       - name: Wait for API
         run: |
