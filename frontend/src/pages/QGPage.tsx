@@ -761,12 +761,6 @@ function QGPage() {
           Affectations
         </button>
         <button className="nav-item" type="button">
-          Affectations
-        </button>
-        <button className="nav-item" type="button">
-          Décisions
-        </button>
-        <button className="nav-item" type="button">
           Historique
         </button>
         <div className="nav-separator" />

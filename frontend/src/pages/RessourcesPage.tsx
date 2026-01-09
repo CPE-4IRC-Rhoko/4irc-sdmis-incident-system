@@ -12,12 +12,12 @@ import {
 type StatutVehicule = 'DISPONIBLE' | 'INTERVENTION' | 'MAINTENANCE'
 
 type VehiculeView = {
-  id: string
   position: string
   statut: StatutVehicule
   incidentId?: string | null
   equipements?: Array<{ nomEquipement: string; contenanceCourante: number }>
   plaque?: string
+  id: string
 }
 
 const statutVehiculeDepuisTexte = (statut: string): StatutVehicule => {
@@ -94,6 +94,12 @@ function RessourcesPage() {
             position: `${vehicule.latitude.toFixed(4)}, ${vehicule.longitude.toFixed(4)}`,
             statut,
             incidentId: intervention?.idEvenement,
+            equipements:
+              vehicule.equipements?.map((eq) => ({
+                nomEquipement: eq.nomEquipement,
+                contenanceCourante: eq.contenanceCourante,
+              })) ?? [],
+            plaque: vehicule.plaqueImmat,
           }
         })
         setVehicules(views)
@@ -300,18 +306,16 @@ function RessourcesPage() {
           <table className="resources-table">
             <thead>
               <tr>
-                <th>ID camion</th>
                 <th>Plaque</th>
                 <th>Position actuelle</th>
                 <th>Disponibilité</th>
                 <th>Incident assigné</th>
-                <th>Ressources</th>
+                <th>Équipements</th>
               </tr>
             </thead>
             <tbody>
               {vehiculesPage.map((v) => (
                 <tr key={v.id}>
-                  <td className="id-cell">{v.id.slice(0, 8)}</td>
                   <td>{v.plaque ?? '—'}</td>
                   <td>{v.position}</td>
                   <td>
