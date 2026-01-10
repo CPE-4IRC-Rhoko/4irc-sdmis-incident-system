@@ -41,10 +41,13 @@ function App() {
     <div className="app">
       <header className="app-header">
         <div className="brand">
-          <div className="brand-mark">4</div>
+          <img
+            src="/Logo-cpe.png"
+            alt="Logo CPE"
+            className="brand-logo"
+          />
           <div>
-            <p className="brand-kicker">Simulation</p>
-            <h1 className="brand-title">4IRC - QG/Terrain</h1>
+            <h1 className="brand-title">SDMIS</h1>
           </div>
         </div>
       </header>
