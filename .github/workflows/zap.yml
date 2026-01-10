@@ -95,6 +95,7 @@ jobs:
             -c .zap/rules.tsv \
             -r zap_frontend.html \
             -j zap_frontend.json \
+            -I \
             -m 1 \
             -d
 
