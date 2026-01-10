@@ -12,5 +12,6 @@ frontend/.env.*
 **/.vite/
 # Ignorer les fichiers de configuration sensibles
 .env
+frontend/.env.*
 KEYCLOAK/WEB/
 PG_ADMIN/
