@@ -84,18 +84,19 @@ jobs:
           rm report_md.md
           ls -al
 
-      - name: ZAP Baseline Scan (FRONTEND)
+      - name: ZAP Full Scan (FRONTEND)
         run: |
           docker run --rm \
             --network="host" \
             -v ${{ github.workspace }}:/zap/wrk/:rw \
             -t ghcr.io/zaproxy/zaproxy:stable \
-            zap-baseline.py \
+            zap-full-scan.py \
             -t http://127.0.0.1:5173 \
             -c .zap/rules.tsv \
             -r zap_frontend.html \
             -j zap_frontend.json \
-            -I
+            -m 1 \
+            -d
 
       - name: Upload ZAP reports
         uses: actions/upload-artifact@v4
