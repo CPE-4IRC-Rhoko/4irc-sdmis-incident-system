@@ -3,29 +3,36 @@ import './App.css'
 import Tabs from './components/Tabs'
 import QGPage from './pages/QGPage'
 import TerrainPage from './pages/TerrainPage'
-import type { RoleSimule } from './models/role'
+import { getStoredRoles } from './services/auth'
 
 type OngletId = 'QG' | 'TERRAIN'
 
 function App() {
-  const [role, setRole] = useState<RoleSimule>('QG')
-  const [ongletActif, setOngletActif] = useState<OngletId>('QG')
-
-  const ongletsVisibles: { id: OngletId; label: string }[] = useMemo(() => {
-    if (role === 'QG') {
-      return [{ id: 'QG', label: 'QG' }]
-    }
-    if (role === 'TERRAIN') {
-      return [{ id: 'TERRAIN', label: 'Terrain' }]
-    }
-    return [
-      { id: 'QG', label: 'QG' },
-      { id: 'TERRAIN', label: 'Terrain' },
-    ]
-  }, [role])
+  const [roles, setRoles] = useState<string[]>(getStoredRoles())
 
   useEffect(() => {
-    if (!ongletsVisibles.some((onglet) => onglet.id === ongletActif)) {
+    setRoles(getStoredRoles())
+  }, [])
+
+  const peutVoirQG = roles.includes('ROLE_FRONT_Admin') || roles.includes('ROLE_FRONT_Operateur')
+  const peutVoirTerrain = roles.includes('ROLE_FRONT_Admin') || roles.includes('ROLE_FRONT_Terrain')
+
+  const ongletsVisibles: { id: OngletId; label: string }[] = useMemo(() => {
+    const resultat: { id: OngletId; label: string }[] = []
+    if (peutVoirQG) resultat.push({ id: 'QG', label: 'QG' })
+    if (peutVoirTerrain) resultat.push({ id: 'TERRAIN', label: 'Terrain' })
+    return resultat
+  }, [peutVoirQG, peutVoirTerrain])
+
+  const [ongletActif, setOngletActif] = useState<OngletId>(
+    ongletsVisibles[0]?.id ?? 'QG',
+  )
+
+  useEffect(() => {
+    if (
+      ongletsVisibles.length > 0 &&
+      !ongletsVisibles.some((onglet) => onglet.id === ongletActif)
+    ) {
       setOngletActif(ongletsVisibles[0].id)
     }
   }, [ongletsVisibles, ongletActif])
@@ -40,30 +47,22 @@ function App() {
             <h1 className="brand-title">4IRC - QG/Terrain</h1>
           </div>
         </div>
-        <div className="role-switcher">
-          <label htmlFor="role">Rôle</label>
-          <select
-            id="role"
-            value={role}
-            onChange={(e) => setRole(e.target.value as RoleSimule)}
-          >
-            <option value="QG">QG</option>
-            <option value="TERRAIN">Terrain</option>
-            <option value="DEV">Développeur</option>
-          </select>
-        </div>
       </header>
 
       <main className="app-main">
-        <Tabs
-          onglets={ongletsVisibles}
-          actif={ongletActif}
-          onChange={(id) => setOngletActif(id as OngletId)}
-        />
+        {ongletsVisibles.length > 0 ? (
+          <Tabs
+            onglets={ongletsVisibles}
+            actif={ongletActif}
+            onChange={(id) => setOngletActif(id as OngletId)}
+          />
+        ) : (
+          <div className="app-no-access">Aucun onglet disponible : aucun rôle autorisé détecté.</div>
+        )}
 
         <section className="page-surface">
-          {ongletActif === 'QG' && <QGPage />}
-          {ongletActif === 'TERRAIN' && <TerrainPage />}
+          {ongletActif === 'QG' && peutVoirQG && <QGPage />}
+          {ongletActif === 'TERRAIN' && peutVoirTerrain && <TerrainPage />}
         </section>
       </main>
     </div>

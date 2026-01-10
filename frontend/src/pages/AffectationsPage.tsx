@@ -21,9 +21,12 @@ type VehiculePropose = {
   statut: string
   distanceKm?: number
   dureeMin?: number
-  proposition: boolean
+  proposition?: boolean
   latitude?: number
   longitude?: number
+  plaque?: string
+  statutBrut?: string
+  equipements?: Array<{ nomEquipement: string; contenanceCourante: number }>
 }
 
 const interventionActive = (intervention: InterventionSnapshot) => {
@@ -56,6 +59,7 @@ const statutVehiculeDepuisTexte = (statut: string) => {
 function AffectationsPage() {
   const [evenements, setEvenements] = useState<EvenementApi[]>([])
   const [vehicules, setVehicules] = useState<VehiculePropose[]>([])
+  const [interventions, setInterventions] = useState<InterventionSnapshot[]>([])
   const [selectionEvtId, setSelectionEvtId] = useState<string | null>(null)
   const [selectionVehicules, setSelectionVehicules] = useState<Set<string>>(
     new Set(),
@@ -65,6 +69,14 @@ function AffectationsPage() {
   const [message, setMessage] = useState<string | null>(null)
   const vehiculesRef = useRef<VehiculePropose[]>([])
   const interventionsRef = useRef<InterventionSnapshot[]>([])
+
+  const appliquerPropositionsSelection = useCallback(
+    (propositions: Set<string>) => {
+      if (propositions.size === 0) return
+      setSelectionVehicules(new Set(propositions))
+    },
+    [],
+  )
 
   useEffect(() => {
     const controller = new AbortController()
@@ -106,9 +118,7 @@ function AffectationsPage() {
             .filter(interventionActive)
             .map((intervention) => intervention.idVehicule),
         )
-        const propositions = vehApi.slice(0, 3).map((v) => v.id)
         setSelectionEvtId(evenementsDepuisSnapshots[0]?.id ?? null)
-        setSelectionVehicules(new Set(propositions))
         const views = vehApi.map((vehicule) => ({
           id: vehicule.id,
           nom: `Véhicule ${vehicule.id.slice(0, 6)}`,
@@ -116,11 +126,19 @@ function AffectationsPage() {
           statut: engages.has(vehicule.id)
             ? 'En intervention'
             : statutVehiculeDepuisTexte(vehicule.statut),
-          proposition: propositions.includes(vehicule.id),
+          proposition: false,
           latitude: vehicule.latitude,
           longitude: vehicule.longitude,
+          plaque: vehicule.plaqueImmat,
+          statutBrut: vehicule.statut,
+          equipements:
+            vehicule.equipements?.map((eq) => ({
+              nomEquipement: eq.nomEquipement,
+              contenanceCourante: eq.contenanceCourante,
+            })) ?? [],
         }))
         setVehicules(views)
+        setInterventions(interventionsInitial)
         vehiculesRef.current = views
         interventionsRef.current = interventionsInitial
       } catch (error) {
@@ -186,6 +204,7 @@ function AffectationsPage() {
       })
       const next = Array.from(map.values())
       interventionsRef.current = next
+      setInterventions(next)
       const engagements = new Set(
         next
           .filter(interventionActive)
@@ -204,8 +223,20 @@ function AffectationsPage() {
         vehiculesRef.current = updated
         return updated
       })
+      if (selectionEvtId) {
+        const propositionsMaj = new Set(
+          next
+            .filter(
+              (intervention) =>
+                intervention.idEvenement === selectionEvtId &&
+                interventionActive(intervention),
+            )
+            .map((intervention) => intervention.idVehicule),
+        )
+        appliquerPropositionsSelection(propositionsMaj)
+      }
     },
-    [],
+    [appliquerPropositionsSelection, selectionEvtId],
   )
 
   const appliquerSnapshotsVehicules = useCallback(
@@ -231,6 +262,13 @@ function AffectationsPage() {
             latitude: vehicule.latitude,
             longitude: vehicule.longitude,
             caserne: precedent?.caserne,
+            plaque: vehicule.plaqueImmat ?? precedent?.plaque,
+            statutBrut: vehicule.statut ?? precedent?.statutBrut,
+            equipements:
+              vehicule.equipements?.map((eq) => ({
+                nomEquipement: eq.nomEquipement,
+                contenanceCourante: eq.contenanceCourante,
+              })) ?? precedent?.equipements,
           })
         })
         const updated = Array.from(map.values()).map((vehicule) =>
@@ -264,6 +302,19 @@ function AffectationsPage() {
     [evenements, selectionEvtId],
   )
 
+  const propositionsPourEvenement = useMemo(() => {
+    if (!selectionEvtId) return new Set<string>()
+    return new Set(
+      interventions
+        .filter(
+          (intervention) =>
+            intervention.idEvenement === selectionEvtId &&
+            interventionActive(intervention),
+        )
+        .map((intervention) => intervention.idVehicule),
+    )
+  }, [interventions, selectionEvtId])
+
   const vueMiniCarte = useMemo<VueCarte>(
     () => ({
       latitude: evenementSelectionne?.latitude ?? 45.75,
@@ -277,8 +328,19 @@ function AffectationsPage() {
   )
 
   const vehiculesDisponibles = useMemo(
-    () => vehicules.filter((v) => v.statut.toLowerCase().includes('dispo')),
-    [vehicules],
+    () =>
+      vehicules
+        .map((v) => ({
+          ...v,
+          proposition: propositionsPourEvenement.has(v.id),
+        }))
+        .filter((v) => v.statut.toLowerCase().includes('dispo'))
+        .sort((a, b) => {
+          if (a.proposition && !b.proposition) return -1
+          if (!a.proposition && b.proposition) return 1
+          return a.nom.localeCompare(b.nom)
+        }),
+    [vehicules, propositionsPourEvenement],
   )
 
   const toggleVehicule = (id: string) => {
@@ -379,7 +441,20 @@ function AffectationsPage() {
             Choisir un événement
             <select
               value={selectionEvtId ?? ''}
-              onChange={(e) => setSelectionEvtId(e.target.value)}
+              onChange={(e) => {
+                const nextId = e.target.value
+                setSelectionEvtId(nextId)
+                const propositions = new Set(
+                  interventions
+                    .filter(
+                      (intervention) =>
+                        intervention.idEvenement === nextId &&
+                        interventionActive(intervention),
+                    )
+                    .map((intervention) => intervention.idVehicule),
+                )
+                appliquerPropositionsSelection(propositions)
+              }}
             >
               {evenements.map((evt) => (
                 <option key={evt.id} value={evt.id}>
@@ -392,49 +467,72 @@ function AffectationsPage() {
 
         <section className="aff-col ressources">
           <div className="aff-col-header">
-            <p className="muted small">Ressources proposées</p>
-            <button className="link" type="button" onClick={() => setModalListe(true)}>
-              Voir toutes les unités
-            </button>
-          </div>
-          <div className="liste-vehicules">
-            {vehiculesDisponibles.map((vehicule) => (
-              <button
-                key={vehicule.id}
-                type="button"
-                className={`vehicule-card ${
-                  selectionVehicules.has(vehicule.id) ? 'selected' : ''
-                }`}
-                onClick={() => toggleVehicule(vehicule.id)}
-              >
-                <div className="vehicule-top">
-                  <h4>{vehicule.nom}</h4>
-                  <span className="badge small">Disponible</span>
-                </div>
-                <p className="muted small">
-                  Caserne : {vehicule.caserne || '—'}
-                </p>
-                {vehicule.proposition && (
-                  <p className="proposition">Proposition moteur</p>
-                )}
-              </button>
-            ))}
-            {vehiculesDisponibles.length === 0 && (
-              <p className="muted small">Aucune ressource disponible</p>
-            )}
-          </div>
-        </section>
-
-        <section className="aff-col resume">
-          <p className="muted small">Résumé de la décision</p>
-          <div className="resume-card">
-            <p className="muted small">
-              Affectation de {selectionVehicules.size} véhicule(s)
-            </p>
-            {erreur && <p className="erreur">{erreur}</p>}
-            {message && <p className="success">{message}</p>}
+          <p className="muted small">Ressources proposées</p>
+          <button className="link" type="button" onClick={() => setModalListe(true)}>
+            Voir toutes les unités
+          </button>
+        </div>
+        <div className="liste-vehicules">
+          {vehiculesDisponibles.map((vehicule) => (
             <button
+              key={vehicule.id}
               type="button"
+              className={`vehicule-card ${
+                selectionVehicules.has(vehicule.id) ? 'selected' : ''
+              }`}
+              onClick={() => toggleVehicule(vehicule.id)}
+            >
+              <div className="vehicule-top">
+                <h4>{vehicule.nom}</h4>
+                <span className="badge small">
+                  {vehicule.proposition ? 'Proposition' : 'Disponible'}
+                </span>
+              </div>
+              <p className="muted small">
+                Caserne : {vehicule.caserne || '—'}
+              </p>
+              <p className="muted small">
+                {vehicule.plaque ? `Plaque : ${vehicule.plaque}` : 'Plaque : —'}
+              </p>
+              {vehicule.proposition && (
+                <p className="proposition">Proposition moteur</p>
+              )}
+            </button>
+          ))}
+          {vehiculesDisponibles.length === 0 && (
+            <p className="muted small">Aucune ressource disponible</p>
+          )}
+        </div>
+      </section>
+
+      <section className="aff-col resume">
+        <p className="muted small">Résumé de la décision</p>
+        <div className="resume-card">
+          <p className="muted small">
+            Affectation de {selectionVehicules.size} véhicule(s)
+          </p>
+          {evenementSelectionne && (
+            <p className="muted small">
+              Événement : {evenementSelectionne.nomTypeEvenement}
+            </p>
+          )}
+          {selectionVehicules.size > 0 && (
+            <ul className="muted small">
+              {Array.from(selectionVehicules).map((id) => {
+                const vehicule = vehicules.find((v) => v.id === id)
+                return (
+                  <li key={id}>
+                    {vehicule?.nom ?? id.slice(0, 8)}
+                    {vehicule?.plaque ? ` • ${vehicule.plaque}` : ''}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          {erreur && <p className="erreur">{erreur}</p>}
+          {message && <p className="success">{message}</p>}
+          <button
+            type="button"
               className="primary"
               onClick={valider}
               disabled={!selectionEvtId || selectionVehicules.size === 0}
@@ -453,6 +551,9 @@ function AffectationsPage() {
                 <div>
                   <strong>{v.nom}</strong>
                   <p className="muted small">Statut : {v.statut}</p>
+                  <p className="muted small">
+                    {v.plaque ? `Plaque : ${v.plaque}` : 'Plaque : —'}
+                  </p>
                 </div>
                 <button
                   type="button"
