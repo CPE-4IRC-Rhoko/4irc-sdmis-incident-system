@@ -30,6 +30,7 @@ public class InterventionRepository {
     private static final String STATUT_VEHICULE_EN_ROUTE = "En route";
     private static final String STATUT_INTERVENTION_TERMINEE = "Terminée";
     private static final String STATUT_VEHICULE_DISPONIBLE = "Disponible";
+    private static final String STATUT_INTERVENTION_PROPOSITION = "En proposition";
     private static final String SNAPSHOT_QUERY = """
             SELECT i.id_evenement,
                    i.date_debut as date_debut_intervention,
@@ -102,6 +103,45 @@ public class InterventionRepository {
                 JOIN statut_intervention si ON si.id_statut_intervention = i.id_statut_intervention
                 ORDER BY i.date_debut DESC NULLS LAST
                 """, new InterventionRowMapper());
+    }
+
+    public List<InterventionResponse> findTerminees() {
+        return jdbcTemplate.query("""
+                SELECT i.id_evenement,
+                       i.id_vehicule,
+                       i.id_statut_intervention,
+                       si.nom AS nom_statut_intervention,
+                       i.date_debut,
+                       i.date_fin
+                FROM intervention i
+                JOIN statut_intervention si ON si.id_statut_intervention = i.id_statut_intervention
+                WHERE lower(si.nom) = lower(:statut)
+                ORDER BY i.date_fin DESC NULLS LAST, i.date_debut DESC NULLS LAST
+                """, new MapSqlParameterSource("statut", STATUT_INTERVENTION_TERMINEE), new InterventionRowMapper());
+    }
+
+    public List<UUID> findVehiculesByInterventionStatut(UUID idEvenement, String statutNom) {
+        return jdbcTemplate.query("""
+                SELECT i.id_vehicule
+                FROM intervention i
+                JOIN statut_intervention si ON si.id_statut_intervention = i.id_statut_intervention
+                WHERE i.id_evenement = :event
+                  AND lower(si.nom) = lower(:statut)
+                """, new MapSqlParameterSource()
+                .addValue("event", idEvenement)
+                .addValue("statut", statutNom), (rs, rowNum) -> rs.getObject("id_vehicule", UUID.class));
+    }
+
+    public boolean vehiculeHasInterventionWithStatut(UUID vehiculeId, String statutNom) {
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM intervention i
+                JOIN statut_intervention si ON si.id_statut_intervention = i.id_statut_intervention
+                WHERE i.id_vehicule = :vehicule AND lower(si.nom) = lower(:statut)
+                """, new MapSqlParameterSource()
+                .addValue("vehicule", vehiculeId)
+                .addValue("statut", statutNom),
+                Integer.class);
+        return count != null && count > 0;
     }
 
     private static class InterventionRowMapper implements RowMapper<InterventionResponse> {

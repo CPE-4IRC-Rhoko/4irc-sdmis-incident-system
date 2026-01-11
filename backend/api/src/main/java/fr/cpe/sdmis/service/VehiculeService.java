@@ -8,22 +8,26 @@ import fr.cpe.sdmis.dto.VehiculeEnRouteResponse;
 import fr.cpe.sdmis.dto.VehiculeStatusUpdateRequest;
 import fr.cpe.sdmis.dto.EquipementVehiculeResponse;
 import fr.cpe.sdmis.dto.VehiculeCreateRequest;
+import fr.cpe.sdmis.repository.CaserneRepository;
 import fr.cpe.sdmis.repository.VehiculeRepository;
 import org.springframework.stereotype.Service;
 import fr.cpe.sdmis.service.SdmisSseService;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
 public class VehiculeService {
 
     private final VehiculeRepository vehiculeRepository;
+    private final CaserneRepository caserneRepository;
     private final SdmisSseService sseService;
 
-    public VehiculeService(VehiculeRepository vehiculeRepository, SdmisSseService sseService) {
+    public VehiculeService(VehiculeRepository vehiculeRepository, CaserneRepository caserneRepository, SdmisSseService sseService) {
         this.vehiculeRepository = vehiculeRepository;
+        this.caserneRepository = caserneRepository;
         this.sseService = sseService;
     }
 
@@ -65,6 +69,11 @@ public class VehiculeService {
 
     public List<EquipementVehiculeResponse> getEquipements(UUID idVehicule) {
         return vehiculeRepository.findEquipementsByVehiculeId(idVehicule);
+    }
+
+    public Map<String, Object> getCaserne(UUID idVehicule) {
+        return caserneRepository.findByVehiculeId(idVehicule)
+                .orElseThrow(() -> new IllegalArgumentException("Caserne introuvable pour le véhicule " + idVehicule));
     }
 
     public UUID creerVehicule(VehiculeCreateRequest request) {

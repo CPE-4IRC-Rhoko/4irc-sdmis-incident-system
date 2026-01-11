@@ -59,8 +59,16 @@ public class InterventionService {
         broadcastVehicules(vehiculesCibles);
 
         // Annuler les interventions restées en attente
+        List<UUID> vehiculesEnAttente = interventionRepository.findVehiculesByInterventionStatut(request.id_evenement(), "En attente");
         interventionRepository.annulerInterventionsEnAttente(request.id_evenement(), statutEnAttente, statutAnnule);
-
+        
+        // Rendre disponibles ces véhicules si aucune autre intervention ne les laisse en "En proposition"
+        for (UUID vehiculeId : vehiculesEnAttente) {
+            if (!interventionRepository.vehiculeHasInterventionWithStatut(vehiculeId, "En proposition")) {
+                interventionRepository.updateVehiculeStatutDisponible(vehiculeId);
+                broadcastVehicules(Set.of(vehiculeId));
+            }
+        }
         // Créer des interventions "En cours" manquantes pour les véhicules fournis
         vehiculesCibles.forEach(vehiculeId ->
                 interventionRepository.insertInterventionEnCours(request.id_evenement(), vehiculeId, now, statutEnCours));

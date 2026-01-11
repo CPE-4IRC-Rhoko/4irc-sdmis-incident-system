@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -65,6 +66,12 @@ public class VehiculeController {
     @PreAuthorize("hasAnyRole('API_Admin','API_Simulation','API_Passerelle','API_Operateur','API_Terrain')")
     public List<EquipementVehiculeResponse> equipements(@PathVariable("id") UUID idVehicule) {
         return vehiculeService.getEquipements(idVehicule);
+    }
+
+    @GetMapping("/{id}/caserne")
+    @PreAuthorize("hasAnyRole('API_Admin','API_Operateur','API_Simulation')")
+    public Map<String, Object> caserne(@PathVariable("id") UUID idVehicule) {
+        return vehiculeService.getCaserne(idVehicule);
     }
 
     @GetMapping("/en-route")
