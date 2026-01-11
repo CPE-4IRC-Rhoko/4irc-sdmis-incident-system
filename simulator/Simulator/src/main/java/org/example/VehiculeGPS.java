@@ -42,7 +42,7 @@ public class VehiculeGPS {
                             try {
                                 System.out.println("\n>>> NOUVEAU VÉHICULE DÉTECTÉ : " + v.plaqueImmat);
                                 trajetSimu.executer(v, emetteur);
-                                //action.gererIntervention(v, emetteur);
+                                action.gererIntervention(v, emetteur);
                                 //cloture.cloturerIntervention(v);
                             } finally {
                                 // 3. UNE FOIS FINI : On le retire du registre pour qu'il puisse repartir sur une autre mission plus tard
