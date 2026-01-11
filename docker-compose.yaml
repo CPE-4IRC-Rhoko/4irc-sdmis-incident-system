@@ -135,6 +135,9 @@ services:
       DECISION_EVENT_QUEUE: decision.events
       DECISION_INTERVENTION_QUEUE: decision.interventions
       SDMIS_API_URL: http://sdmis-api:8080
+      KEYCLOAK_TOKEN_URL: http://keycloak:7080/realms/SDMIS/protocol/openid-connect/token
+      KEYCLOAK_CLIENT_ID: sdmis-moteur-decision
+      KEYCLOAK_CLIENT_SECRET: sOnT5y8kAPCg52iTcvAJ1Vxt20umsECq
     networks:
       - LAN
 

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.moteurdecision.messaging.EventMessage;
 import org.example.moteurdecision.messaging.InterventionMessage;
 import org.example.moteurdecision.service.client.VehiculeApiClient;
+import org.example.moteurdecision.service.client.TokenProvider;
 
 import java.time.Instant;
 import java.util.List;
@@ -13,8 +14,8 @@ import java.util.UUID;
 public class DecisionService {
     private final VehiculeApiClient vehiculeApiClient;
 
-    public DecisionService(String apiBaseUrl, ObjectMapper objectMapper) {
-        this.vehiculeApiClient = new VehiculeApiClient(apiBaseUrl, objectMapper);
+    public DecisionService(String apiBaseUrl, ObjectMapper objectMapper, TokenProvider tokenProvider) {
+        this.vehiculeApiClient = new VehiculeApiClient(apiBaseUrl, objectMapper, tokenProvider);
     }
 
     public List<InterventionMessage> creerInterventions(EventMessage eventMessage) {

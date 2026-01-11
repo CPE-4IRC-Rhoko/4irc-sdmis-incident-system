@@ -9,6 +9,7 @@ import com.rabbitmq.client.DeliverCallback;
 import org.example.moteurdecision.messaging.EventMessage;
 import org.example.moteurdecision.messaging.InterventionMessage;
 import org.example.moteurdecision.service.DecisionService;
+import org.example.moteurdecision.service.client.TokenProvider;
 
 import java.io.IOException;
 import java.util.Map;
@@ -33,8 +34,13 @@ public final class DecisionEngineApplication {
         String eventQueue = requireEnv(env, "DECISION_EVENT_QUEUE");
         String interventionQueue = requireEnv(env, "DECISION_INTERVENTION_QUEUE");
         String apiBaseUrl = requireEnv(env, "SDMIS_API_URL");
+        String tokenUrl = requireEnv(env, "KEYCLOAK_TOKEN_URL");
+        String clientId = requireEnv(env, "KEYCLOAK_CLIENT_ID");
+        String clientSecret = requireEnv(env, "KEYCLOAK_CLIENT_SECRET");
 
-        DecisionService decisionService = new DecisionService(apiBaseUrl, OBJECT_MAPPER);
+        System.out.printf("Initialisation moteur avec API=%s, tokenUrl=%s%n", apiBaseUrl, tokenUrl);
+        var tokenProvider = new TokenProvider(tokenUrl, clientId, clientSecret, OBJECT_MAPPER);
+        DecisionService decisionService = new DecisionService(apiBaseUrl, OBJECT_MAPPER, tokenProvider);
 
         ConnectionFactory factory = new ConnectionFactory();
         factory.setHost(host);
