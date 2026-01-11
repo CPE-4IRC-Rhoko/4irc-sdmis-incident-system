@@ -59,12 +59,7 @@ public class SendAPI
                     .build();
 
             // Envoi
-            HttpResponse<String> response =
-                    client.send(request, HttpResponse.BodyHandlers.ofString());
-
-            // Résultat
-            System.out.println("Code HTTP : " + response.statusCode());
-            System.out.println("Réponse   : " + response.body());
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
         } catch (Exception e) {
             System.err.println("Erreur POST API : " + e.getMessage());

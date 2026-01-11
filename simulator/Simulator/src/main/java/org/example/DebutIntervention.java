@@ -41,7 +41,7 @@ public class DebutIntervention {
 
             // --- 2. LOGIQUE DE SIMULATION ---
             Random random = new Random();
-            int dureeSecondes = random.nextInt(121); // 0 à 120s
+            int dureeSecondes = random.nextInt(301); // 0 à 300s soit 5 minutes
 
             String nomEquipement = v.getNomEquipement();
             int contenanceInitiale = v.getContenanceCourante();
