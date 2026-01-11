@@ -1,3 +1,4 @@
 {
-    "commentTranslate.targetLanguage": "fr"
+    "commentTranslate.targetLanguage": "fr",
+    "java.configuration.updateBuildConfiguration": "interactive"
 }
