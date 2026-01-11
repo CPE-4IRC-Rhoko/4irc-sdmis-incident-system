@@ -3,6 +3,7 @@ package fr.cpe.sdmis.api;
 import fr.cpe.sdmis.dto.ValidationInterventionRequest;
 import fr.cpe.sdmis.service.InterventionService;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,6 +20,7 @@ public class InterventionValidationController {
     }
 
     @PostMapping("/validation")
+    @PreAuthorize("hasAnyRole('API_Admin','FRONT_Opérateur','FRONT_Terrain')")
     public void valider(@Valid @RequestBody ValidationInterventionRequest request) {
         interventionService.validerInterventions(request);
     }
