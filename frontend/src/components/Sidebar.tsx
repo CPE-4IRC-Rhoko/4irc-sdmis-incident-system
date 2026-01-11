@@ -36,14 +36,6 @@ function Sidebar({
   incidentSelectionne,
   onOuvrirFormulaire,
 }: Props) {
-  const formatterDate = (date: string) =>
-    new Date(date).toLocaleString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
