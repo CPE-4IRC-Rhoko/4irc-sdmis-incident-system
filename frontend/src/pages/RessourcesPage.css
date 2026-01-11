@@ -93,3 +93,51 @@
   font-size: 0.9rem;
   overflow-x: auto;
 }
+
+.form-helper {
+  margin-top: -0.25rem;
+  color: #6b7280;
+}
+
+.creation-alert {
+  background: #fff4ed;
+  border: 1px solid #ffedd5;
+  color: #9a3412;
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+  margin-top: 0.4rem;
+}
+
+.creation-feedback {
+  background: #ecfdf3;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+  margin-top: 0.4rem;
+}
+
+.equipement-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  background: #eef2f7;
+  border: 1px solid #e5e7eb;
+}
+
+.equipement-chip button {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-weight: 700;
+  color: #ef4444;
+}
+
+.equipements-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.35rem 0.75rem;
+  margin-top: 0.4rem;
+}
