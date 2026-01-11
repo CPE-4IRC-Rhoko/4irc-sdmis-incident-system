@@ -1,0 +1,26 @@
+name: Deploy to VPS Stable Version
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.4
+        with:
+          host: ${{ secrets.VPS_IP_ADDRESS }}
+          username: ${{ secrets.VPS_USER_USERNAME }}
+          password: ${{ secrets.VPS_USER_PASSWORD }}
+          key: ${{ secrets.VPS_USER_SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ secrets.VPS_PATH }}
+            git switch main
+            git pull origin main
+            docker compose down
+            docker compose up -d --build
