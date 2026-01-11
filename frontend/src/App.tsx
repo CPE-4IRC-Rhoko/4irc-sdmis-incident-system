@@ -14,28 +14,38 @@ function App() {
     setRoles(getStoredRoles())
   }, [])
 
-  const peutVoirQG = roles.includes('ROLE_FRONT_Admin') || roles.includes('ROLE_FRONT_Operateur')
-  const peutVoirTerrain = roles.includes('ROLE_FRONT_Admin') || roles.includes('ROLE_FRONT_Terrain')
+  const isAdmin = roles.includes('ROLE_FRONT_Admin')
+  const peutVoirQG = isAdmin || roles.includes('ROLE_FRONT_Operateur')
+  const peutVoirTerrain = isAdmin || roles.includes('ROLE_FRONT_Terrain')
 
   const ongletsVisibles: { id: OngletId; label: string }[] = useMemo(() => {
     const resultat: { id: OngletId; label: string }[] = []
-    if (peutVoirQG) resultat.push({ id: 'QG', label: 'QG' })
-    if (peutVoirTerrain) resultat.push({ id: 'TERRAIN', label: 'Terrain' })
+    if (peutVoirQG && isAdmin) resultat.push({ id: 'QG', label: 'QG' })
+    if (peutVoirTerrain && isAdmin) resultat.push({ id: 'TERRAIN', label: 'Terrain' })
     return resultat
-  }, [peutVoirQG, peutVoirTerrain])
+  }, [isAdmin, peutVoirQG, peutVoirTerrain])
 
-  const [ongletActif, setOngletActif] = useState<OngletId>(
-    ongletsVisibles[0]?.id ?? 'QG',
-  )
+  const defaultOnglet: OngletId = useMemo(() => {
+    if (isAdmin) return ongletsVisibles[0]?.id ?? 'QG'
+    if (peutVoirQG) return 'QG'
+    if (peutVoirTerrain) return 'TERRAIN'
+    return 'QG'
+  }, [isAdmin, ongletsVisibles, peutVoirQG, peutVoirTerrain])
+
+  const [ongletActif, setOngletActif] = useState<OngletId>(defaultOnglet)
 
   useEffect(() => {
-    if (
-      ongletsVisibles.length > 0 &&
-      !ongletsVisibles.some((onglet) => onglet.id === ongletActif)
-    ) {
-      setOngletActif(ongletsVisibles[0].id)
+    if (isAdmin) {
+      if (
+        ongletsVisibles.length > 0 &&
+        !ongletsVisibles.some((onglet) => onglet.id === ongletActif)
+      ) {
+        setOngletActif(ongletsVisibles[0].id)
+      }
+    } else {
+      setOngletActif(defaultOnglet)
     }
-  }, [ongletsVisibles, ongletActif])
+  }, [ongletsVisibles, ongletActif, isAdmin, defaultOnglet])
 
   return (
     <div className="app">
@@ -50,16 +60,19 @@ function App() {
             <h1 className="brand-title">SDMIS</h1>
           </div>
         </div>
+        {isAdmin && ongletsVisibles.length > 0 && (
+          <div className="header-tabs">
+            <Tabs
+              onglets={ongletsVisibles}
+              actif={ongletActif}
+              onChange={(id) => setOngletActif(id as OngletId)}
+            />
+          </div>
+        )}
       </header>
 
       <main className="app-main">
-        {ongletsVisibles.length > 0 ? (
-          <Tabs
-            onglets={ongletsVisibles}
-            actif={ongletActif}
-            onChange={(id) => setOngletActif(id as OngletId)}
-          />
-        ) : (
+        {!isAdmin && !peutVoirQG && !peutVoirTerrain && (
           <div className="app-no-access">Aucun onglet disponible : aucun rôle autorisé détecté.</div>
         )}
 
