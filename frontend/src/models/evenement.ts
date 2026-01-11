@@ -22,6 +22,14 @@ export interface EvenementCreatePayload {
   nomStatut?: string | null
 }
 
+export interface EvenementUpdatePayload {
+  description: string
+  latitude: number
+  longitude: number
+  nomTypeEvenement: string
+  nomSeverite: string
+}
+
 export interface SeveriteReference {
   id: string
   nomSeverite: string

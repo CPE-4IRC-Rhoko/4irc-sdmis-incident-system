@@ -3,5 +3,11 @@
     "baudrate": 115200,
     "api_url_keys": "https://api.4irc.hugorodrigues.fr/api/vehicules/cle-ident",
     "api_url_data": "https://api.4irc.hugorodrigues.fr/api/vehicules/mise-a-jour",
-    "update_interval_sec": 120
+    "update_interval_sec": 120,
+    "keycloak": {
+            "url": "https://auth.4irc.hugorodrigues.fr",
+            "realm": "SDMIS",
+            "client_id": "sdmis-passerelle",
+            "client_secret": "3w9mDXeYARzhaIrVofZEluLtlaEYKzx0"
+        }
 }

@@ -7,6 +7,7 @@ import fr.cpe.sdmis.dto.VehiculeEnRouteResponse;
 import fr.cpe.sdmis.dto.VehiculeStatusUpdateRequest;
 import fr.cpe.sdmis.dto.VehiculeSnapshotResponse;
 import fr.cpe.sdmis.dto.EquipementVehiculeResponse;
+import fr.cpe.sdmis.dto.VehiculeCreateRequest;
 import fr.cpe.sdmis.service.VehiculeService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,6 +38,11 @@ public class VehiculeController {
     @PostMapping("/mise-a-jour")
     public void miseAJour(@Valid @RequestBody VehiculeUpdateRequest request) {
         vehiculeService.updateVehicule(request);
+    }
+
+    @PostMapping("/register")
+    public UUID creerVehicule(@Valid @RequestBody VehiculeCreateRequest request) {
+        return vehiculeService.creerVehicule(request);
     }
 
     @GetMapping("/snapshots")

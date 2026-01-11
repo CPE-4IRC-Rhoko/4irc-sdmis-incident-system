@@ -3,67 +3,82 @@ import './App.css'
 import Tabs from './components/Tabs'
 import QGPage from './pages/QGPage'
 import TerrainPage from './pages/TerrainPage'
-import type { RoleSimule } from './models/role'
+import { getStoredRoles } from './services/auth'
 
 type OngletId = 'QG' | 'TERRAIN'
 
 function App() {
-  const [role, setRole] = useState<RoleSimule>('QG')
-  const [ongletActif, setOngletActif] = useState<OngletId>('QG')
-
-  const ongletsVisibles: { id: OngletId; label: string }[] = useMemo(() => {
-    if (role === 'QG') {
-      return [{ id: 'QG', label: 'QG' }]
-    }
-    if (role === 'TERRAIN') {
-      return [{ id: 'TERRAIN', label: 'Terrain' }]
-    }
-    return [
-      { id: 'QG', label: 'QG' },
-      { id: 'TERRAIN', label: 'Terrain' },
-    ]
-  }, [role])
+  const [roles, setRoles] = useState<string[]>(getStoredRoles())
 
   useEffect(() => {
-    if (!ongletsVisibles.some((onglet) => onglet.id === ongletActif)) {
-      setOngletActif(ongletsVisibles[0].id)
+    setRoles(getStoredRoles())
+  }, [])
+
+  const isAdmin = roles.includes('ROLE_FRONT_Admin')
+  const peutVoirQG = isAdmin || roles.includes('ROLE_FRONT_Operateur')
+  const peutVoirTerrain = isAdmin || roles.includes('ROLE_FRONT_Terrain')
+
+  const ongletsVisibles: { id: OngletId; label: string }[] = useMemo(() => {
+    const resultat: { id: OngletId; label: string }[] = []
+    if (peutVoirQG && isAdmin) resultat.push({ id: 'QG', label: 'QG' })
+    if (peutVoirTerrain && isAdmin) resultat.push({ id: 'TERRAIN', label: 'Terrain' })
+    return resultat
+  }, [isAdmin, peutVoirQG, peutVoirTerrain])
+
+  const defaultOnglet: OngletId = useMemo(() => {
+    if (isAdmin) return ongletsVisibles[0]?.id ?? 'QG'
+    if (peutVoirQG) return 'QG'
+    if (peutVoirTerrain) return 'TERRAIN'
+    return 'QG'
+  }, [isAdmin, ongletsVisibles, peutVoirQG, peutVoirTerrain])
+
+  const [ongletActif, setOngletActif] = useState<OngletId>(defaultOnglet)
+
+  useEffect(() => {
+    if (isAdmin) {
+      if (
+        ongletsVisibles.length > 0 &&
+        !ongletsVisibles.some((onglet) => onglet.id === ongletActif)
+      ) {
+        setOngletActif(ongletsVisibles[0].id)
+      }
+    } else {
+      setOngletActif(defaultOnglet)
     }
-  }, [ongletsVisibles, ongletActif])
+  }, [ongletsVisibles, ongletActif, isAdmin, defaultOnglet])
 
   return (
     <div className="app">
       <header className="app-header">
         <div className="brand">
-          <div className="brand-mark">4</div>
+          <img
+            src="/Logo-cpe.png"
+            alt="Logo CPE"
+            className="brand-logo"
+          />
           <div>
-            <p className="brand-kicker">Simulation</p>
-            <h1 className="brand-title">4IRC - QG/Terrain</h1>
+            <h1 className="brand-title">SDMIS</h1>
           </div>
         </div>
-        <div className="role-switcher">
-          <label htmlFor="role">Rôle simulé</label>
-          <select
-            id="role"
-            value={role}
-            onChange={(e) => setRole(e.target.value as RoleSimule)}
-          >
-            <option value="QG">QG</option>
-            <option value="TERRAIN">Terrain</option>
-            <option value="DEV">Développeur</option>
-          </select>
-        </div>
+        {isAdmin && ongletsVisibles.length > 0 && (
+          <div className="header-tabs">
+            <Tabs
+              onglets={ongletsVisibles}
+              actif={ongletActif}
+              onChange={(id) => setOngletActif(id as OngletId)}
+            />
+          </div>
+        )}
       </header>
 
       <main className="app-main">
-        <Tabs
-          onglets={ongletsVisibles}
-          actif={ongletActif}
-          onChange={(id) => setOngletActif(id as OngletId)}
-        />
+        {!isAdmin && !peutVoirQG && !peutVoirTerrain && (
+          <div className="app-no-access">Aucun onglet disponible : aucun rôle autorisé détecté.</div>
+        )}
 
         <section className="page-surface">
-          {ongletActif === 'QG' && <QGPage />}
-          {ongletActif === 'TERRAIN' && <TerrainPage />}
+          {ongletActif === 'QG' && peutVoirQG && <QGPage />}
+          {ongletActif === 'TERRAIN' && peutVoirTerrain && <TerrainPage />}
         </section>
       </main>
     </div>

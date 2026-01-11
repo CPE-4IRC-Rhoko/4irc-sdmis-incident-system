@@ -10,6 +10,9 @@ export interface Ressource {
   disponibilite: DisponibiliteRessource
   latitude: number
   longitude: number
+  plaque?: string
+  statutBrut?: string
+  equipements?: Array<{ nom: string; contenance: number }>
 }
 
 export const LIBELLES_DISPONIBILITE_RESSOURCE: Record<

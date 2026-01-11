@@ -1,18 +1,47 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './RessourcesPage.css'
-import { getVehiculesOperationnels } from '../services/vehicules'
-import { getInterventions } from '../services/interventions'
-import type { InterventionApi } from '../models/intervention'
+import { getVehiculesSnapshots } from '../services/vehicules'
+import { getInterventionsSnapshots } from '../services/interventions'
+import { getEvenementsSnapshots } from '../services/evenements'
 import Modal from '../components/Modal'
-import { withBaseUrl } from '../services/api'
+import {
+  subscribeSdmisSse,
+  type InterventionSnapshot,
+  type VehiculeSnapshot,
+} from '../services/sse'
 
 type StatutVehicule = 'DISPONIBLE' | 'INTERVENTION' | 'MAINTENANCE'
 
 type VehiculeView = {
-  id: string
   position: string
   statut: StatutVehicule
   incidentId?: string | null
+  incidentNom?: string | null
+  equipements?: Array<{ nomEquipement: string; contenanceCourante: number }>
+  plaque?: string
+  id: string
+}
+
+const statutVehiculeDepuisTexte = (statut: string): StatutVehicule => {
+  const texte = (statut ?? '').toLowerCase()
+  if (texte.includes('intervention') || texte.includes('route')) {
+    return 'INTERVENTION'
+  }
+  if (texte.includes('dispon')) return 'DISPONIBLE'
+  return 'MAINTENANCE'
+}
+
+const interventionActive = (intervention: InterventionSnapshot) => {
+  const statut = (intervention.statusIntervention ?? '').toLowerCase()
+  if (
+    statut.includes('annul') ||
+    statut.includes('term') ||
+    statut.includes('clos') ||
+    intervention.dateFinIntervention
+  ) {
+    return false
+  }
+  return true
 }
 
 function RessourcesPage() {
@@ -28,6 +57,9 @@ function RessourcesPage() {
   const [page, setPage] = useState(1)
   const pageSize = 5
   const [modalInfo, setModalInfo] = useState(false)
+  const [, setInterventions] = useState<InterventionSnapshot[]>([])
+  const interventionsRef = useRef<InterventionSnapshot[]>([])
+  const evenementsMapRef = useRef<Record<string, string>>({})
 
   useEffect(() => {
     const controller = new AbortController()
@@ -35,24 +67,57 @@ function RessourcesPage() {
       setEtat('loading')
       setErreur(null)
       try {
-        const [vehiculesApi, interventionsApi] = await Promise.all([
-          getVehiculesOperationnels(controller.signal),
-          getInterventions(controller.signal),
+        const [vehiculesApi, interventionsApi, evenementsApi] = await Promise.all([
+          getVehiculesSnapshots(controller.signal),
+          getInterventionsSnapshots(controller.signal),
+          getEvenementsSnapshots(controller.signal),
         ])
-        const engages = new Map<string, InterventionApi>()
-        interventionsApi.forEach((intervention) => {
-          engages.set(intervention.idVehicule, intervention)
-        })
+        const mapEvenements = evenementsApi.reduce<Record<string, string>>(
+          (acc, evt) => {
+            acc[evt.idEvenement] = evt.typeEvenement ?? 'Événement'
+            return acc
+          },
+          {},
+        )
+        evenementsMapRef.current = mapEvenements
+        const interventionsInitial: InterventionSnapshot[] = interventionsApi.map(
+          (intervention) => ({
+            idEvenement: intervention.idEvenement,
+            idVehicule: intervention.idVehicule,
+            statusIntervention: intervention.statusIntervention,
+            dateDebutIntervention: intervention.dateDebutIntervention,
+            dateFinIntervention: intervention.dateFinIntervention,
+            plaqueImmat: intervention.plaqueImmat,
+          }),
+        )
+        const engages = new Map<string, InterventionSnapshot>()
+        interventionsInitial
+          .filter(interventionActive)
+          .forEach((intervention) => {
+            engages.set(intervention.idVehicule, intervention)
+          })
         const views: VehiculeView[] = vehiculesApi.map((vehicule) => {
           const intervention = engages.get(vehicule.id)
+          const statut = intervention
+            ? 'INTERVENTION'
+            : statutVehiculeDepuisTexte(vehicule.statut)
           return {
             id: vehicule.id,
             position: `${vehicule.latitude.toFixed(4)}, ${vehicule.longitude.toFixed(4)}`,
-            statut: intervention ? 'INTERVENTION' : 'DISPONIBLE',
+            statut,
             incidentId: intervention?.idEvenement,
+            incidentNom: intervention ? mapEvenements[intervention.idEvenement] ?? null : null,
+            equipements:
+              vehicule.equipements?.map((eq) => ({
+                nomEquipement: eq.nomEquipement,
+                contenanceCourante: eq.contenanceCourante,
+              })) ?? [],
+            plaque: vehicule.plaqueImmat,
           }
         })
         setVehicules(views)
+        setInterventions(interventionsInitial)
+        interventionsRef.current = interventionsInitial
         setEtat('ready')
         setPage(1)
       } catch (error) {
@@ -70,42 +135,100 @@ function RessourcesPage() {
   }, [])
 
   useEffect(() => {
-    const url = withBaseUrl('/api/vehicules/sse')
-    const es = new EventSource(url)
-    es.addEventListener('vehicules', (event) => {
-      try {
-        const data = JSON.parse((event as MessageEvent).data) as Array<{
-          id: string
-          latitude: number
-          longitude: number
-          statut: string
-          caserne?: string
-          equipements?: Array<{ nomEquipement: string; contenanceCourante: number }>
-        }>
+    const es = subscribeSdmisSse({
+      onVehicules: (data: VehiculeSnapshot[]) => {
         setVehicules((prev) => {
+          const engagements = new Map<string, string>()
+          interventionsRef.current
+            .filter(interventionActive)
+            .forEach((intervention) => {
+              engagements.set(
+                intervention.idVehicule,
+                intervention.idEvenement,
+              )
+            })
           const map = new Map(prev.map((v) => [v.id, v]))
           data.forEach((veh) => {
-            const statut: StatutVehicule = veh.statut.toLowerCase().includes('intervention')
-              ? 'INTERVENTION'
-              : veh.statut.toLowerCase().includes('dispon')
-                ? 'DISPONIBLE'
-                : 'MAINTENANCE'
             map.set(veh.id, {
               id: veh.id,
               position: `${veh.latitude.toFixed(4)}, ${veh.longitude.toFixed(4)}`,
-              statut,
-              incidentId: map.get(veh.id)?.incidentId ?? undefined,
+              statut: engagements.has(veh.id)
+                ? 'INTERVENTION'
+                : statutVehiculeDepuisTexte(veh.statut),
+              incidentId: engagements.get(veh.id) ?? null,
+              incidentNom: engagements.get(veh.id)
+                ? evenementsMapRef.current[engagements.get(veh.id) ?? ''] ?? null
+                : null,
+              equipements:
+                veh.equipements?.map((eq) => ({
+                  nomEquipement: eq.nomEquipement,
+                  contenanceCourante: eq.contenanceCourante,
+                })) ?? map.get(veh.id)?.equipements,
+              plaque: veh.plaqueImmat ?? map.get(veh.id)?.plaque,
             })
           })
           return Array.from(map.values())
         })
-      } catch (error) {
-        console.error('Erreur SSE ressources', error)
-      }
+        setEtat((prev) => (prev === 'ready' ? prev : 'ready'))
+      },
+      onInterventions: (data: InterventionSnapshot[]) => {
+        if (data.length === 0) return
+        setInterventions((prev) => {
+          const map = new Map(
+            prev.map((intervention) => [
+              `${intervention.idEvenement}-${intervention.idVehicule}`,
+              intervention,
+            ]),
+          )
+          data.forEach((intervention) => {
+            map.set(
+              `${intervention.idEvenement}-${intervention.idVehicule}`,
+              intervention,
+            )
+          })
+          const next = Array.from(map.values())
+          interventionsRef.current = next
+          const engagements = new Map<string, string>()
+          next.filter(interventionActive).forEach((intervention) => {
+            engagements.set(intervention.idVehicule, intervention.idEvenement)
+          })
+          setVehicules((prevVehicules) =>
+            prevVehicules.map((vehicule) => ({
+              ...vehicule,
+              statut: engagements.has(vehicule.id)
+                ? 'INTERVENTION'
+                : vehicule.statut === 'MAINTENANCE'
+                  ? 'MAINTENANCE'
+                  : 'DISPONIBLE',
+              incidentId: engagements.get(vehicule.id) ?? null,
+              incidentNom: engagements.get(vehicule.id)
+                ? evenementsMapRef.current[engagements.get(vehicule.id) ?? ''] ?? null
+                : null,
+            })),
+          )
+          return next
+        })
+      },
+      onEvenements: (data) => {
+        if (!data || data.length === 0) return
+        const next = { ...evenementsMapRef.current }
+        data.forEach((evt) => {
+          next[evt.idEvenement] = evt.typeEvenement ?? 'Événement'
+        })
+        evenementsMapRef.current = next
+        setVehicules((prev) =>
+          prev.map((vehicule) => ({
+            ...vehicule,
+            incidentNom: vehicule.incidentId
+              ? evenementsMapRef.current[vehicule.incidentId] ?? vehicule.incidentNom ?? null
+              : null,
+          })),
+        )
+      },
+      onError: (err) => {
+        console.error('SSE ressources erreur', err)
+      },
     })
-    es.onerror = (err) => {
-      console.error('SSE ressources erreur', err)
-    }
     return () => es.close()
   }, [])
 
@@ -115,7 +238,13 @@ function RessourcesPage() {
       const okTexte =
         texte.length === 0 ||
         v.id.toLowerCase().includes(texte) ||
-        v.position.toLowerCase().includes(texte)
+        (v.plaque ?? '').toLowerCase().includes(texte) ||
+        v.statut.toLowerCase().includes(texte) ||
+        texte.includes(v.statut.toLowerCase()) ||
+        (v.incidentNom ?? '').toLowerCase().includes(texte) ||
+        (v.equipements ?? []).some((eq) =>
+          `${eq.nomEquipement ?? ''}`.toLowerCase().includes(texte),
+        )
       const okStatut = filtreStatut === 'TOUS' || v.statut === filtreStatut
       return okTexte && okStatut
     })
@@ -177,9 +306,12 @@ function RessourcesPage() {
           <span aria-hidden="true">🔍</span>
           <input
             type="text"
-            placeholder="Rechercher par ID camion ou position..."
+            placeholder="Rechercher par ID, plaque ou disponibilité..."
             value={filtreTexte}
-            onChange={(e) => setFiltreTexte(e.target.value)}
+            onChange={(e) => {
+              setFiltreTexte(e.target.value)
+              setPage(1)
+            }}
           />
         </div>
         <div className="toolbar-filters">
@@ -187,7 +319,10 @@ function RessourcesPage() {
             État
             <select
               value={filtreStatut}
-              onChange={(e) => setFiltreStatut(e.target.value as StatutVehicule | 'TOUS')}
+              onChange={(e) => {
+                setFiltreStatut(e.target.value as StatutVehicule | 'TOUS')
+                setPage(1)
+              }}
             >
               <option value="TOUS">Tous</option>
               <option value="DISPONIBLE">Disponible</option>
@@ -214,27 +349,40 @@ function RessourcesPage() {
           <table className="resources-table">
             <thead>
               <tr>
-                <th>ID camion</th>
+                <th>Plaque</th>
                 <th>Position actuelle</th>
                 <th>Disponibilité</th>
-                <th>Incident assigné</th>
+                <th>Événement assigné</th>
+                <th>Équipements</th>
               </tr>
             </thead>
             <tbody>
               {vehiculesPage.map((v) => (
                 <tr key={v.id}>
-                  <td className="id-cell">{v.id.slice(0, 8)}</td>
+                  <td>{v.plaque ?? '—'}</td>
                   <td>{v.position}</td>
-                  <td>
-                    <span className={`badge ${v.statut.toLowerCase()}`}>
-                      {v.statut === 'DISPONIBLE'
-                        ? 'Disponible'
-                        : v.statut === 'INTERVENTION'
-                          ? 'En intervention'
-                          : 'Maintenance'}
-                    </span>
+                <td>
+                  <span className={`badge ${v.statut.toLowerCase()}`}>
+                    {v.statut === 'DISPONIBLE'
+                      ? 'Disponible'
+                      : v.statut === 'INTERVENTION'
+                        ? 'En intervention'
+                        : 'Maintenance'}
+                  </span>
+                </td>
+                <td>{v.incidentNom ?? '—'}</td>
+                <td>
+                  {v.equipements && v.equipements.length > 0
+                    ? v.equipements
+                          .map(
+                            (eq) =>
+                              `${eq.nomEquipement ?? 'Ressource'} (${
+                                eq.contenanceCourante ?? 0
+                              })`,
+                          )
+                          .join(', ')
+                      : '—'}
                   </td>
-                  <td>{v.incidentId ?? '—'}</td>
                 </tr>
               ))}
             </tbody>

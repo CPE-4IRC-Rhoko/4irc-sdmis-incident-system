@@ -1,9 +1,8 @@
 .tabs {
   display: flex;
   gap: 0.5rem;
-  border-bottom: 1px solid #dfe3eb;
-  padding: 0.5rem 0;
-  margin-bottom: 1rem;
+  padding: 0.25rem 0;
+  margin-bottom: 0;
 }
 
 .tab {
