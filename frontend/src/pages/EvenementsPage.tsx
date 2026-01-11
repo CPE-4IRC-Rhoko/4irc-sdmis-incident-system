@@ -7,6 +7,7 @@ import {
   getEvenementsSnapshots,
   getSeverites,
   getTypesEvenement,
+  updateEvenement,
 } from '../services/evenements'
 import {
   subscribeSdmisSse,
@@ -31,9 +32,9 @@ interface FormState extends EvenementCreatePayload {
 }
 
 const niveauSeverite = (
-  libelle: string,
+  libelle: string | null | undefined,
 ): 'critique' | 'moyenne' | 'faible' => {
-  const texte = libelle.toLowerCase()
+  const texte = (libelle ?? '').toLowerCase()
   if (
     texte.includes('crit') ||
     texte.includes('grave') ||
@@ -45,7 +46,7 @@ const niveauSeverite = (
   return 'faible'
 }
 
-const poidsSeverite = (libelle: string) => {
+const poidsSeverite = (libelle: string | null | undefined) => {
   const niveau = niveauSeverite(libelle)
   if (niveau === 'critique') return 3
   if (niveau === 'moyenne') return 2
@@ -78,7 +79,7 @@ const classStatut = (statut: string) => {
 }
 
 const estCloture = (statut: string) => {
-  const texte = statut.toLowerCase()
+  const texte = (statut ?? '').toLowerCase()
   return (
     texte.includes('résol') ||
     texte.includes('resol') ||
@@ -448,10 +449,10 @@ const appliquerSnapshotsEvenements = useCallback(
     })
   }
 
-  const ouvrirEdition = (evt: EvenementApi) => {
-    setFormMode('edition')
-    setFormError(null)
-    const typeRef =
+const ouvrirEdition = (evt: EvenementApi) => {
+  setFormMode('edition')
+  setFormError(null)
+  const typeRef =
       types.find((type) => type.id === evt.idTypeEvenement) ??
       types.find(
         (type) =>
@@ -479,7 +480,7 @@ const appliquerSnapshotsEvenements = useCallback(
       idSeverite: severiteRef?.id ?? evt.idSeverite ?? evt.nomSeverite,
       idStatut: statutRef?.id ?? evt.idStatut ?? evt.nomStatut,
     })
-  }
+}
 
   const mettreAJourForm = (champ: keyof FormState, valeur: string | number) => {
     setFormState((prev) =>
@@ -505,32 +506,51 @@ const appliquerSnapshotsEvenements = useCallback(
         (sev) => sev.id === formState.idSeverite,
       )
       const typeRef = types.find((type) => type.id === formState.idTypeEvenement)
-      const statutRef = statutsDisponibles.find(
-        (statut) => statut.id === formState.idStatut,
-      )
 
-      setEvenements((prev) =>
-        prev.map((evt) =>
-          evt.id === formState.id
-            ? {
-                ...evt,
-                description: formState.description,
-                latitude: Number(formState.latitude),
-                longitude: Number(formState.longitude),
-                idTypeEvenement: formState.idTypeEvenement ?? evt.idTypeEvenement,
-                idSeverite: formState.idSeverite ?? evt.idSeverite,
-                idStatut: formState.idStatut ?? evt.idStatut,
-                nomTypeEvenement: typeRef?.nom ?? evt.nomTypeEvenement,
-                nomSeverite: severiteRef?.nomSeverite ?? evt.nomSeverite,
-                nomStatut: statutRef?.nom ?? evt.nomStatut,
-                nbVehiculesNecessaire:
-                  severiteRef?.nbVehiculesNecessaire ?? evt.nbVehiculesNecessaire,
-                valeurEchelle: severiteRef?.valeurEchelle ?? evt.valeurEchelle,
-              }
-            : evt,
-        ),
-      )
-      remettreAZeroForm()
+      if (!typeRef || !severiteRef) {
+        setFormError('Type ou gravité manquant pour la mise à jour.')
+        return
+      }
+
+      try {
+        setFormLoading(true)
+        const updated = await updateEvenement(formState.id, {
+          description: formState.description,
+          latitude: Number(formState.latitude),
+          longitude: Number(formState.longitude),
+          nomTypeEvenement: typeRef.nom,
+          nomSeverite: severiteRef.nomSeverite,
+        })
+        setEvenements((prev) =>
+          prev.map((evt) =>
+            evt.id === updated.id
+              ? {
+                  ...evt,
+                  description: updated.description,
+                  latitude: updated.latitude,
+                  longitude: updated.longitude,
+                  idTypeEvenement: updated.idTypeEvenement,
+                  idSeverite: updated.idSeverite,
+                  nomTypeEvenement: updated.nomTypeEvenement,
+                  nomSeverite: updated.nomSeverite,
+                  nomStatut: updated.nomStatut,
+                  nbVehiculesNecessaire: updated.nbVehiculesNecessaire,
+                  valeurEchelle: updated.valeurEchelle,
+                }
+              : evt,
+          ),
+        )
+        remettreAZeroForm()
+        return
+      } catch (error) {
+        setFormError(
+          error instanceof Error
+            ? error.message
+            : 'Échec de la mise à jour de l’événement.',
+        )
+      } finally {
+        setFormLoading(false)
+      }
       return
     }
 
@@ -824,7 +844,7 @@ const appliquerSnapshotsEvenements = useCallback(
               <label>
                 Type d'événement
                 <select
-                  value={formState.idTypeEvenement}
+                  value={formState.idTypeEvenement ?? ''}
                 onChange={(e) => {
                   const value = e.target.value
                   const ref = types.find((type) => type.id === value)
@@ -855,7 +875,7 @@ const appliquerSnapshotsEvenements = useCallback(
               <label>
                 Gravité
                 <select
-                  value={formState.idSeverite}
+                  value={formState.idSeverite ?? ''}
                 onChange={(e) => {
                   const value = e.target.value
                   const ref = severites.find((sev) => sev.id === value)
@@ -876,8 +896,8 @@ const appliquerSnapshotsEvenements = useCallback(
                       Référentiel gravité manquant
                     </option>
                   )}
-                  {severites.map((sev) => (
-                    <option key={sev.id} value={sev.id}>
+                  {severites.map((sev, index) => (
+                    <option key={sev.id ?? `${sev.nomSeverite}-${index}`} value={sev.id}>
                       {sev.nomSeverite} ({sev.valeurEchelle})
                     </option>
                   ))}
@@ -886,36 +906,7 @@ const appliquerSnapshotsEvenements = useCallback(
             {formMode === 'edition' && (
               <label>
                 Statut
-                <select
-                  value={formState.idStatut}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    const ref = statutsDisponibles.find(
-                      (statut) => statut.id === value,
-                    )
-                    setFormState((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            idStatut: value,
-                            nomStatut: ref?.nom ?? prev.nomStatut,
-                          }
-                        : prev,
-                    )
-                  }}
-                  required
-                >
-                  {statutsDisponibles.length === 0 && (
-                    <option value="" disabled>
-                      Aucun statut disponible pour le moment
-                    </option>
-                  )}
-                  {statutsDisponibles.map((statut) => (
-                    <option key={statut.id} value={statut.id}>
-                      {statut.nom}
-                    </option>
-                  ))}
-                </select>
+                <input type="text" value={formState.nomStatut ?? ''} disabled />
               </label>
             )}
             </div>
@@ -961,12 +952,6 @@ const appliquerSnapshotsEvenements = useCallback(
                 {formMode === 'creation' ? 'Créer un événement' : 'Enregistrer'}
               </button>
             </div>
-            {formMode === 'edition' && (
-              <p className="muted small">
-                En attendant un endpoint PUT côté API, la modification reste
-                locale.
-              </p>
-            )}
           </form>
         </Modal>
       )}
