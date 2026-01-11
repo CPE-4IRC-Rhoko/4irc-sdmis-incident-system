@@ -35,9 +35,9 @@ public class VehiculeGPS {
 
         while (true) { // Boucle infinie
             try {
-                // 1. On récupère la liste actuelle de l'API
+                // 1. On récupère la liste actuelle des véhicules en route depuis l'API
                 List<CalllAPIVehicule.VehiculeData> listeVehicules = apiCaller.fetchVehiculesEnRoute();
-
+                // (Pour chaque véhicule retourné par l'API....)
                 for (CalllAPIVehicule.VehiculeData v : listeVehicules) {
                     // 2. Si le véhicule n'est PAS déjà en train de rouler
                     if (!vehiculesEnCours.contains(v.idVehicule)) {
@@ -46,7 +46,7 @@ public class VehiculeGPS {
 
                         new Thread(() -> {
                             try {
-                                System.out.println("\n>>> NOUVEAU VÉHICULE DÉTECTÉ : " + v.idVehicule);
+                                System.out.println("\n>>> NOUVEAU VÉHICULE DÉTECTÉ : " + v.plaqueImmat);
                                 simulerTrajet(v, emetteur);
                                 action.gererIntervention(v, emetteur);
                                 cloture.cloturerIntervention(v);
@@ -73,11 +73,11 @@ public class VehiculeGPS {
         try {
 
             // Coordonnées fixes de la destination (ex: Gare Part-Dieu)
-            //double DEST_LAT_FIXE = 45.765646;
-            //double DEST_LON_FIXE = 4.865712;
+            double DEST_LAT_FIXE = 45.765646;
+            double DEST_LON_FIXE = 4.865712;
 
             // Utilisation des coordonnées dynamiques de l'API
-            String url = String.format(Locale.US,"http://localhost:5000/route/v1/driving/%f,%f;%f,%f?geometries=geojson&overview=full",v.vehiculeLon, v.vehiculeLat, v.evenementLon, v.evenementLat);
+            String url = String.format(Locale.US,"http://localhost:5000/route/v1/driving/%f,%f;%f,%f?geometries=geojson&overview=full",v.vehiculeLon, v.vehiculeLat, DEST_LON_FIXE, DEST_LAT_FIXE);
 
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).build();
