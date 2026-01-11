@@ -888,7 +888,6 @@ function QGPage() {
             <header className="panel-header">
               <div>
                 <p className="muted">Situation Temps Réel</p>
-                <p className="small">Dernière mise à jour : {derniereMiseAJour}</p>
               </div>
             </header>
 

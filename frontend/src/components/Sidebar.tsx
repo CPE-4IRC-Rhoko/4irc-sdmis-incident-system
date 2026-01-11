@@ -161,9 +161,6 @@ function Sidebar({
             </span>
           </div>
           <p className="muted small">
-            Dernière mise à jour : {formatterDate(incidentSelectionne.derniereMiseAJour)}
-          </p>
-          <p className="muted small">
             Coords : {incidentSelectionne.latitude.toFixed(4)} /{' '}
             {incidentSelectionne.longitude.toFixed(4)}
           </p>
