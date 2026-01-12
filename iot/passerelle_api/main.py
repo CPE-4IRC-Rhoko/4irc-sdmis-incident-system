@@ -11,12 +11,12 @@ from dotenv import load_dotenv
 # Nom du fichier de configuration
 CONFIG_FILE = "config.json"
 
-# Variable globale pour stocker le token ---
+# Variable globale pour stocker le token
 current_token = None
 
 
 def charger_config():
-    """Charge la configuration JSON et surcharge avec le .env"""
+    #Charge la configuration JSON et surcharge avec le .env
     # 1. Charger les variables d'environnement du .env
     load_dotenv()
 
@@ -35,14 +35,12 @@ def charger_config():
         config["keycloak"]["client_secret"] = secret_env
     else:
         print("ATTENTION : Variable KEYCLOAK_CLIENT_SECRET introuvable dans le .env")
-        # Optionnel : Arrêter le script si pas de secret
-        # sys.exit(1)
 
     return config
 
 
 def trouver_port_microbit(config_port):
-    # Trouve le port USB. Si 'AUTO', cherche une Micro:bit.
+    # Trouve le port USB. Si 'AUTO' dans "port_usb" du fichier config.json, cherche une Micro:bit
     if config_port != "AUTO":
         return config_port
 
@@ -59,12 +57,11 @@ def trouver_port_microbit(config_port):
 
 
 def obtenir_token_keycloak(config):
-    # Récupère un token d'accès via Keycloak (Client Credentials).
+    # Récupère un token d'accès via Keycloak
     print("Authentification Keycloak en cours...")
     kc_conf = config["keycloak"]
 
-    # Construction de l'URL du token (Standard OpenID Connect)
-    # Assure-toi que l'URL ne finit pas par '/' dans le config
+    # Construction de l'URL du token
     base_url = kc_conf["url"].rstrip('/')
     token_url = f"{base_url}/realms/{kc_conf['realm']}/protocol/openid-connect/token"
 
@@ -93,21 +90,21 @@ def fetch_and_sync_keys(ser, config):
     url = config["api_url_keys"]
     print(f"--- Synchronisation des clés depuis l'API ---")
 
-    # 1. Récupération Web (AVEC AUTHENTIFICATION)
+    # 1. Récupération Web (avec authentification)
     try:
-        # On prépare les headers
+        # préparation des headers
         headers = {}
         if current_token:
             headers["Authorization"] = f"Bearer {current_token}"
 
         resp = requests.get(url, headers=headers)
 
-        # GESTION TOKEN EXPIRÉ (401)
+        # gestion token expiré (erreur 401)
         if resp.status_code == 401:
             print("Token expiré ou invalide (401). Tentative de renouvellement...")
             current_token = obtenir_token_keycloak(config)
             if current_token:
-                # On réessaie une fois avec le nouveau token
+                # Nouvelle tentative avec le nouveau token
                 headers["Authorization"] = f"Bearer {current_token}"
                 resp = requests.get(url, headers=headers)
             else:
@@ -125,7 +122,7 @@ def fetch_and_sync_keys(ser, config):
         print(f"Erreur Connexion API : {e}")
         return
 
-    # 2. Injection dans la Micro:bit
+    # 2. Injection dans la Micro:bit QG des clé HMAC
     count = 0
     for vehicule in vehicules_list:
         plaque = vehicule.get("plaqueImmat")
@@ -144,11 +141,11 @@ def fetch_and_sync_keys(ser, config):
     print(f"--- Synchro terminée ({count} clés actives) ---")
 
 
-def demarrer_passerelle():
+def demarrer_passerelle(): 
     global current_token
     config = charger_config()
 
-    # --- Récupération initiale du token ---
+    # Récupération initiale du token
     current_token = obtenir_token_keycloak(config)
     if not current_token:
         print("Attention : Démarrage sans token valide.")
@@ -163,10 +160,10 @@ def demarrer_passerelle():
 
         last_key_update = time.time()
 
-        # ETAPE 1 : CONFIGURATION AU DEMARRAGE
+        # 1. Configuration au demmarage
         fetch_and_sync_keys(ser, config)
 
-        # ETAPE 2 : ECOUTE ET TRANSFERT
+        # 2. Ecoute et transfert
         print("\nPasserelle prête. En attente de radio...")
 
         while True:
@@ -205,7 +202,7 @@ def demarrer_passerelle():
                                         for item in items:
                                             if '=' in item:
                                                 key, val = item.split('=')
-                                                key = key.strip().lower()  # Modif minuscule
+                                                key = key.strip()
                                                 val = val.strip()
                                                 try:
                                                     res_dict[key] = int(val)
@@ -225,18 +222,18 @@ def demarrer_passerelle():
                                 "btn": raw_data.get("btn")
                             }
 
-                            # 5. ENVOI (AVEC AUTHENTIFICATION)
+                            # 5. Envoi avec authentification à l'API
                             try:
                                 print(f"Payload envoyé : {json.dumps(payload_api)}")
 
-                                # --- Ajout headers Auth ---
+                                # Ajout headers Authentification
                                 headers = {}
                                 if current_token:
                                     headers["Authorization"] = f"Bearer {current_token}"
 
                                 r = requests.post(config["api_url_data"], json=payload_api, headers=headers)
 
-                                # GESTION TOKEN EXPIRÉ (401)
+                                # Gestion du token expiré (erreur 401)
                                 if r.status_code == 401:
                                     print("Token 401. Renouvellement et nouvel essai...")
                                     current_token = obtenir_token_keycloak(config)
