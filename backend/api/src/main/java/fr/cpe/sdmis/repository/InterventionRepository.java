@@ -30,7 +30,6 @@ public class InterventionRepository {
     private static final String STATUT_VEHICULE_EN_ROUTE = "En route";
     private static final String STATUT_INTERVENTION_TERMINEE = "Terminée";
     private static final String STATUT_VEHICULE_DISPONIBLE = "Disponible";
-    private static final String STATUT_INTERVENTION_PROPOSITION = "En proposition";
     private static final String SNAPSHOT_QUERY = """
             SELECT i.id_evenement,
                    i.date_debut as date_debut_intervention,
