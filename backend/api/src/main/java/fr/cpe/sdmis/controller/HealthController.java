@@ -1,4 +1,4 @@
-package fr.cpe.sdmis.api;
+package fr.cpe.sdmis.controller;
 
 import org.springframework.boot.web.servlet.error.ErrorController;
 import org.springframework.http.ResponseEntity;

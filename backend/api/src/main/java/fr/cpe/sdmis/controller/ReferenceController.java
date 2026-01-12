@@ -1,4 +1,4 @@
-package fr.cpe.sdmis.api;
+package fr.cpe.sdmis.controller;
 
 import fr.cpe.sdmis.dto.SeveriteResponse;
 import fr.cpe.sdmis.dto.SeveriteEchelleResponse;

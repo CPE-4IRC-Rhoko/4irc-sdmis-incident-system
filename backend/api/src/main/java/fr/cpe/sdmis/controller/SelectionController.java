@@ -1,4 +1,4 @@
-package fr.cpe.sdmis.api;
+package fr.cpe.sdmis.controller;
 
 import fr.cpe.sdmis.dto.VehiculeSelectionResponse;
 import fr.cpe.sdmis.repository.VehiculeSelectionRepository;

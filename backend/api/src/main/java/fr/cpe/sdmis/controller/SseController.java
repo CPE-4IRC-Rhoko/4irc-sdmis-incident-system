@@ -1,4 +1,4 @@
-package fr.cpe.sdmis.api;
+package fr.cpe.sdmis.controller;
 
 import fr.cpe.sdmis.service.SdmisSseService;
 import org.springframework.web.bind.annotation.GetMapping;
