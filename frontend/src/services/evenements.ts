@@ -1,6 +1,7 @@
 import type {
   EvenementApi,
   EvenementCreatePayload,
+  EvenementUpdatePayload,
   SeveriteReference,
   TypeEvenementReference,
 } from '../models/evenement'
@@ -47,6 +48,23 @@ export const createEvenement = async (
       Accept: 'application/json',
     },
     body: JSON.stringify(payload),
+  })
+  return parseJson<EvenementApi>(response)
+}
+
+export const updateEvenement = async (
+  id: string,
+  payload: EvenementUpdatePayload,
+  signal?: AbortSignal,
+): Promise<EvenementApi> => {
+  const response = await fetch(withBaseUrl(`/api/evenements/${id}`), {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(payload),
+    signal,
   })
   return parseJson<EvenementApi>(response)
 }
