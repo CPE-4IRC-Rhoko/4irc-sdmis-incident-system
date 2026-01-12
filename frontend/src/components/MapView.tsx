@@ -220,6 +220,12 @@ function MapView({
       ? ressourcesAffichees.find((res) => res.id === popupRessourceId)
       : undefined
 
+  const markerScale = useMemo(() => {
+    const z = vue?.zoom ?? 12
+    // Garder une taille stable en dézoomant.
+    return Math.max(0.55, Math.min(1.05, z / 14))
+  }, [vue?.zoom])
+
   return (
     <div className="map-wrapper">
       <Map
@@ -244,18 +250,19 @@ function MapView({
         )}
         {navigationEnabled && <NavigationControl position="top-right" />}
         {pointInteretValide && (
-          <Marker
-            longitude={pointInteretValide.longitude}
-            latitude={pointInteretValide.latitude}
-            anchor="bottom"
-            onClick={(e) => {
-              e.originalEvent?.stopPropagation()
-              onClickPointInteret?.()
-            }}
-          >
+        <Marker
+          longitude={pointInteretValide.longitude}
+          latitude={pointInteretValide.latitude}
+          anchor="bottom"
+          onClick={(e) => {
+            e.originalEvent?.stopPropagation()
+            onClickPointInteret?.()
+          }}
+        >
             <div
               className="marker marker-search"
               title={pointInteretValide.label}
+              style={{ transform: `scale(${markerScale})` }}
             >
               <PinIcon color="#111827" />
             </div>
@@ -273,7 +280,10 @@ function MapView({
             }}
           >
             {compactMarkers ? (
-              <div className={`mini-marker ${classeEvenement(evt.gravite).split(' ').pop()}`}>
+              <div
+                className={`mini-marker ${classeEvenement(evt.gravite).split(' ').pop()}`}
+                style={{ transform: `scale(${markerScale})` }}
+              >
                 <span className="mini-marker-inner" />
               </div>
             ) : (
@@ -282,6 +292,7 @@ function MapView({
                   evenementSelectionneId === evt.id ? 'marker-active' : ''
                 }`}
                 title={evt.titre}
+                style={{ transform: `scale(${markerScale})` }}
               >
                 !
               </div>
@@ -302,6 +313,7 @@ function MapView({
             <div
               className="marker marker-vehicule"
               title={ressource.nom}
+              style={{ transform: `scale(${markerScale})` }}
             >
               <VehicleIcon color={couleurRessource(ressource.disponibilite)} />
             </div>

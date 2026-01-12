@@ -593,35 +593,12 @@ const synchroniserRoutes = useCallback(() => {
 
   return (
     <div className="terrain-wrapper">
-      <div className="terrain-topline">
-        <div>
-          <p className="muted small">Surveillance terrain</p>
-          <h2>Carte admin temps réel</h2>
-        </div>
-        <div className="terrain-counters">
-          <div className="terrain-counter">
-            <span className="counter-label">Véhicules engagés</span>
-            <strong>{ressourcesPourCarte.length}</strong>
-            <span className="counter-sub">
-              Routes calculées : {routesPourCarte.length}
-            </span>
-          </div>
-          <div className="terrain-counter">
-            <span className="counter-label">Événements actifs</span>
-            <strong>{evenementsCarte.length}</strong>
-            <span className="counter-sub">
-              {interventionsActives.length} intervention(s)
-            </span>
-          </div>
-        </div>
-      </div>
-
       <div className="terrain-grid">
         <section className="terrain-map-card">
           <div className="terrain-map-head">
             <div>
-              <p className="muted small">Carte temps réel</p>
-              <h3>Trajets vers l&apos;événement assigné</h3>
+              <p className="muted small">Surveillance terrain</p>
+              <h2>Carte admin temps réel</h2>
             </div>
             {etatChargement === 'loading' && (
               <span className="pill-soft">Chargement…</span>
@@ -669,6 +646,22 @@ const synchroniserRoutes = useCallback(() => {
         </section>
 
         <aside className="terrain-side">
+          <div className="terrain-side-counters">
+            <div className="terrain-counter">
+              <span className="counter-label">Véhicules engagés</span>
+              <strong>{ressourcesPourCarte.length}</strong>
+              <span className="counter-sub">
+                Routes calculées : {routesPourCarte.length}
+              </span>
+            </div>
+            <div className="terrain-counter">
+              <span className="counter-label">Événements actifs</span>
+              <strong>{evenementsCarte.length}</strong>
+              <span className="counter-sub">
+                {interventionsActives.length} intervention(s)
+              </span>
+            </div>
+          </div>
           <div className="terrain-side-head">
             <div>
               <p className="muted small">Suivi des trajets</p>
