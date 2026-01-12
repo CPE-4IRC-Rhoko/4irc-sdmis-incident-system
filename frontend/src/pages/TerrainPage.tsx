@@ -22,6 +22,7 @@ type TrajetAssocie = RouteTrace & {
   duration: number
   start: { latitude: number; longitude: number }
   end: { latitude: number; longitude: number }
+  source?: 'osrm' | 'fallback'
 }
 
 const vueTerrain: VueCarte = {
@@ -114,6 +115,8 @@ const interventionEstActive = (intervention: InterventionSnapshot) => {
   ) {
     return false
   }
+  // Statuts à considérer comme engagés, même en cours de traitement.
+  if (statut.includes('trait')) return true
   return true
 }
 
@@ -179,7 +182,7 @@ function TerrainPage() {
     setRoutes(Object.values(routesRef.current))
   }, [])
 
-  const synchroniserRoutes = useCallback(() => {
+const synchroniserRoutes = useCallback(() => {
     const evenementsMap = new Map(evenementsRef.current.map((evt) => [evt.id, evt]))
     const vehiculesMap = new Map(vehiculesRef.current.map((veh) => [veh.id, veh]))
     const actifs = interventionsRef.current.filter(interventionEstActive)
@@ -223,6 +226,7 @@ function TerrainPage() {
 
       if (
         existing &&
+        existing.source === 'osrm' &&
         distanceMetres(existing.start, start) < 30 &&
         distanceMetres(existing.end, end) < 10
       ) {
@@ -242,11 +246,31 @@ function TerrainPage() {
             duration: route.duration,
             start,
             end,
+            source: 'osrm',
           }
           setRoutesFromRef()
         })
         .catch((error) => {
           console.error('Calcul itinéraire OSRM', error)
+          // Fallback minimal pour afficher quelque chose et éviter les distances inconnues
+          const dist = distanceMetres(start, end)
+          const estimatedDuration = dist / 15 // ~54 km/h
+          routesRef.current[key] = {
+            id: key,
+            idVehicule: intervention.idVehicule,
+            idEvenement: intervention.idEvenement,
+            coordinates: [
+              [start.longitude, start.latitude],
+              [end.longitude, end.latitude],
+            ],
+            color: colorFromId(intervention.idVehicule),
+            distance: dist,
+            duration: estimatedDuration,
+            start,
+            end,
+            source: 'fallback',
+          }
+          setRoutesFromRef()
         })
         .finally(() => {
           pendingRoutesRef.current.delete(key)
@@ -573,9 +597,6 @@ function TerrainPage() {
         <div>
           <p className="muted small">Surveillance terrain</p>
           <h2>Carte admin temps réel</h2>
-          <p className="terrain-sub">
-            Itinéraires OSRM et positions en direct depuis les snapshots et le flux SSE.
-          </p>
         </div>
         <div className="terrain-counters">
           <div className="terrain-counter">
