@@ -15,6 +15,19 @@ export type VehiculeCreationPayload = {
   equipements: string[]
 }
 
+export type VehiculeIdent = {
+  idVehicule: string
+  plaqueImmat: string
+  cleIdent: string
+}
+
+export type VehiculeCreationPayload = {
+  plaqueImmat: string
+  cleIdent: string
+  idCaserne: string
+  equipements: string[]
+}
+
 export const getVehiculesOperationnels = async (
   signal?: AbortSignal,
 ): Promise<VehiculeOperationnel[]> => {
