@@ -27,6 +27,7 @@ import {
 import EvenementsPage from './EvenementsPage'
 import RessourcesPage from './RessourcesPage'
 import AffectationsPage from './AffectationsPage'
+import HistoriquePage from './HistoriquePage'
 import './QGPage.css'
 import '../components/IncidentForm.css'
 
@@ -242,7 +243,7 @@ function QGPage() {
     string | undefined
   >(undefined)
   const [vueCarte, setVueCarte] = useState<VueCarte>(vueInitiale)
-  const [sectionQG, setSectionQG] = useState<'TABLEAU' | 'EVENEMENTS' | 'RESSOURCES' | 'AFFECTATIONS'>(
+  const [sectionQG, setSectionQG] = useState<'TABLEAU' | 'EVENEMENTS' | 'RESSOURCES' | 'AFFECTATIONS' | 'HISTORIQUE'>(
     'TABLEAU',
   )
   const [etatChargement, setEtatChargement] = useState<
@@ -754,7 +755,13 @@ function QGPage() {
         >
           Affectations
         </button>
-        <button className="nav-item" type="button">
+        <button
+          className={`nav-item ${
+            sectionQG === 'HISTORIQUE' ? 'nav-active' : ''
+          }`}
+          type="button"
+          onClick={() => setSectionQG('HISTORIQUE')}
+        >
           Historique
         </button>
         <div className="nav-separator" />
@@ -774,6 +781,10 @@ function QGPage() {
       ) : sectionQG === 'AFFECTATIONS' ? (
         <div className="evenements-wrapper">
           <AffectationsPage />
+        </div>
+      ) : sectionQG === 'HISTORIQUE' ? (
+        <div className="evenements-wrapper">
+          <HistoriquePage />
         </div>
       ) : (
         <>
