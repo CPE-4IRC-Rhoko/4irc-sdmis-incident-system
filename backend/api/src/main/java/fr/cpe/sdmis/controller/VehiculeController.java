@@ -92,10 +92,14 @@ public class VehiculeController {
     }
 
     @GetMapping("/agent/{agentId}")
-    @PreAuthorize("hasRole('API_Admin','API_Operateur','API_Terrain','API_Simulation')")
+    @PreAuthorize("hasAnyRole('API_Admin','API_Operateur','API_Terrain','API_Simulation')")
     public ResponseEntity<AgentVehiculeResponse> vehiculePourAgent(@PathVariable("agentId") UUID agentId) {
+        System.out.println("Lookup véhicule pour agent=" + agentId);
         return agentRepository.findVehiculeByAgentId(agentId)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseGet(() -> {
+                    System.out.println("Aucun véhicule trouvé pour agent=" + agentId);
+                    return ResponseEntity.notFound().build();
+                });
     }
 }
