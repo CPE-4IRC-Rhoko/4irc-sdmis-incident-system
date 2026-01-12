@@ -766,7 +766,6 @@ function QGPage() {
         </button>
         <div className="nav-separator" />
         <button className="nav-item" type="button">
-          Paramètres
         </button>
       </nav>
 

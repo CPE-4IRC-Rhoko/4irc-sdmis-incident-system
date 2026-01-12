@@ -748,10 +748,6 @@ const synchroniserRoutes = useCallback(() => {
   return (
     <div className="terrain-wrapper">
       <div className="terrain-topline">
-        <div>
-          <p className="muted small">Surveillance terrain</p>
-          <h2>Carte admin temps réel</h2>
-        </div>
         {!isAdmin && (
           <div className="terrain-selection">
             <label htmlFor="vehicule-select">Véhicule suivi</label>

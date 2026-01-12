@@ -247,6 +247,17 @@ const refreshAccessToken = async () => {
   return null
 }
 
+export const forceReauth = async () => {
+  if (!isBrowser()) return
+  sessionStorage.removeItem(AUTH_FLAG_KEY)
+  sessionStorage.removeItem(TOKEN_KEY)
+  sessionStorage.removeItem(REFRESH_KEY)
+  sessionStorage.removeItem(EXPIRES_AT_KEY)
+  sessionStorage.removeItem(ROLES_KEY)
+  clearRefreshTimer()
+  await redirectToKeycloak()
+}
+
 const exchangeCodeForToken = async (code: string) => {
   const { tokenUrl, clientId, redirectUri } = getAuthConfig()
   const usedRedirectUri =
@@ -433,6 +444,25 @@ export const getStoredRoles = () => {
   }
 }
 
+export const getStoredProfile = () => {
+  if (!isBrowser()) return null
+  const token = sessionStorage.getItem(TOKEN_KEY)
+  if (!token) return null
+  const payload = decodeJwtPayload(token) as Record<string, unknown> | null
+  if (!payload) return null
+  const given = (payload?.given_name as string | undefined) ?? ''
+  const family = (payload?.family_name as string | undefined) ?? ''
+  const username = (payload?.preferred_username as string | undefined) ?? ''
+  const email = (payload?.email as string | undefined) ?? ''
+  return {
+    givenName: given,
+    familyName: family,
+    username,
+    email,
+    fullName: `${given} ${family}`.trim() || username || email || 'Utilisateur',
+  }
+}
+
 export const processKeycloakCallback = async () => {
   if (!isBrowser()) {
     return
@@ -526,4 +556,36 @@ export const getAuthDebugSnapshot = () => {
     codeVerifierFallbackPresent: !!localStorage.getItem(CODE_VERIFIER_FALLBACK_KEY),
     loginRedirectUri: sessionStorage.getItem(LOGIN_REDIRECT_URI_KEY),
   }
+}
+
+const logoutFromKeycloak = async (refreshToken: string | null) => {
+  const { tokenUrl, clientId } = getAuthConfig()
+  const logoutUrl = tokenUrl.replace(/\/token$/, '/logout')
+  const body = new URLSearchParams()
+  body.set('client_id', clientId)
+  if (refreshToken) {
+    body.set('refresh_token', refreshToken)
+  }
+  try {
+    await fetch(logoutUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    })
+  } catch (error) {
+    console.warn('Logout Keycloak: requête échouée', error)
+  }
+}
+
+export const logoutUser = async () => {
+  if (!isBrowser()) return
+  const refreshToken = sessionStorage.getItem(REFRESH_KEY)
+  await logoutFromKeycloak(refreshToken)
+  sessionStorage.removeItem(AUTH_FLAG_KEY)
+  sessionStorage.removeItem(TOKEN_KEY)
+  sessionStorage.removeItem(REFRESH_KEY)
+  sessionStorage.removeItem(EXPIRES_AT_KEY)
+  sessionStorage.removeItem(ROLES_KEY)
+  clearRefreshTimer()
+  window.location.href = '/'
 }
