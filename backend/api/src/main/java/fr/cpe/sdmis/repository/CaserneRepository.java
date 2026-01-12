@@ -23,9 +23,8 @@ public class CaserneRepository {
 
     public Optional<Map<String, Object>> findByVehiculeId(UUID vehiculeId) {
         List<Map<String, Object>> res = jdbcTemplate.queryForList("""
-                SELECT c.*
-                FROM caserne c
-                JOIN vehicule v ON v.id_caserne = c.id_caserne
+                SELECT c.* FROM vehicule v 
+                JOIN caserne c ON c.id_caserne = v.id_caserne
                 WHERE v.id_vehicule = :vehicule
                 LIMIT 1
                 """, Map.of("vehicule", vehiculeId));

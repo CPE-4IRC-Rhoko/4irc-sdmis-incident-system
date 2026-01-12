@@ -23,6 +23,7 @@ public class UtilisateurAdminController {
     @PostMapping
     @PreAuthorize("hasRole('API_Admin')")
     public CreationUtilisateurResponse creer(@Valid @RequestBody CreationUtilisateurRequest request) {
+        System.out.println("Création d'un utilisateur admin avec le login : " + request);
         return utilisateurAdminService.creerUtilisateur(request);
     }
 }

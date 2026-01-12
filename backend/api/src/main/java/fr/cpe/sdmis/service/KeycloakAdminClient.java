@@ -3,8 +3,6 @@ package fr.cpe.sdmis.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import fr.cpe.sdmis.dto.CreationUtilisateurRequest;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -22,8 +20,6 @@ import java.util.UUID;
 
 @Component
 public class KeycloakAdminClient {
-    private static final Logger LOGGER = LoggerFactory.getLogger(KeycloakAdminClient.class);
-
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
     private final String adminBaseUrl;
@@ -85,8 +81,8 @@ public class KeycloakAdminClient {
                 new HttpEntity<>(form, headers),
                 String.class
         );
-        LOGGER.error("Admin token call -> url={}, clientId={}", tokenUrl, clientId);
-        LOGGER.error("Admin token response code={}, body={}", resp.getStatusCode(), resp.getBody());
+        System.out.println("Admin token call -> url=" + tokenUrl + ", clientId=" + clientId);
+        System.out.println("Admin token response code=" + resp.getStatusCode() + ", body=" + resp.getBody());
         if (!resp.getStatusCode().is2xxSuccessful()) {
             throw new IllegalStateException("Echec récupération token admin (HTTP " + resp.getStatusCode() + ")");
         }
@@ -109,25 +105,64 @@ public class KeycloakAdminClient {
     }
 
     private String findGroupId(String groupName, String token) {
-        ResponseEntity<String> resp = restTemplate.exchange(
-                adminBaseUrl + "/groups?search=" + groupName,
-                HttpMethod.GET,
-                new HttpEntity<>(bearerHeaders(token)),
-                String.class
-        );
+        // 1) Recherche directe (inclut éventuellement des sous-groupes si briefRepresentation=false)
         try {
-            JsonNode arr = objectMapper.readTree(resp.getBody());
+            ResponseEntity<String> searchResp = restTemplate.exchange(
+                    adminBaseUrl + "/groups?search=" + groupName + "&briefRepresentation=false",
+                    HttpMethod.GET,
+                    new HttpEntity<>(bearerHeaders(token)),
+                    String.class
+            );
+            JsonNode arr = objectMapper.readTree(searchResp.getBody());
             if (arr.isArray()) {
                 for (JsonNode node : arr) {
-                    if (node.hasNonNull("name") && groupName.equals(node.get("name").asText())) {
-                        return node.get("id").asText();
+                    String found = findGroupIdRecursive(node, groupName);
+                    if (found != null) {
+                        return found;
                     }
                 }
             }
         } catch (Exception e) {
             throw new IllegalStateException("Recherche groupe échouée : " + e.getMessage(), e);
         }
+
+        // 2) Fallback : liste racine + sous-groupes (briefRepresentation=false pour récupérer subGroups)
+        try {
+            ResponseEntity<String> resp = restTemplate.exchange(
+                    adminBaseUrl + "/groups?briefRepresentation=false",
+                    HttpMethod.GET,
+                    new HttpEntity<>(bearerHeaders(token)),
+                    String.class
+            );
+            JsonNode roots = objectMapper.readTree(resp.getBody());
+            if (roots.isArray()) {
+                for (JsonNode node : roots) {
+                    String id = findGroupIdRecursive(node, groupName);
+                    if (id != null) {
+                        return id;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException("Recherche groupe échouée : " + e.getMessage(), e);
+        }
+
         throw new IllegalStateException("Groupe Keycloak introuvable : " + groupName);
+    }
+
+    private String findGroupIdRecursive(JsonNode node, String targetName) {
+        if (node.hasNonNull("name") && targetName.equals(node.get("name").asText()) && node.hasNonNull("id")) {
+            return node.get("id").asText();
+        }
+        if (node.has("subGroups") && node.get("subGroups").isArray()) {
+            for (JsonNode child : node.get("subGroups")) {
+                String found = findGroupIdRecursive(child, targetName);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 
     private void setTemporaryPassword(String userId, String password, String token) {
@@ -165,7 +200,6 @@ public class KeycloakAdminClient {
                 return arr.get(0).get("id").asText();
             }
         } catch (Exception e) {
-            LOGGER.warn("Impossible de récupérer l'id utilisateur via la recherche : {}", e.getMessage());
             System.out.println("Impossible de récupérer l'id utilisateur via la recherche : " + e.getMessage());
         }
         throw new IllegalStateException("Impossible de récupérer l'id Keycloak pour l'utilisateur " + username);

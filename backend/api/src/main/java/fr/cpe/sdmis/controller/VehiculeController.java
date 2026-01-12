@@ -8,7 +8,9 @@ import fr.cpe.sdmis.dto.VehiculeStatusUpdateRequest;
 import fr.cpe.sdmis.dto.VehiculeSnapshotResponse;
 import fr.cpe.sdmis.dto.EquipementVehiculeResponse;
 import fr.cpe.sdmis.dto.VehiculeCreateRequest;
+import fr.cpe.sdmis.dto.AgentVehiculeResponse;
 import fr.cpe.sdmis.service.VehiculeService;
+import fr.cpe.sdmis.repository.AgentRepository;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import jakarta.validation.Valid;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 import java.util.Map;
@@ -27,9 +30,11 @@ import java.util.UUID;
 public class VehiculeController {
 
     private final VehiculeService vehiculeService;
+    private final AgentRepository agentRepository;
 
-    public VehiculeController(VehiculeService vehiculeService) {
+    public VehiculeController(VehiculeService vehiculeService, AgentRepository agentRepository) {
         this.vehiculeService = vehiculeService;
+        this.agentRepository = agentRepository;
     }
 
     @GetMapping("/operationnels")
@@ -51,7 +56,7 @@ public class VehiculeController {
     }
 
     @GetMapping("/snapshots")
-    @PreAuthorize("hasAnyRole('API_Admin','API_Operateur','API_Simulation')")
+    @PreAuthorize("hasAnyRole('API_Admin','API_Operateur','API_Simulation','API_Terrain')")
     public List<VehiculeSnapshotResponse> snapshots() {
         return vehiculeService.snapshots();
     }
@@ -84,5 +89,13 @@ public class VehiculeController {
     @PreAuthorize("hasAnyRole('API_Simulation','API_Admin')")
     public void setEnIntervention(@Valid @RequestBody VehiculeStatusUpdateRequest request) {
         vehiculeService.setVehiculeEnIntervention(request);
+    }
+
+    @GetMapping("/agent/{agentId}")
+    @PreAuthorize("hasRole('API_Admin','API_Operateur','API_Terrain','API_Simulation')")
+    public ResponseEntity<AgentVehiculeResponse> vehiculePourAgent(@PathVariable("agentId") UUID agentId) {
+        return agentRepository.findVehiculeByAgentId(agentId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 }

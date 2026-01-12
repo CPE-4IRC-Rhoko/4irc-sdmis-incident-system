@@ -18,7 +18,7 @@ public class SseController {
     }
 
     @GetMapping(value = "/sse", produces = "text/event-stream")
-    @PreAuthorize("hasAnyRole('API_Admin','API_Operateur','API_Simulation')")
+    @PreAuthorize("hasAnyRole('API_Admin','API_Operateur','API_Simulation','API_Terrain')")
     public SseEmitter sse() {
         return sseService.subscribe();
     }

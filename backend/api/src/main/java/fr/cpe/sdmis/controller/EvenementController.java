@@ -46,7 +46,7 @@ public class EvenementController {
     }
 
     @GetMapping("/snapshots")
-    @PreAuthorize("hasAnyRole('API_Admin','API_Operateur','API_Simulation')")
+    @PreAuthorize("hasAnyRole('API_Admin','API_Operateur','API_Simulation','API_Terrain')")
     public List<EvenementSnapshotResponse> listSnapshots() {
         return evenementService.listSnapshots();
     }
