@@ -62,6 +62,10 @@ services:
       RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_DEFAULT_VHOST}
       DECISION_EVENT_QUEUE: decision.events
       DECISION_INTERVENTION_QUEUE: decision.interventions
+      # KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
+      # KEYCLOAK_JWKS_URI: ${KEYCLOAK_JWKS_URI}
+      # KEYCLOAK_CLIENT_ID_SWAGGER: ${KEYCLOAK_CLIENT_ID_SWAGGER}
+      # KEYCLOAK_CLIENT_SECRET_SWAGGER: ${KEYCLOAK_CLIENT_SECRET_SWAGGER}
     ports:
       - "${PORT_SDMIS_API}:8080"
     networks:
@@ -129,8 +133,8 @@ services:
       SDMIS_API_URL: http://sdmis-api:8080
       # KEYCLOAK_TOKEN_URL: http://keycloak:${PORT_INT_KEYCLOAK}/realms/SDMIS/protocol/openid-connect/token
       KEYCLOAK_TOKEN_URL: https://auth.4irc.hugorodrigues.fr/realms/SDMIS/protocol/openid-connect/token
-      KEYCLOAK_CLIENT_ID: sdmis-moteur-decision
-      KEYCLOAK_CLIENT_SECRET: sOnT5y8kAPCg52iTcvAJ1Vxt20umsECq
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID_MOTEUR}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET_MOTEUR}
     networks:
       - bridge_network
 
