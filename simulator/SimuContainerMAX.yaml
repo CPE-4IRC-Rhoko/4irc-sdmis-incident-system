@@ -1,38 +1,38 @@
 
-##Docker compose for local usage (opened ports on localhost)
+  ##Docker compose for local usage (opened ports on localhost)
 
-## COMMANDE A FAIRE : docker compose -f docker-compose.yaml.local up -d
-## TEST-SONAR
-services:
-  
-  osrm-extract:
-    image: osrm/osrm-backend
-    volumes:
-      # On monte le dossier "simulation" vers le dossier "/data" du conteneur
-      - ./donnees:/data 
-    command: >
-      sh -c "osrm-extract -p /opt/car.lua /data/rhone-alpes-260106.osm.pbf 
-      && osrm-partition /data/rhone-alpes-260106.osm
-      && osrm-customize /data/rhone-alpes-260106.osm"
+  ## COMMANDE A FAIRE : docker compose -f docker-compose.yaml.local up -d
+  ## TEST-SONAR
+  services:
+    
+    osrm-extract:
+      image: osrm/osrm-backend
+      volumes:
+        # On monte le dossier "simulation" vers le dossier "/data" du conteneur
+        - ./donnees:/data 
+      command: >
+        sh -c "osrm-extract -p /opt/car.lua /data/rhone-alpes-260106.osm.pbf 
+        && osrm-partition /data/rhone-alpes-260106.osm
+        && osrm-customize /data/rhone-alpes-260106.osm"
 
-  osrm-routed:
-    image: osrm/osrm-backend
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./donnees:/data
-    command: osrm-routed --algorithm mld /data/rhone-alpes-260106.osm
-    depends_on:
-      osrm-extract:
-        condition: service_completed_successfully
-  
-  osrm-frontend2:
-    image: osrm/osrm-frontend
-    container_name: osrm-ui
-    ports:
-      - "9966:9966"
-    environment:
-      - OSRM_BACKEND=http://localhost:5000
-    depends_on:
-      - osrm-routed
+    osrm-routed:
+      image: osrm/osrm-backend
+      ports:
+        - "5000:5000"
+      volumes:
+        - ./donnees:/data
+      command: osrm-routed --algorithm mld /data/rhone-alpes-260106.osm
+      depends_on:
+        osrm-extract:
+          condition: service_completed_successfully
+    
+    osrm-frontend2:
+      image: osrm/osrm-frontend
+      container_name: osrm-ui
+      ports:
+        - "9966:9966"
+      environment:
+        - OSRM_BACKEND=http://localhost:5000
+      depends_on:
+        - osrm-routed
 
