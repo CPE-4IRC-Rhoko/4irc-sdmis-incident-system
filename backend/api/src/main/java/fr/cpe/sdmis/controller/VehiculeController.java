@@ -1,4 +1,4 @@
-package fr.cpe.sdmis.api;
+package fr.cpe.sdmis.controller;
 
 import fr.cpe.sdmis.dto.VehiculeOperationnelResponse;
 import fr.cpe.sdmis.dto.VehiculeUpdateRequest;

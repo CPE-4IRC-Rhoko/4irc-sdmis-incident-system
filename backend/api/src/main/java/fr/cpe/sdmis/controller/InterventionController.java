@@ -1,4 +1,4 @@
-package fr.cpe.sdmis.api;
+package fr.cpe.sdmis.controller;
 
 import fr.cpe.sdmis.dto.InterventionResponse;
 import fr.cpe.sdmis.dto.InterventionSnapshotResponse;
