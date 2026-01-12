@@ -19,13 +19,13 @@ public class Incident {
 
                 // 1. Récupération des types d'événements
                 List<TypeEvenement> evenements = callAPI.recupererEvenements();
-                if (evenements != null && !evenements.isEmpty()) 
+                if (evenements != null && !evenements.isEmpty())
                   {
                     // 2. Sélection aléatoire
                     TypeEvenement evenementAleatoire = callAPI.selectionnerEvenementAleatoire(evenements);
                     // 3. Envoi de l'événement (GPS aléatoire inclus dans envoyerEvenement)
                     sendAPI.envoyerEvenement(evenementAleatoire);
-                  } 
+                  }
             } catch (IOException e) {
                 System.err.println("Erreur de connexion à l'API : " + e.getMessage());
             } catch (InterruptedException e) {
