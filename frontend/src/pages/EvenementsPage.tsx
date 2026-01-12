@@ -53,6 +53,23 @@ const poidsSeverite = (libelle: string | null | undefined) => {
   return 1
 }
 
+const poidsStatut = (statut: string | null | undefined) => {
+  const ordre = [
+    'déclaré',
+    'declare',
+    'en cours de traitement',
+    'en cours',
+    'en intervention',
+    'résolu',
+    'resolu',
+    'annulé',
+    'annule',
+  ]
+  const texte = (statut ?? '').toLowerCase()
+  const idx = ordre.findIndex((mot) => texte.includes(mot))
+  return idx === -1 ? ordre.length + 1 : idx
+}
+
 const classSeverite = (libelle: string) =>
   `badge severite-${niveauSeverite(libelle)}`
 
@@ -356,7 +373,11 @@ const appliquerSnapshotsEvenements = useCallback(
         return correspondTexte && correspondSeverite && correspondStatut
       })
       .sort(
-        (a, b) => poidsSeverite(b.nomSeverite) - poidsSeverite(a.nomSeverite),
+        (a, b) => {
+          const diffStatut = poidsStatut(a.nomStatut) - poidsStatut(b.nomStatut)
+          if (diffStatut !== 0) return diffStatut
+          return poidsSeverite(b.nomSeverite) - poidsSeverite(a.nomSeverite)
+        },
       )
   }, [evenementsRecents, filtreTexte, filtreSeverite, filtreStatut])
 
@@ -389,7 +410,9 @@ const appliquerSnapshotsEvenements = useCallback(
 
   const metriques = useMemo(() => {
     const severiteCritique = evenementsRecents.filter(
-      (evt) => niveauSeverite(evt.nomSeverite) === 'critique',
+      (evt) =>
+        estActif(evt.nomStatut) &&
+        niveauSeverite(evt.nomSeverite) === 'critique',
     ).length
     const besoinsRessources = evenementsRecents.filter(
       (evt) => (evt.nbVehiculesNecessaire ?? 0) > 0,

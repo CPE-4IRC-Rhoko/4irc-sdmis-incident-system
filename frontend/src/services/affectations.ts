@@ -1,4 +1,4 @@
-import { parseJson, withBaseUrl } from './api'
+import { withBaseUrl } from './api'
 
 export interface ValidationPayload {
   id_evenement: string
@@ -16,5 +16,21 @@ export const postValidationAffectation = async (
     },
     body: JSON.stringify(payload),
   })
-  await parseJson(response)
+  if (!response.ok) {
+    const message = await response.text()
+    throw new Error(
+      message?.trim().length
+        ? message
+        : `Appel validation échoué (${response.status})`,
+    )
+  }
+
+  // Certains endpoints renvoient un corps vide (204). On avale l’absence de JSON.
+  const text = await response.text()
+  if (!text) return
+  try {
+    JSON.parse(text)
+  } catch {
+    // Pas grave : la validation est déjà passée côté API.
+  }
 }

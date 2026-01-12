@@ -102,12 +102,38 @@
   padding: 0.55rem 0.65rem;
 }
 
+.vehicule-row-info {
+  flex: 1;
+}
+
+.status-pill {
+  background: #eef2ff;
+  color: #1e3a8a;
+  border-radius: 12px;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-left: 0.5rem;
+  white-space: nowrap;
+}
+
 .mini-map {
   height: 180px;
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid #dfe3eb;
   box-shadow: 0 8px 24px rgba(15, 31, 64, 0.08);
+}
+
+.mini-map.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #f7f9fd, #eef2f7);
+}
+
+.mini-map-placeholder {
+  text-align: center;
 }
 
 .gravite-label {
@@ -127,4 +153,22 @@
   background: #2f6fed;
   color: #ffffff;
   border-color: #2f6fed;
+}
+
+.modal-vehicules {
+  max-height: 340px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.scrollable {
+  overflow-y: auto;
+}
+
+.affectations-page .primary.disabled,
+.affectations-page .primary:disabled {
+  background: #e5e7eb;
+  color: #9ca3af;
+  cursor: not-allowed;
+  box-shadow: none;
 }

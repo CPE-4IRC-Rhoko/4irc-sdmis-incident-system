@@ -8,7 +8,7 @@ public record EvenementUpdateRequest(
         @NotBlank @Size(max = 255) String description,
         @NotNull Double latitude,
         @NotNull Double longitude,
-        @NotBlank String nomTypeEvenement,
-        @NotBlank String nomSeverite
+        @NotBlank @Size(max = 50) String nomTypeEvenement,
+        @NotBlank @Size(max = 50) String nomSeverite
 ) {
 }
