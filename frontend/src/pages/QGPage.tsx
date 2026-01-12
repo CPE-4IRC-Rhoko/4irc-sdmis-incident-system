@@ -764,9 +764,6 @@ function QGPage() {
         >
           Historique
         </button>
-        <div className="nav-separator" />
-        <button className="nav-item" type="button">
-        </button>
       </nav>
 
       {sectionQG === 'EVENEMENTS' ? (

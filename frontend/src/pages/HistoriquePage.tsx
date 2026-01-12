@@ -461,9 +461,6 @@ function HistoriquePage() {
         <div>
           <p className="muted small">Journal d’audit & temps réel</p>
           <h2>Historique des événements</h2>
-          <p className="muted small">
-            Visualisez le flux SSE (incidents, décisions, affectations, fins d’intervention).
-          </p>
         </div>
         <div className="history-actions">
           <div className="live-dot">

@@ -21,6 +21,22 @@ function App() {
   const peutVoirQG = isAdmin || roles.includes('ROLE_FRONT_Operateur')
   const peutVoirTerrain = isAdmin || roles.includes('ROLE_FRONT_Terrain')
 
+  const rolesFiltrees = useMemo(() => {
+    const ignores = new Set([
+      'offline_access',
+      'default-roles-sdmis-realm',
+      'uma_authorization',
+    ])
+    return roles.filter((role) => !ignores.has(role))
+  }, [roles])
+
+  const rolesAffiches =
+    rolesFiltrees.length > 0
+      ? rolesFiltrees.join(', ')
+      : isAdmin
+        ? 'Admin'
+        : 'Connecté'
+
   const ongletsVisibles: { id: OngletId; label: string }[] = useMemo(() => {
     const resultat: { id: OngletId; label: string }[] = []
     if (peutVoirQG && isAdmin) resultat.push({ id: 'QG', label: 'QG' })
@@ -83,9 +99,7 @@ function App() {
             </div>
             <div className="user-info">
               <span className="user-name">{profile?.fullName ?? 'Utilisateur'}</span>
-              <span className="user-role">
-                {isAdmin ? 'Admin' : roles.join(', ') || 'Connecté'}
-              </span>
+              <span className="user-role">{rolesAffiches}</span>
             </div>
           </button>
           {menuOpen && (
@@ -97,6 +111,7 @@ function App() {
                 <div>
                   <strong>{profile?.fullName ?? 'Utilisateur'}</strong>
                   <p className="muted small">{profile?.email ?? ''}</p>
+                  <p className="muted small">{rolesAffiches}</p>
                 </div>
               </div>
               <button
