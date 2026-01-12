@@ -210,8 +210,8 @@ const ressourcesDepuisEtat = (
         type: 'Affecté',
         categorie: 'POMPIERS',
         disponibilite: 'OCCUPE',
-        latitude: evt.latitude,
-        longitude: evt.longitude,
+        latitude: vehicule?.latitude ?? evt.latitude,
+        longitude: vehicule?.longitude ?? evt.longitude,
         equipements:
           vehicule?.equipements?.map((eq) => ({
             nom: eq.nomEquipement,

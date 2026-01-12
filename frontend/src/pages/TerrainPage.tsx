@@ -10,9 +10,14 @@ import {
   type VehiculeSnapshot,
 } from '../services/sse'
 import { getEvenementsSnapshots } from '../services/evenements'
-import { getInterventionsSnapshots } from '../services/interventions'
+import {
+  getInterventionsSnapshots,
+  postClotureIntervention,
+  type ClotureInterventionPayload,
+} from '../services/interventions'
 import { getVehiculesSnapshots } from '../services/vehicules'
 import { fetchOsrmRoute } from '../services/osrm'
+import { getStoredRoles } from '../services/auth'
 import './TerrainPage.css'
 
 type TrajetAssocie = RouteTrace & {
@@ -157,6 +162,7 @@ const formatDuree = (seconds?: number) => {
 
 function TerrainPage() {
   const [vue, setVue] = useState<VueCarte>(vueTerrain)
+  const [roles] = useState<string[]>(getStoredRoles())
   const [evenements, setEvenements] = useState<Incident[]>([])
   const [evenementsApi, setEvenementsApi] = useState<EvenementApi[]>([])
   const [vehicules, setVehicules] = useState<VehiculeSnapshot[]>([])
@@ -167,10 +173,18 @@ function TerrainPage() {
   const [routes, setRoutes] = useState<TrajetAssocie[]>([])
   const [popupEvenementId, setPopupEvenementId] = useState<string | null>(null)
   const [popupVehiculeId, setPopupVehiculeId] = useState<string | null>(null)
+  const [missionSelectionneeId, setMissionSelectionneeId] = useState<string | null>(null)
+  const [actionMessage, setActionMessage] = useState<string | null>(null)
+  const [actionErreur, setActionErreur] = useState<string | null>(null)
+  const [actionLoading, setActionLoading] = useState(false)
   const [etatChargement, setEtatChargement] = useState<
     'idle' | 'loading' | 'ready' | 'error'
   >('idle')
   const [erreurChargement, setErreurChargement] = useState<string | null>(null)
+  const [vehiculeSuiviId, setVehiculeSuiviId] = useState<string | null>(null)
+
+  const isAdmin = roles.includes('ROLE_FRONT_Admin')
+  const isTerrain = roles.includes('ROLE_FRONT_Terrain')
 
   const evenementsRef = useRef<EvenementApi[]>([])
   const vehiculesRef = useRef<VehiculeSnapshot[]>([])
@@ -453,6 +467,15 @@ const synchroniserRoutes = useCallback(() => {
     mettreAJourVehiculesSnapshots,
   ])
 
+  useEffect(() => {
+    if (isAdmin) return
+    if (vehiculeSuiviId) return
+    const premier = vehicules[0]?.id
+    if (premier) {
+      setVehiculeSuiviId(premier)
+    }
+  }, [isAdmin, vehiculeSuiviId, vehicules])
+
   const evenementsCarte = useMemo(
     () => evenements.filter((evt) => evt.statut !== 'CLOTURE'),
     [evenements],
@@ -495,12 +518,23 @@ const synchroniserRoutes = useCallback(() => {
       })
   }, [interventionsActives, vehicules])
 
+  const vehiculeFiltreId =
+    !isAdmin && isTerrain && vehiculeSuiviId ? vehiculeSuiviId : null
+
+  const vehiculesEngagesFiltres = useMemo(
+    () =>
+      vehiculeFiltreId
+        ? vehiculesEngages.filter((res) => res.id === vehiculeFiltreId)
+        : vehiculesEngages,
+    [vehiculesEngages, vehiculeFiltreId],
+  )
+
   const missions = useMemo(() => {
     const mapEvenements = new Map(evenementsApi.map((evt) => [evt.id, evt]))
     const mapVehicules = new Map(vehicules.map((veh) => [veh.id, veh]))
     const mapRoutes = new Map(routes.map((route) => [route.id, route]))
 
-    return interventionsActives
+    const missionList = interventionsActives
       .map((intervention) => {
         const vehicule = mapVehicules.get(intervention.idVehicule)
         const evenement = mapEvenements.get(intervention.idEvenement)
@@ -521,26 +555,83 @@ const synchroniserRoutes = useCallback(() => {
         intervention: InterventionSnapshot
         route?: TrajetAssocie
       }>
+    return missionList
   }, [evenementsApi, interventionsActives, routes, vehicules])
+
+  const missionsFiltrees = useMemo(
+    () =>
+      vehiculeFiltreId
+        ? missions.filter((mission) => mission.vehicule.id === vehiculeFiltreId)
+        : missions,
+    [missions, vehiculeFiltreId],
+  )
+
+  useEffect(() => {
+    if (!missionSelectionneeId && missionsFiltrees.length > 0) {
+      setMissionSelectionneeId(missionsFiltrees[0].id)
+    }
+    if (missionSelectionneeId) {
+      const existe = missionsFiltrees.some(
+        (mission) => mission.id === missionSelectionneeId,
+      )
+      if (!existe) {
+        setMissionSelectionneeId(missionsFiltrees[0]?.id ?? null)
+      }
+    }
+  }, [missionSelectionneeId, missionsFiltrees])
 
   const ressourcesPourCarte = useMemo(
     () =>
-      vehiculesEngages.filter((res) =>
+      vehiculesEngagesFiltres.filter((res) =>
         isValidCoord(res.latitude, res.longitude),
       ),
-    [vehiculesEngages],
+    [vehiculesEngagesFiltres],
   )
 
   const routesPourCarte = useMemo<RouteTrace[]>(
-    () =>
-      routes
+    () => {
+      const mapVehicules = new Map(vehicules.map((veh) => [veh.id, veh]))
+      return routes
+        .filter((route) => !vehiculeFiltreId || route.idVehicule === vehiculeFiltreId)
         .filter((route) => route.coordinates.length > 1)
-        .map((route) => ({
-          id: route.id,
-          coordinates: route.coordinates,
-          color: route.color,
-        })),
-    [routes],
+        .map((route) => {
+          const vehicule = mapVehicules.get(route.idVehicule)
+          if (!vehicule) {
+            return {
+              id: route.id,
+              coordinates: route.coordinates,
+              color: route.color,
+            }
+          }
+          // Cherche le point de la route le plus proche de la position courante du véhicule.
+          let bestIndex = 0
+          let bestScore = Number.POSITIVE_INFINITY
+          route.coordinates.forEach(([lon, lat], idx) => {
+            const dx = lon - vehicule.longitude
+            const dy = lat - vehicule.latitude
+            const score = dx * dx + dy * dy
+            if (score < bestScore) {
+              bestScore = score
+              bestIndex = idx
+            }
+          })
+          const remaining = route.coordinates.slice(bestIndex) as Array<
+            [number, number]
+          >
+          // Replace le premier point par la position courante pour éviter un "saut".
+          const coordinates: Array<[number, number]> =
+            remaining.length >= 2
+              ? ([[vehicule.longitude, vehicule.latitude] as [number, number], ...remaining.slice(1)])
+              : (route.coordinates as Array<[number, number]>)
+
+          return {
+            id: route.id,
+            coordinates,
+            color: route.color,
+          }
+        })
+    },
+    [routes, vehiculeFiltreId, vehicules],
   )
 
   const centrerSurMission = useCallback(
@@ -591,14 +682,106 @@ const synchroniserRoutes = useCallback(() => {
     }
   }
 
+  const missionSelectionnee = useMemo(
+    () => missionsFiltrees.find((mission) => mission.id === missionSelectionneeId) ?? null,
+    [missionSelectionneeId, missionsFiltrees],
+  )
+
+  const peutCloturer = useMemo(() => {
+    if (!missionSelectionnee) return false
+    if (isAdmin) return true
+    if (isTerrain && vehiculeSuiviId) {
+      return missionSelectionnee.vehicule.id === vehiculeSuiviId
+    }
+    return false
+  }, [isAdmin, isTerrain, missionSelectionnee, vehiculeSuiviId])
+
+  const cloturerIntervention = useCallback(
+    async (mission: {
+      vehicule: VehiculeSnapshot
+      evenement: EvenementApi
+    }) => {
+      setActionErreur(null)
+      setActionMessage(null)
+      setActionLoading(true)
+      const payload: ClotureInterventionPayload = {
+        id_evenement: mission.evenement.id,
+        id_vehicule: mission.vehicule.id,
+      }
+      try {
+        await postClotureIntervention(payload)
+        setActionMessage('Intervention clôturée.')
+        // Optimiste : retirer l’intervention locale + route associée
+        setInterventions((prev) =>
+          prev.filter(
+            (intervention) =>
+              !(
+                intervention.idEvenement === mission.evenement.id &&
+                intervention.idVehicule === mission.vehicule.id
+              ),
+          ),
+        )
+        interventionsRef.current = interventionsRef.current.filter(
+          (intervention) =>
+            !(
+              intervention.idEvenement === mission.evenement.id &&
+              intervention.idVehicule === mission.vehicule.id
+            ),
+        )
+        const key = `${mission.vehicule.id}-${mission.evenement.id}`
+        delete routesRef.current[key]
+        setRoutes(Object.values(routesRef.current))
+        setMissionSelectionneeId(null)
+      } catch (error) {
+        setActionErreur(
+          error instanceof Error
+            ? error.message
+            : 'Clôture impossible pour le moment.',
+        )
+      } finally {
+        setActionLoading(false)
+      }
+    },
+    [],
+  )
+
   return (
     <div className="terrain-wrapper">
+      <div className="terrain-topline">
+        <div>
+          <p className="muted small">Surveillance terrain</p>
+          <h2>Carte admin temps réel</h2>
+        </div>
+        {!isAdmin && (
+          <div className="terrain-selection">
+            <label htmlFor="vehicule-select">Véhicule suivi</label>
+            <select
+              id="vehicule-select"
+              value={vehiculeSuiviId ?? ''}
+              onChange={(e) => setVehiculeSuiviId(e.target.value || null)}
+            >
+              <option value="">Sélectionner un véhicule</option>
+              {vehicules.map((veh) => (
+                <option key={veh.id} value={veh.id}>
+                  {veh.plaqueImmat ?? veh.id.slice(0, 8)}
+                </option>
+              ))}
+            </select>
+            {!vehiculeSuiviId && (
+              <p className="muted small">
+                Choisissez votre véhicule pour afficher le suivi.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="terrain-grid">
         <section className="terrain-map-card">
           <div className="terrain-map-head">
             <div>
-              <p className="muted small">Surveillance terrain</p>
-              <h2>Carte admin temps réel</h2>
+              <p className="muted small">Carte temps réel</p>
+              <h3>Trajets vers l&apos;événement assigné</h3>
             </div>
             {etatChargement === 'loading' && (
               <span className="pill-soft">Chargement…</span>
@@ -656,12 +839,67 @@ const synchroniserRoutes = useCallback(() => {
             </div>
             <div className="terrain-counter">
               <span className="counter-label">Événements actifs</span>
-              <strong>{evenementsCarte.length}</strong>
+              <strong>{missionsFiltrees.length}</strong>
               <span className="counter-sub">
-                {interventionsActives.length} intervention(s)
+                {missionsFiltrees.length} intervention(s)
               </span>
             </div>
           </div>
+          {missionSelectionnee && (
+            <div className="terrain-mission-detail">
+              <div className="mission-detail-head">
+                <div>
+                  <p className="muted small">Intervention en cours</p>
+                  <h4>{missionSelectionnee.evenement.nomTypeEvenement ?? 'Événement'}</h4>
+                  <p className="muted small">
+                    {missionSelectionnee.evenement.description ?? 'Description indisponible'}
+                  </p>
+                </div>
+                <span className="pill pill-vehicule">
+                  {missionSelectionnee.intervention.statusIntervention}
+                </span>
+              </div>
+              <div className="mission-detail-grid">
+                <div>
+                  <p className="muted small">Véhicule</p>
+                  <strong>{missionSelectionnee.vehicule.plaqueImmat ?? missionSelectionnee.vehicule.id.slice(0, 8)}</strong>
+                </div>
+                <div>
+                  <p className="muted small">Distance restante</p>
+                  <strong>{formatDistance(missionSelectionnee.route?.distance)}</strong>
+                </div>
+                <div>
+                  <p className="muted small">Durée estimée</p>
+                  <strong>{formatDuree(missionSelectionnee.route?.duration)}</strong>
+                </div>
+              </div>
+              {actionErreur && <p className="pill-error">{actionErreur}</p>}
+              {actionMessage && <p className="pill-soft">{actionMessage}</p>}
+              <div className="mission-detail-actions">
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => missionSelectionnee && centrerSurMission({
+                    vehicule: missionSelectionnee.vehicule,
+                    evenement: missionSelectionnee.evenement,
+                  })}
+                >
+                  Recentrer
+                </button>
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={!peutCloturer || actionLoading}
+                  onClick={() => missionSelectionnee && cloturerIntervention({
+                    vehicule: missionSelectionnee.vehicule,
+                    evenement: missionSelectionnee.evenement,
+                  })}
+                >
+                  {actionLoading ? 'Clôture...' : 'Clôturer l’intervention'}
+                </button>
+              </div>
+            </div>
+          )}
           <div className="terrain-side-head">
             <div>
               <p className="muted small">Suivi des trajets</p>
@@ -669,17 +907,18 @@ const synchroniserRoutes = useCallback(() => {
             </div>
           </div>
           <div className="terrain-missions">
-            {missions.map((mission) => (
+            {missionsFiltrees.map((mission) => (
               <button
                 key={mission.id}
                 type="button"
-                className="terrain-mission"
-                onClick={() =>
+                className={`terrain-mission ${missionSelectionneeId === mission.id ? 'active' : ''}`}
+                onClick={() => {
+                  setMissionSelectionneeId(mission.id)
                   centrerSurMission({
                     vehicule: mission.vehicule,
                     evenement: mission.evenement,
                   })
-                }
+                }}
               >
                 <div className="mission-top">
                   <span
@@ -704,7 +943,7 @@ const synchroniserRoutes = useCallback(() => {
                 </div>
               </button>
             ))}
-            {missions.length === 0 && (
+            {missionsFiltrees.length === 0 && (
               <p className="muted small">Aucun véhicule en route actuellement.</p>
             )}
           </div>
