@@ -11,7 +11,6 @@ import java.util.Random;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 
 public class CallAPI {
 
@@ -106,26 +105,4 @@ public class CallAPI {
         int indexAleatoire = random.nextInt(evenements.size());
         return evenements.get(indexAleatoire);
     }
-
-    /**
-     * Méthode principale pour tester
-     **/
-    /*
-    public static void main(String[] args) {
-        CallAPI callAPI = new CallAPI();
-
-        try {
-
-            //EVENEMENTS ALEATOIRES
-            List<TypeEvenement> evenements = callAPI.recupererEvenements();
-            TypeEvenement evenementsAleatoire = callAPI.selectionnerEvenementAleatoire(evenements);
-            System.out.println("Événement récupéré :");
-            System.out.println(evenementsAleatoire);
-
-        } catch (IOException | InterruptedException e) {
-            System.err.println("Erreur lors de l'appel API : " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-    */
 }

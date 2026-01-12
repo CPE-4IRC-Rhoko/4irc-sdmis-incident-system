@@ -205,6 +205,9 @@ public class VehiculeRepository {
 
         if (request.ressources() != null) {
             request.ressources().forEach((nom, contenance) -> {
+                if(nom == "Inconnu") {
+                    return;
+                }
                 MapSqlParameterSource resParams = new MapSqlParameterSource()
                         .addValue("plaque", request.plaqueImmat())
                         .addValue("nom", nom)

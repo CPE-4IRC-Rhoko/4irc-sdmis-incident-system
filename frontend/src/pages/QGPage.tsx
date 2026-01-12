@@ -135,6 +135,9 @@ const disponibiliteDepuisStatutVehicule = (
   statut: string,
 ): Ressource['disponibilite'] => {
   const texte = (statut ?? '').toLowerCase()
+  if (texte.includes('proposit')) {
+    return 'DISPONIBLE'
+  }
   if (
     texte.includes('intervention') ||
     texte.includes('cours') ||
@@ -153,6 +156,7 @@ const interventionEstActive = (intervention: InterventionSnapshot) => {
     statut.includes('annul') ||
     statut.includes('term') ||
     statut.includes('clos') ||
+    statut.includes('attent') ||
     intervention.dateFinIntervention
   ) {
     return false
@@ -646,15 +650,6 @@ function QGPage() {
     }
   }, [])
 
-  const derniereMiseAJour = useMemo(
-    () =>
-      new Date().toLocaleTimeString('fr-FR', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-    [evenements, ressources],
-  )
-
   const evenementsCarte = useMemo(
     () => evenements.filter((evt) => evt.statut !== 'CLOTURE'),
     [evenements],
@@ -665,15 +660,30 @@ function QGPage() {
     [evenements],
   )
 
-  const ressourcesEngagees = useMemo(
-    () => ressources.filter((res) => res.disponibilite === 'OCCUPE'),
+  const ressourcesVisibles = useMemo(
+    () => ressources.filter((res) => res.disponibilite !== 'HORS_LIGNE'),
     [ressources],
   )
 
+  const ressourcesDispoOuProposition = useMemo(
+    () =>
+      ressourcesVisibles.filter(
+        (res) =>
+          res.disponibilite === 'DISPONIBLE' ||
+          (res.statutBrut ?? '').toLowerCase().includes('proposit'),
+      ),
+    [ressourcesVisibles],
+  )
+
+  const ressourcesEngagees = useMemo(
+    () => ressourcesVisibles.filter((res) => res.disponibilite === 'OCCUPE'),
+    [ressourcesVisibles],
+  )
+
   const tauxEngagement =
-    ressources.length === 0
+    ressourcesVisibles.length === 0
       ? 0
-      : Math.round((ressourcesEngagees.length / ressources.length) * 100)
+      : Math.round((ressourcesEngagees.length / ressourcesVisibles.length) * 100)
 
   const evenementsPrioritaires = useMemo(() => {
     const actifs = evenementsApi.filter((evt) => !estStatutCloture(evt.nomStatut))
@@ -690,7 +700,7 @@ function QGPage() {
       CategorieRessource | 'AUTRE',
       { total: number; dispo: number; occupe: number; horsLigne: number }
     >()
-    ressources.forEach((res) => {
+    ressourcesVisibles.forEach((res) => {
       const cle = res.categorie ?? 'AUTRE'
       const groupe =
         aggregates.get(cle) ??
@@ -702,7 +712,7 @@ function QGPage() {
       aggregates.set(cle, groupe)
     })
     return aggregates
-  }, [ressources])
+  }, [ressourcesVisibles])
 
   return (
     <div className="qg-dashboard">
@@ -888,7 +898,6 @@ function QGPage() {
             <header className="panel-header">
               <div>
                 <p className="muted">Situation Temps Réel</p>
-                <p className="small">Dernière mise à jour : {derniereMiseAJour}</p>
               </div>
             </header>
 
@@ -899,8 +908,8 @@ function QGPage() {
                 <p className="small accent">Suivi en temps réel</p>
               </div>
               <div className="stat-card">
-                <p className="muted">Unités terrain</p>
-                <h3>{ressources.length}</h3>
+                <p className="muted">Unités terrain dispo</p>
+                <h3>{ressourcesDispoOuProposition.length}</h3>
                 <p className="small accent">
                   {ressourcesEngagees.length} engagées · {tauxEngagement}%
                 </p>

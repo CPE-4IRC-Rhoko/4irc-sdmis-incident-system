@@ -6,6 +6,7 @@ import time
 import sys
 import os
 from datetime import datetime, timezone
+from dotenv import load_dotenv
 
 # Nom du fichier de configuration
 CONFIG_FILE = "config.json"
@@ -15,14 +16,29 @@ current_token = None
 
 
 def charger_config():
-    # Charge la configuration depuis le fichier JSON.
+    """Charge la configuration JSON et surcharge avec le .env"""
+    # 1. Charger les variables d'environnement du .env
+    load_dotenv()
+
     if not os.path.exists(CONFIG_FILE):
         print(f"Erreur : Le fichier {CONFIG_FILE} est introuvable.")
-        print("   -> Veuillez créer ce fichier à côté du script.")
         sys.exit(1)
 
     with open(CONFIG_FILE, 'r') as f:
-        return json.load(f)
+        config = json.load(f)
+
+    # 2. Injecter le secret venant du .env dans la config chargée
+    secret_env = os.getenv("KEYCLOAK_CLIENT_SECRET")
+
+    if secret_env:
+        # On écrase la valeur du JSON par celle du .env
+        config["keycloak"]["client_secret"] = secret_env
+    else:
+        print("ATTENTION : Variable KEYCLOAK_CLIENT_SECRET introuvable dans le .env")
+        # Optionnel : Arrêter le script si pas de secret
+        # sys.exit(1)
+
+    return config
 
 
 def trouver_port_microbit(config_port):

@@ -1,106 +1,66 @@
 package org.example;
 
-import okhttp3.*;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.IOException;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 public class VehiculeGPS {
-    private static final String GEO_API_URL = "https://geo.api.gouv.fr/communes?nom=Lyon&fields=code,nom,bbox";
-    private final OkHttpClient client = new OkHttpClient();
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public double[] getBbox() throws IOException
+    private static final double VITESSE_KMH = 200.0;
+    private static final int RAFRAICHISSEMENT_MS = 100;
+    private static final double DISTANCE_PAR_PAS = (VITESSE_KMH / 3.6) * (RAFRAICHISSEMENT_MS / 1000.0);
+
+    public static void main(String[] args)
     {
-        Request request = new Request.Builder()
-                .url(GEO_API_URL)
-                .build();
+        AuthService authService = new AuthService();
+        CalllAPIVehicule apiCaller = new CalllAPIVehicule();
+        MicrobitSender emetteur = new MicrobitSender("COM3");
+        try { Thread.sleep(2000); } catch (Exception e) {}
 
-        try (Response response = client.newCall(request).execute()) {
-            if (!response.isSuccessful()) throw new IOException("Erreur API Geo.gouv.fr: " + response);
+        DebutIntervention action = new DebutIntervention();
+        FinIntervention cloture = new FinIntervention();
+        Trajet trajetSimu = new Trajet();
 
-            String body = response.body().string();
-            JsonNode root = objectMapper.readTree(body);
-            JsonNode communeNode = root.get(0);
-            ;
+        // Registre pour ne pas lancer deux fois le même véhicule
+        Set<String> vehiculesEnCours = Collections.synchronizedSet(new HashSet<>());
 
-            // --- RECUP DES POINT DE LA VILLE ---
+        System.out.println(">>> Surveillance des incidents démarrée...");
 
-            //On récupère les coordonnées des points GPS
-            JsonNode coordonne = communeNode.path("bbox").path("coordinates").get(0);
+        while (true) { // Boucle infinie
+            try
+            {
+                // Dans ta boucle while(true)...
+                String token = authService.getAccessToken(); // On récupère le token ici
 
-            //System.out.println(body);
-            //System.out.println(coordonne);
-
-            // --- DETERMINE LE MAX ET LE MIN DE CES POINTS ---
-
-            // Initialiser les variables pour stocker les extrémités
-            double minLon = Double.MAX_VALUE;
-            double maxLon = Double.MIN_VALUE;
-            double minLat = Double.MAX_VALUE;
-            double maxLat = Double.MIN_VALUE;
-
-            // On stock chaque point dans une variable afin de pouvoir les réutiliser
-            for (JsonNode point : coordonne) {
-                //System.out.println(point);
-                double lon = point.get(0).asDouble(); // index 0 → long
-                double lat = point.get(1).asDouble(); // index 1 → lat
-
-                // longitude minimale
-                if (lon < minLon) {
-                    minLon = lon;
+                // 1. On récupère la liste actuelle des véhicules en route depuis l'API
+                List<CalllAPIVehicule.VehiculeData> listeVehicules = apiCaller.fetchVehiculesEnRoute(token);
+                // (Pour chaque véhicule retourné par l'API....)
+                for (CalllAPIVehicule.VehiculeData v : listeVehicules)
+                {
+                    // 2. Si le véhicule n'est PAS déjà en train de rouler
+                    if (!vehiculesEnCours.contains(v.idVehicule))
+                    {
+                        vehiculesEnCours.add(v.idVehicule); // On le marque comme "occupé"
+                        new Thread(() -> {
+                            try {
+                                System.out.println("\n>>> NOUVEAU VÉHICULE DÉTECTÉ : " + v.plaqueImmat);
+                                trajetSimu.executer(v, emetteur);
+                                action.gererIntervention(v, emetteur, token);
+                                //cloture.cloturerIntervention(v, token);
+                            } finally {
+                                // 3. UNE FOIS FINI : On le retire du registre pour qu'il puisse repartir sur une autre mission plus tard
+                                vehiculesEnCours.remove(v.idVehicule);
+                                System.out.println(">>> Véhicule " + v.idVehicule + " a terminé sa mission.");
+                            }
+                        }).start();
+                    }
                 }
-                // longitude maximale
-                if (lon > maxLon) {
-                    maxLon = lon;
-                }
+                // 4. On attend 10 secondes avant de redemander à l'API
+                Thread.sleep(10000);
 
-                // latitude minimale
-                if (lat < minLat) {
-                    minLat = lat;
-                }
-                // latitude maximale
-                if (lat > maxLat) {
-                    maxLat = lat;
-                }
-            }
-
-            /*
-            System.out.println("\n===Extrémité de la BBOX ===");
-            System.out.printf("  Longitude Min : %.5f\n", minLon);
-            System.out.printf("  Longitude Max : %.5f\n", maxLon);
-            System.out.printf("  Latitude Min  : %.5f\n", minLat);
-            System.out.printf("  Latitude Max  : %.5f\n", maxLat);
-            */
-
-            // --- GÉNÉRATION POINT ALÉATOIRE ---
-            Random rand = new Random();
-
-            double randomLat = minLat + (maxLat - minLat) * rand.nextDouble();
-            double randomLon = minLon + (maxLon - minLon) * rand.nextDouble();
-
-            /*
-            System.out.println("\n=== Point GPS aléatoire ===");
-            System.out.printf("Point aléatoire = lat= %.5f, lon= %.5f\n", randomLat, randomLon);
-            */
-
-            String url = String.format(
-                    Locale.US,
-                    "https://router.project-osrm.org/nearest/v1/driving/%.8f,%.8f",
-                    randomLon, randomLat
-            );
-
-            Request snapRequest = new Request.Builder().url(url).build();
-
-            try (Response snapResponse = client.newCall(snapRequest).execute()) {
-                JsonNode snapJson = objectMapper.readTree(snapResponse.body().string());
-                JsonNode location = snapJson.path("waypoints").get(0).path("location");
-
-                double roadLon = location.get(0).asDouble();
-                double roadLat = location.get(1).asDouble();
-
-                return new double[]{roadLat, roadLon};
+            } catch (Exception e) {
+                System.err.println("Erreur dans la boucle de surveillance : " + e.getMessage());
             }
         }
     }

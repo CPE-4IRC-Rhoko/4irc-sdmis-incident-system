@@ -8,6 +8,6 @@
             "url": "https://auth.4irc.hugorodrigues.fr",
             "realm": "SDMIS",
             "client_id": "sdmis-passerelle",
-            "client_secret": "3w9mDXeYARzhaIrVofZEluLtlaEYKzx0"
+            "client_secret": "ENV_VAR"
         }
 }
