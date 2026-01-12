@@ -845,8 +845,10 @@ const synchroniserRoutes = useCallback(() => {
             <div className="terrain-mission-detail">
               <div className="mission-detail-head">
                 <div>
-                  <p className="muted small">Intervention en cours</p>
-                  <h4>{missionSelectionnee.evenement.nomTypeEvenement ?? 'Événement'}</h4>
+              <p className="muted small">
+                {missionSelectionnee.intervention.statusIntervention ?? 'Intervention'}
+              </p>
+              <h4>{missionSelectionnee.evenement.nomTypeEvenement ?? 'Événement'}</h4>
                   <p className="muted small">
                     {missionSelectionnee.evenement.description ?? 'Description indisponible'}
                   </p>

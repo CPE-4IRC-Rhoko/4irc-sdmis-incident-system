@@ -80,8 +80,10 @@ function AffectationsPage() {
 
   const appliquerPropositionsSelection = useCallback(
     (propositions: Set<string>) => {
-      if (propositions.size === 0) return
-      setSelectionVehicules(new Set(propositions))
+      // Mode mono-véhicule : ne garder que la première proposition.
+      const first = propositions.values().next().value as string | undefined
+      if (!first) return
+      setSelectionVehicules(new Set([first]))
     },
     [],
   )
