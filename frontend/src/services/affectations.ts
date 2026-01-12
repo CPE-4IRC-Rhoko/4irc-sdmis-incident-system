@@ -1,4 +1,4 @@
-import { withBaseUrl } from './api'
+import { buildAuthHeaders, withBaseUrl } from './api'
 
 export interface ValidationPayload {
   id_evenement: string
@@ -10,10 +10,9 @@ export const postValidationAffectation = async (
 ): Promise<void> => {
   const response = await fetch(withBaseUrl('/api/interventions/validation'), {
     method: 'POST',
-    headers: {
+    headers: buildAuthHeaders({
       'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
+    }),
     body: JSON.stringify(payload),
   })
   if (!response.ok) {
