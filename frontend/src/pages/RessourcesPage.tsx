@@ -134,6 +134,7 @@ function RessourcesPage() {
   const [casernes, setCasernes] = useState<CaserneReference[]>([])
   const [equipementsRef, setEquipementsRef] = useState<EquipementReference[]>([])
   const [clesIdentifiants, setClesIdentifiants] = useState<string[]>([])
+  const [plaquesExistantes, setPlaquesExistantes] = useState<string[]>([])
   const [creationErreur, setCreationErreur] = useState<string | null>(null)
   const [creationSucces, setCreationSucces] = useState<string | null>(null)
   const [creationChargement, setCreationChargement] = useState(false)
@@ -141,6 +142,7 @@ function RessourcesPage() {
   const [, setInterventions] = useState<InterventionSnapshot[]>([])
   const interventionsRef = useRef<InterventionSnapshot[]>([])
   const evenementsMapRef = useRef<Record<string, string>>({})
+  const equipementsSelectionnes = formVehicule.equipements.length
 
   useEffect(() => {
     const controller = new AbortController()
@@ -213,10 +215,11 @@ function RessourcesPage() {
       setCreationSucces(null)
       setChargementReferences(true)
       try {
-        const [cles, casernesApi, equipementsApi] = await Promise.all([
+        const [cles, casernesApi, equipementsApi, vehiculesApi] = await Promise.all([
           getVehiculesIdentifiants(controller.signal),
           getCasernes(controller.signal),
           getEquipements(controller.signal),
+          getVehiculesSnapshots(controller.signal),
         ])
         setClesIdentifiants(
           cles
@@ -225,6 +228,11 @@ function RessourcesPage() {
         )
         setCasernes(casernesApi)
         setEquipementsRef(equipementsApi)
+        setPlaquesExistantes(
+          vehiculesApi
+            .map((vehicule) => vehicule.plaqueImmat?.trim())
+            .filter((plaque): plaque is string => !!plaque && plaque.length > 0),
+        )
         setFormVehicule((prev) => ({
           ...prev,
           idCaserne: prev.idCaserne || casernesApi[0]?.id || '',
@@ -250,6 +258,13 @@ function RessourcesPage() {
     }
   }, [isAdmin, modalInfo])
 
+  const normalizePlaque = useCallback(
+    (value: string) => value.trim().replace(/\s+/g, '').toLowerCase(),
+    [],
+  )
+  const plaqueSaisie = formVehicule.plaqueImmat.trim().toUpperCase()
+  const plaqueInvalide =
+    plaqueSaisie.length > 0 && (!/^[A-Z0-9]{7}$/.test(plaqueSaisie) || plaqueSaisie.length !== 7)
   const cleIdentSaisie = formVehicule.cleIdent.trim()
   const cleIdentExisteDeja = useMemo(
     () =>
@@ -259,6 +274,11 @@ function RessourcesPage() {
       ),
     [cleIdentSaisie, clesIdentifiants],
   )
+  const plaqueExisteDeja = useMemo(() => {
+    const current = normalizePlaque(formVehicule.plaqueImmat)
+    if (!current) return false
+    return plaquesExistantes.some((plaque) => normalizePlaque(plaque) === current)
+  }, [formVehicule.plaqueImmat, normalizePlaque, plaquesExistantes])
 
   useEffect(() => {
     const es = subscribeSdmisSse({
@@ -398,6 +418,16 @@ function RessourcesPage() {
         )
         return
       }
+      if (plaqueInvalide) {
+        setCreationErreur(
+          'L’immatriculation doit contenir exactement 7 caractères alphanumériques.',
+        )
+        return
+      }
+      if (plaqueExisteDeja) {
+        setCreationErreur('Cette immatriculation existe déjà en base, choisissez-en une autre.')
+        return
+      }
       if (cle.length !== 16) {
         setCreationErreur('La clé d’identification doit contenir exactement 16 caractères.')
         return
@@ -451,6 +481,7 @@ function RessourcesPage() {
     },
     [
       cleIdentSaisie,
+      plaqueExisteDeja,
       formVehicule.idCaserne,
       formVehicule.plaqueImmat,
       formVehicule.equipements,
@@ -698,16 +729,27 @@ function RessourcesPage() {
                 <input
                   type="text"
                   required
+                  maxLength={7}
                   value={formVehicule.plaqueImmat}
                   onChange={(e) =>
                     setFormVehicule((prev) => ({
                       ...prev,
-                      plaqueImmat: e.target.value,
+                      plaqueImmat: e.target.value.toUpperCase(),
                     }))
                   }
                   placeholder="AA123AA"
                   disabled={creationChargement || chargementReferences}
                 />
+                <p
+                  className={`form-helper small ${plaqueInvalide ? 'error' : 'muted'}`}
+                >
+                  {plaqueSaisie.length}/7 caractères.
+                </p>
+                {plaqueExisteDeja && (
+                  <div className="creation-alert">
+                    Cette immatriculation existe déjà en base, veuillez en saisir une autre.
+                  </div>
+                )}
               </label>
               <label>
                 Clé d’identification
@@ -761,19 +803,27 @@ function RessourcesPage() {
                   </option>
                 ))}
               </select>
-              <p className="form-helper muted small">
-                Sélection unique (liste fournie par l’API casernes).
-              </p>
             </label>
 
-            <div>
-              <p className="form-helper muted small">Équipements à embarquer</p>
-              <div className="equipements-grid">
+            <div className="equipements-section">
+              <div className="multibox-header">
+                <div>
+                  <p className="label">Équipements à embarquer</p>
+                  <p className="muted small">
+                    Sélection multiple — {equipementsSelectionnes} sélectionné
+                    {equipementsSelectionnes > 1 ? 's' : ''}
+                  </p>
+                </div>
+                <div className="selected-counter">
+                  {equipementsSelectionnes}
+                </div>
+              </div>
+              <div className="equipements-multibox">
                 {equipementsRef.length === 0 && (
                   <p className="muted small">Aucun équipement chargé.</p>
                 )}
                 {equipementsRef.map((eq) => (
-                  <label key={eq.id} className="checkbox">
+                  <label key={eq.id} className="multibox-item">
                     <input
                       type="checkbox"
                       checked={formVehicule.equipements.includes(eq.id)}
@@ -814,7 +864,10 @@ function RessourcesPage() {
                   creationChargement ||
                   chargementReferences ||
                   cleIdentExisteDeja ||
+                  plaqueInvalide ||
+                  plaqueExisteDeja ||
                   formVehicule.cleIdent.trim().length !== 16 ||
+                  formVehicule.plaqueImmat.trim().length !== 7 ||
                   !formVehicule.idCaserne
                 }
               >

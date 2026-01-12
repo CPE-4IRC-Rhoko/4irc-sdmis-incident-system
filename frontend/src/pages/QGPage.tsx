@@ -135,6 +135,9 @@ const disponibiliteDepuisStatutVehicule = (
   statut: string,
 ): Ressource['disponibilite'] => {
   const texte = (statut ?? '').toLowerCase()
+  if (texte.includes('proposit')) {
+    return 'DISPONIBLE'
+  }
   if (
     texte.includes('intervention') ||
     texte.includes('cours') ||
