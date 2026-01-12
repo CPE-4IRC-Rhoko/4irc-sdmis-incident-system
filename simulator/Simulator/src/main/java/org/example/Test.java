@@ -9,7 +9,7 @@ public class Test {
 
     public static void main(String[] args) {
         // --- CONFIGURATION ---
-        String urlApi = "http://localhost:8082/api/vehicules/en-route"; // Modifie cette URL selon ton test
+        String urlApi = "http://localhost:8082/api/vehicules/en-route";
         // ---------------------
 
         AuthService authService = new AuthService();

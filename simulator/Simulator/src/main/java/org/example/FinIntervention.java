@@ -16,7 +16,7 @@ public class FinIntervention {
     /**
      * Méthode pour clôturer l'intervention en envoyant un POST
      */
-    public void cloturerIntervention(CalllAPIVehicule.VehiculeData v) {
+    public void cloturerIntervention(CalllAPIVehicule.VehiculeData v, String token) {
         try {
             ObjectMapper mapper = new ObjectMapper();
 
@@ -33,6 +33,7 @@ public class FinIntervention {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(API_URL))
                     .header("Content-Type", "application/json") // Très important pour le POST
+                    .header("Authorization", "Bearer " + token)
                     .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                     .build();
 
@@ -41,8 +42,11 @@ public class FinIntervention {
             // 4. Envoyer et récupérer la réponse
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
-            if (response.statusCode() == 200 || response.statusCode() == 204) {
+            if (response.statusCode() == 200 || response.statusCode() == 204) 
+            {
                 System.out.println("Succès : Intervention clôturée pour le véhicule " + v.idVehicule);
+                // Retour du véhicule à la caserne
+                
             } else {
                 System.err.println("Erreur API lors de la clôture (" + response.statusCode() + ") : " + response.body());
             }

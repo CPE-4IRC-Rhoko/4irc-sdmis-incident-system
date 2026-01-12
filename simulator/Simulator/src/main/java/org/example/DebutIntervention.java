@@ -15,7 +15,7 @@ public class DebutIntervention {
     private static final int MISE_A_JOUR_MS = 500; 
     private static final String API_URL = "http://localhost:8082/api/vehicules/statut/en-intervention";
 
-    public void gererIntervention(CalllAPIVehicule.VehiculeData v, MicrobitSender emetteur) {
+    public void gererIntervention(CalllAPIVehicule.VehiculeData v, MicrobitSender emetteur, String token) {
         ObjectMapper mapper = new ObjectMapper();
         HttpClient client = HttpClient.newHttpClient();
 
@@ -28,6 +28,7 @@ public class DebutIntervention {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(API_URL))
                     .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + token)
                     .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                     .build();
             

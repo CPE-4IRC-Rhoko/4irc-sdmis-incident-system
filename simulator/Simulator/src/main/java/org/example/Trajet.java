@@ -37,15 +37,10 @@ public class Trajet
 
             if (coordinates.isMissingNode()) return;
 
-            System.out.println("\n--- TRACÉ COMPLET (FLUX BLEU) RÉCUPÉRÉ ---");
-            System.out.println(coordinates.toString()); 
-            System.out.println("Nombre de points pivots : " + coordinates.size());
-            System.out.println("------------------------------------------\n");
-
             String nomEquipement = v.getNomEquipement();
             Integer contenance = v.getContenanceCourante();
 
-            for (int i = 0; i < coordinates.size() - 1; i++) 
+            for (int i = 0; i < coordinates.size() - 1; i++)
             {
 
                 double lon1 = coordinates.get(i).get(0).asDouble();
@@ -57,7 +52,7 @@ public class Trajet
                 int nbPas = (int) (distSegment / DISTANCE_PAR_PAS);
                 if (nbPas < 1) nbPas = 1;
 
-                for (int j = 0; j <= nbPas; j++) 
+                for (int j = 0; j <= nbPas; j++)
                 {
                 
                     double fraction = (double) j / nbPas;
@@ -71,13 +66,13 @@ public class Trajet
                     Thread.sleep(RAFRAICHISSEMENT_MS);
                 }
             }
-        } catch (Exception e) 
+        } catch (Exception e)
         {
             System.err.println("Erreur trajet " + v.idVehicule + " : " + e.getMessage());
         }
     }
 
-    private double haversine(double lat1, double lon1, double lat2, double lon2) 
+    private double haversine(double lat1, double lon1, double lat2, double lon2)
     {
         final int R = 6371000;
         double dLat = Math.toRadians(lat2 - lat1);

@@ -13,6 +13,7 @@ public class VehiculeGPS {
 
     public static void main(String[] args)
     {
+        AuthService authService = new AuthService();
         CalllAPIVehicule apiCaller = new CalllAPIVehicule();
         MicrobitSender emetteur = new MicrobitSender("COM3");
         try { Thread.sleep(2000); } catch (Exception e) {}
@@ -29,21 +30,24 @@ public class VehiculeGPS {
         while (true) { // Boucle infinie
             try
             {
+                // Dans ta boucle while(true)...
+                String token = authService.getAccessToken(); // On récupère le token ici
+
                 // 1. On récupère la liste actuelle des véhicules en route depuis l'API
-                List<CalllAPIVehicule.VehiculeData> listeVehicules = apiCaller.fetchVehiculesEnRoute();
+                List<CalllAPIVehicule.VehiculeData> listeVehicules = apiCaller.fetchVehiculesEnRoute(token);
                 // (Pour chaque véhicule retourné par l'API....)
-                for (CalllAPIVehicule.VehiculeData v : listeVehicules) 
+                for (CalllAPIVehicule.VehiculeData v : listeVehicules)
                 {
                     // 2. Si le véhicule n'est PAS déjà en train de rouler
-                    if (!vehiculesEnCours.contains(v.idVehicule)) 
+                    if (!vehiculesEnCours.contains(v.idVehicule))
                     {
                         vehiculesEnCours.add(v.idVehicule); // On le marque comme "occupé"
                         new Thread(() -> {
                             try {
                                 System.out.println("\n>>> NOUVEAU VÉHICULE DÉTECTÉ : " + v.plaqueImmat);
                                 trajetSimu.executer(v, emetteur);
-                                action.gererIntervention(v, emetteur);
-                                //cloture.cloturerIntervention(v);
+                                action.gererIntervention(v, emetteur, token);
+                                //cloture.cloturerIntervention(v, token);
                             } finally {
                                 // 3. UNE FOIS FINI : On le retire du registre pour qu'il puisse repartir sur une autre mission plus tard
                                 vehiculesEnCours.remove(v.idVehicule);
