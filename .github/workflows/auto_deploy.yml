@@ -22,5 +22,5 @@ jobs:
             cd ${{ secrets.VPS_PATH }}
             git switch main
             git pull origin main
-            docker compose down
-            docker compose up -d --build
+            docker compose -f docker-compose.yaml down
+            docker compose -f docker-compose.yaml up -d --build
