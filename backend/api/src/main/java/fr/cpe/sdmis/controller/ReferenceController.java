@@ -58,7 +58,7 @@ public class ReferenceController {
     }
 
     @GetMapping("/equipements")
-    @PreAuthorize("hasRole('API_Admin')")
+    @PreAuthorize("hasAnyRole('API_Admin','API_Operateur','API_Simulation')")
     public List<Map<String, Object>> equipements() {
         return equipementRepository.findAll();
     }

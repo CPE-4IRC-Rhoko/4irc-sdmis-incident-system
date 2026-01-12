@@ -27,13 +27,13 @@ public class InterventionController {
     }
 
     @GetMapping("/terminees")
-    @PreAuthorize("hasAnyRole('API_Admin','API_Operateur','API_Simulation')")
+    @PreAuthorize("hasAnyRole('API_Admin','API_Terrain','API_Simulation')")
     public List<InterventionResponse> terminees() {
         return interventionRepository.findTerminees();
     }
 
     @GetMapping("/snapshots")
-    @PreAuthorize("hasAnyRole('API_Admin','API_Operateur','API_Simulation')")
+    @PreAuthorize("hasAnyRole('API_Admin','API_Operateur','API_Simulation','API_Terrain')")
     public List<InterventionSnapshotResponse> snapshots() {
         return interventionRepository.findSnapshots();
     }
