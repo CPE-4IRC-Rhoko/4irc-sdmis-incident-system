@@ -109,6 +109,7 @@ const evenementDepuisSnapshot = (snapshot: EvenementSnapshot): EvenementApi => (
   nbVehiculesNecessaire: snapshot.nbVehiculesNecessaire ?? null,
 })
 
+
 const interventionEstActive = (intervention: InterventionSnapshot) => {
   const statut = (intervention.statusIntervention ?? '').toLowerCase()
   if (
@@ -476,10 +477,26 @@ const synchroniserRoutes = useCallback(() => {
     }
   }, [isAdmin, vehiculeSuiviId, vehicules])
 
+  const vehiculeFiltreId =
+    !isAdmin && isTerrain && vehiculeSuiviId ? vehiculeSuiviId : null
+
   const interventionsActives = useMemo(
     () => interventions.filter(interventionEstActive),
     [interventions],
   )
+
+  const evenementsFiltrees = useMemo(() => {
+    const base = evenements.filter((evt) => evt.statut !== 'CLOTURE')
+    if (vehiculeFiltreId) {
+      const ids = new Set(
+        interventionsActives
+          .filter((intervention) => intervention.idVehicule === vehiculeFiltreId)
+          .map((intervention) => intervention.idEvenement),
+      )
+      return base.filter((evt) => ids.has(evt.id))
+    }
+    return base
+  }, [evenements, interventionsActives, vehiculeFiltreId])
 
   const vehiculesEngages = useMemo<Ressource[]>(() => {
     const mapInterventions = new Map(
@@ -512,9 +529,6 @@ const synchroniserRoutes = useCallback(() => {
         } as Ressource
       })
   }, [interventionsActives, vehicules])
-
-  const vehiculeFiltreId =
-    !isAdmin && isTerrain && vehiculeSuiviId ? vehiculeSuiviId : null
 
   const vehiculesEngagesFiltres = useMemo(
     () =>
@@ -624,7 +638,7 @@ const synchroniserRoutes = useCallback(() => {
             coordinates,
             color: route.color,
           }
-        })
+      })
     },
     [routes, vehiculeFiltreId, vehicules],
   )
@@ -783,7 +797,7 @@ const synchroniserRoutes = useCallback(() => {
           </div>
           <div className="terrain-map">
             <MapView
-              evenements={evenements}
+              evenements={evenementsFiltrees}
               ressources={ressourcesPourCarte}
               routes={routesPourCarte}
               evenementSelectionneId={popupEvenementId ?? undefined}
