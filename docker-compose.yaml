@@ -79,7 +79,6 @@ services:
       RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_DEFAULT_VHOST}
       DECISION_EVENT_QUEUE: decision.events
       DECISION_INTERVENTION_QUEUE: decision.interventions
-      # Keycloak (VPS -> URL publique exposée par le reverse-proxy)
       KEYCLOAK_ISSUER_URI: https://auth.4irc.hugorodrigues.fr/realms/SDMIS
       KEYCLOAK_JWKS_URI: https://auth.4irc.hugorodrigues.fr/realms/SDMIS/protocol/openid-connect/certs
       KEYCLOAK_CLIENT_ID_SWAGGER: ${KEYCLOAK_CLIENT_ID_SWAGGER}

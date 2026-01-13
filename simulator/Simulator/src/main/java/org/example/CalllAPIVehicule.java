@@ -11,7 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class CalllAPIVehicule {
 
-    private static final String API_URL = "http://localhost:8082/api/vehicules/en-route";
+    private static final String API_URL = "https://api.4irc.hugorodrigues.fr/api/vehicules/en-route";
 
     public static class Equipement
     {

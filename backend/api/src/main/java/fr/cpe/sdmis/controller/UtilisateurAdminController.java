@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/admin/utilisateurs")
+@RequestMapping("/api/admin/utilisateur")
 public class UtilisateurAdminController {
 
     private final UtilisateurAdminService utilisateurAdminService;
@@ -20,7 +20,7 @@ public class UtilisateurAdminController {
         this.utilisateurAdminService = utilisateurAdminService;
     }
 
-    @PostMapping
+    @PostMapping("/create")
     @PreAuthorize("hasRole('API_Admin')")
     public CreationUtilisateurResponse creer(@Valid @RequestBody CreationUtilisateurRequest request) {
         System.out.println("Création d'un utilisateur admin avec le login : " + request);
