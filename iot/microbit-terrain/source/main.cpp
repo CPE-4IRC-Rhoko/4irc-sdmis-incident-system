@@ -44,10 +44,10 @@ uint8_t keysHMAC[30][16] = {
 // Structure de données d'un camion
 struct EtatCamion {
     bool actif;         
-    ManagedString id;
-    ManagedString geo;  
-    ManagedString res;  
-    ManagedString time;  
+    char id[10];    // Ex: "AA100AA"
+    char geo[20];   // Ex: "45.12,4.89"
+    char res[20];   // Ex: "Eau=100"
+    char time[10];  // Ex: "12:00:00"
     int sequence;       
     bool btnAppuye;     
 };
@@ -171,10 +171,18 @@ void mettreAJourEtat(ManagedString ligneJava) {
     int idx = getIndexFromID(sId);
     
     if (idx != -1) {
-        flotte[idx].id = sId; // On stocke l'ID texte
-        flotte[idx].geo = extractValue(ligneJava, "Geo:");
-        flotte[idx].res = extractValue(ligneJava, "Res:");
-        flotte[idx].time = extractValue(ligneJava, "Time:");
+        strncpy(flotte[idx].id, sId.toCharArray(), 9); flotte[idx].id[9] = '\0';
+        
+        ManagedString sGeo = extractValue(ligneJava, "Geo:");
+        strncpy(flotte[idx].geo, sGeo.toCharArray(), 19); flotte[idx].geo[19] = '\0';
+
+        ManagedString sRes = extractValue(ligneJava, "Res:");
+        strncpy(flotte[idx].res, sRes.toCharArray(), 19); flotte[idx].res[19] = '\0';
+        
+        ManagedString sTime = extractValue(ligneJava, "Time:");
+        strncpy(flotte[idx].time, sTime.toCharArray(), 9); flotte[idx].time[9] = '\0';
+        // ---------------------------------
+        
         flotte[idx].actif = true; 
         
         // Feedback visuel court
@@ -188,18 +196,22 @@ void mettreAJourEtat(ManagedString ligneJava) {
 bool envoyerCamionRadio(int index) {
     if (!flotte[index].actif) return false;
 
-    ManagedString idString = flotte[index].id;
+    // On reconstruit l'objet String juste pour l'envoi
+    ManagedString idString(flotte[index].id);
+    ManagedString geoString(flotte[index].geo);
+    ManagedString resString(flotte[index].res);
+    ManagedString timeString(flotte[index].time);
     
     ManagedString payload = "ID:" + idString + 
-                            ";Geo:" + flotte[index].geo + 
-                            ";Res:" + flotte[index].res + 
+                            ";Geo:" + geoString + 
+                            ";Res:" + resString + 
                             ";Btn:" + ManagedString(flotte[index].btnAppuye ? 1 : 0) + 
                             ";Seq:" + ManagedString(flotte[index].sequence) +
-                            ";Time:" + flotte[index].time + ";";
+                            ";Time:" + timeString + ";";
 
     // Logs Série
     uBit.serial.send("\r\n--------------------------------\r\n");
-    uBit.serial.send("Envoi Radio ID:" + idString + " Time:" + flotte[index].time + "\r\n");
+    uBit.serial.send("Envoi Radio ID:" + idString + " Time:" + timeString + "\r\n");
     uBit.serial.send("Contenu: " + payload + "\r\n");
 
     ackReceived = false;
@@ -230,7 +242,7 @@ bool envoyerCamionRadio(int index) {
                     ManagedString idCheck = idString; // On compare avec l'ID texte
                     ManagedString seqCheck = ManagedString(flotte[index].sequence);
                     
-                    if (strstr(msg.toCharArray(), idCheck.toCharArray()) && 
+                    if (strstr(msg.toCharArray(), idString.toCharArray()) && 
                         strstr(msg.toCharArray(), (";" + seqCheck).toCharArray())) {
                         ackReceived = true;
                         break;
@@ -277,7 +289,6 @@ int main() {
         flotte[i].actif = false; 
         flotte[i].sequence = 0;
         flotte[i].btnAppuye = false;
-        flotte[i].id = ""; // Init vide
     }
     
     uBit.display.print("R"); 
