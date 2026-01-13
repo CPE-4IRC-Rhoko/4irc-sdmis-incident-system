@@ -12,8 +12,6 @@ jobs:
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.4
-        env:
-          VPS_PATH: ${{ secrets.VPS_PROJECT_PATH }}
         with:
           host: ${{ secrets.VPS_IP_ADDRESS }}
           username: ${{ secrets.VPS_USER_USERNAME }}
