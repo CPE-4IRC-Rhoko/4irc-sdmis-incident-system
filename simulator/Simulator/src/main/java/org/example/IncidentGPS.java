@@ -30,9 +30,6 @@ public class IncidentGPS {
             //On récupère les coordonnées des points GPS
             JsonNode coordonne = communeNode.path("bbox").path("coordinates").get(0);
 
-            //System.out.println(body);
-            //System.out.println(coordonne);
-
             // --- DETERMINE LE MAX ET LE MIN DE CES POINTS ---
 
             // Initialiser les variables pour stocker les extrémités
@@ -66,24 +63,11 @@ public class IncidentGPS {
                 }
             }
 
-            /*
-            System.out.println("\n===Extrémité de la BBOX ===");
-            System.out.printf("  Longitude Min : %.5f\n", minLon);
-            System.out.printf("  Longitude Max : %.5f\n", maxLon);
-            System.out.printf("  Latitude Min  : %.5f\n", minLat);
-            System.out.printf("  Latitude Max  : %.5f\n", maxLat);
-            */
-
             // --- GÉNÉRATION POINT ALÉATOIRE ---
             Random rand = new Random();
 
             double randomLat = minLat + (maxLat - minLat) * rand.nextDouble();
             double randomLon = minLon + (maxLon - minLon) * rand.nextDouble();
-
-            /*
-            System.out.println("\n=== Point GPS aléatoire ===");
-            System.out.printf(Locale.US, "Point aléatoire = lat= %.5f, lon= %.5f%n", randomLat, randomLon);
-            */
 
             return new double[]{randomLat, randomLon};
         }

@@ -42,6 +42,11 @@ services:
       - bridge_network
     ports:
       - "${PORT_PG}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   api:
     build:
@@ -49,7 +54,10 @@ services:
       dockerfile: Dockerfile
     container_name: sdmis-api
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:${PORT_PG}/${POSTGRES_DB}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
@@ -62,10 +70,26 @@ services:
       RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_DEFAULT_VHOST}
       DECISION_EVENT_QUEUE: decision.events
       DECISION_INTERVENTION_QUEUE: decision.interventions
+      # Keycloak (local -> URL publique)
+      KEYCLOAK_ISSUER_URI: https://auth.4irc.hugorodrigues.fr/realms/SDMIS
+      KEYCLOAK_JWKS_URI: https://auth.4irc.hugorodrigues.fr/realms/SDMIS/protocol/openid-connect/certs
+      KEYCLOAK_CLIENT_ID_SWAGGER: ${KEYCLOAK_CLIENT_ID_SWAGGER}
+      KEYCLOAK_CLIENT_SECRET_SWAGGER: ${KEYCLOAK_CLIENT_SECRET_SWAGGER}
+      KEYCLOAK_ADMIN_BASE_URL: https://auth.4irc.hugorodrigues.fr/admin/realms/SDMIS
+      KEYCLOAK_ADMIN_TOKEN_URL: https://auth.4irc.hugorodrigues.fr/realms/SDMIS/protocol/openid-connect/token
+      KEYCLOAK_ADMIN_REALM: SDMIS
+      KEYCLOAK_ADMIN_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID}
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
     ports:
       - "${PORT_SDMIS_API}:8080"
     networks:
       - bridge_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v3/api-docs"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
   
   frontend:
     build:
@@ -127,6 +151,9 @@ services:
       DECISION_EVENT_QUEUE: decision.events
       DECISION_INTERVENTION_QUEUE: decision.interventions
       SDMIS_API_URL: http://sdmis-api:8080
+      KEYCLOAK_TOKEN_URL: https://auth.4irc.hugorodrigues.fr/realms/SDMIS/protocol/openid-connect/token
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID_MOTEUR}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET_MOTEUR}
     networks:
       - bridge_network
 

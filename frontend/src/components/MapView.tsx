@@ -1,23 +1,47 @@
 import { useMemo } from 'react'
 import maplibregl from 'maplibre-gl'
 import type { StyleSpecification } from 'maplibre-gl'
-import { Map, Marker, NavigationControl } from 'react-map-gl/maplibre'
-import type { ViewState } from 'react-map-gl/maplibre'
+import type { LayerProps } from '@vis.gl/react-maplibre'
+import {
+  Layer,
+  Map,
+  Marker,
+  NavigationControl,
+  Popup,
+  Source,
+  type ViewState,
+} from 'react-map-gl/maplibre'
 import type { Incident } from '../models/incident'
 import type { Ressource } from '../models/resource'
 import './MapView.css'
 
 export type VueCarte = ViewState & { transitionDuration?: number }
 
+export type RouteTrace = {
+  id: string
+  coordinates: Array<[number, number]>
+  color?: string
+}
+
 interface Props {
   evenements?: Incident[]
   ressources?: Ressource[]
   pointInteret?: { latitude: number; longitude: number; label?: string }
   evenementSelectionneId?: string
+  popupEvenementId?: string | null
+  popupRessourceId?: string | null
   onSelectEvenement: (id: string) => void
+  onSelectRessource?: (id: string) => void
+  onClosePopups?: () => void
   onClickPointInteret?: () => void
+  statutEvenementParId?: Record<string, string>
+  interactionEnabled?: boolean
+  navigationEnabled?: boolean
+  compactMarkers?: boolean
+  routes?: RouteTrace[]
   vue: VueCarte
   onMove: (vue: VueCarte) => void
+  casernes?: Array<{ id: string; nom?: string; latitude: number; longitude: number }>
 }
 
 const attribution =
@@ -78,18 +102,28 @@ function MapView({
   ressources = [],
   pointInteret,
   evenementSelectionneId,
+  popupEvenementId,
+  popupRessourceId,
   onSelectEvenement,
+  onSelectRessource,
+  onClosePopups,
   onClickPointInteret,
+  statutEvenementParId,
+  interactionEnabled = true,
+  navigationEnabled = true,
+  compactMarkers = false,
+  routes = [],
   vue,
   onMove,
+  casernes,
 }: Props) {
-  const isValidCoord = (lat?: number, lon?: number) =>
-    Number.isFinite(lat) &&
-    Number.isFinite(lon) &&
-    (lat as number) >= -90 &&
-    (lat as number) <= 90 &&
-    (lon as number) >= -180 &&
-    (lon as number) <= 180
+const isValidCoord = (lat?: number, lon?: number) =>
+  Number.isFinite(lat) &&
+  Number.isFinite(lon) &&
+  (lat as number) >= -90 &&
+  (lat as number) <= 90 &&
+  (lon as number) >= -180 &&
+  (lon as number) <= 180
 
   const evenementsAffiches = useMemo(
     () => evenements.filter((evt) => isValidCoord(evt.latitude, evt.longitude)),
@@ -107,13 +141,26 @@ function MapView({
       ? pointInteret
       : undefined
 
+  const casernesAffichees = useMemo(() => {
+    if (!casernes) return []
+    return casernes
+      .filter((c) => isValidCoord(c.latitude, c.longitude))
+      .map((c) => ({
+        ...c,
+        latitude: c.latitude,
+        longitude: c.longitude,
+      }))
+  }, [casernes])
+
   const styleCarte = useMemo<StyleSpecification>(
     () => ({
       version: 8 as const,
       sources: {
         osm: {
           type: 'raster',
-          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+          tiles: [
+            'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+          ],
           tileSize: 256,
           attribution,
         },
@@ -129,6 +176,69 @@ function MapView({
     [],
   )
 
+  const routesGeojson = useMemo(() => {
+    if (!routes || routes.length === 0) return null
+    const features = routes
+      .filter(
+        (route) =>
+          Array.isArray(route.coordinates) && route.coordinates.length >= 2,
+      )
+      .map((route) => ({
+        type: 'Feature' as const,
+        properties: {
+          color: route.color ?? '#0ea5e9',
+          id: route.id,
+        },
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: route.coordinates,
+        },
+      }))
+    if (features.length === 0) return null
+    return {
+      type: 'FeatureCollection' as const,
+      features,
+    }
+  }, [routes])
+
+  const routeCasingLayer: LayerProps = {
+    id: 'routes-casing',
+    type: 'line',
+    source: 'routes',
+    paint: {
+      'line-color': '#ffffff',
+      'line-width': 7,
+      'line-opacity': 0.52,
+    },
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+  }
+
+  const routeLayer: LayerProps = {
+    id: 'routes-layer',
+    type: 'line',
+    source: 'routes',
+    paint: {
+      'line-color': ['get', 'color'] as any,
+      'line-width': 5,
+      'line-opacity': 0.9,
+    },
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+  }
+
+  const popupEvenement = popupEvenementId
+    ? evenementsAffiches.find((evt) => evt.id === popupEvenementId)
+    : undefined
+  const popupRessource =
+    popupRessourceId != null
+      ? ressourcesAffichees.find((res) => res.id === popupRessourceId)
+      : undefined
+
+  const markerScale = useMemo(() => {
+    const z = vue?.zoom ?? 12
+    // Garder une taille stable en dézoomant.
+    return Math.max(0.55, Math.min(1.05, z / 14))
+  }, [vue?.zoom])
+
   return (
     <div className="map-wrapper">
       <Map
@@ -138,18 +248,49 @@ function MapView({
         reuseMaps
         style={{ width: '100%', height: '100%' }}
         onMove={(evt) => onMove(evt.viewState)}
+        interactive={interactionEnabled}
+        dragPan={interactionEnabled}
+        scrollZoom={interactionEnabled}
+        doubleClickZoom={interactionEnabled}
+        touchZoomRotate={interactionEnabled}
+        onClick={() => onClosePopups?.()}
       >
-        <NavigationControl position="top-right" />
+        {routesGeojson && (
+          <Source id="routes" type="geojson" data={routesGeojson}>
+            <Layer {...routeCasingLayer} />
+            <Layer {...routeLayer} />
+          </Source>
+        )}
+        {navigationEnabled && <NavigationControl position="top-right" />}
+        {casernesAffichees.map((caserne) => (
+          <Marker
+            key={caserne.id}
+            longitude={caserne.longitude}
+            latitude={caserne.latitude}
+            anchor="bottom"
+          >
+            <div
+              className="marker marker-caserne"
+              title={caserne.nom ?? 'Caserne'}
+            >
+              🏥
+            </div>
+          </Marker>
+        ))}
         {pointInteretValide && (
           <Marker
             longitude={pointInteretValide.longitude}
             latitude={pointInteretValide.latitude}
             anchor="bottom"
-            onClick={onClickPointInteret}
-          >
+          onClick={(e) => {
+            e.originalEvent?.stopPropagation()
+            onClickPointInteret?.()
+          }}
+        >
             <div
               className="marker marker-search"
               title={pointInteretValide.label}
+              style={{ transform: `scale(${markerScale})` }}
             >
               <PinIcon color="#111827" />
             </div>
@@ -160,17 +301,30 @@ function MapView({
             key={evt.id}
             longitude={evt.longitude}
             latitude={evt.latitude}
-            anchor="bottom"
-            onClick={() => onSelectEvenement(evt.id)}
+            anchor="center"
+            onClick={(e) => {
+              e.originalEvent?.stopPropagation()
+              onSelectEvenement(evt.id)
+            }}
           >
-            <div
-              className={`marker ${classeEvenement(evt.gravite)} ${
-                evenementSelectionneId === evt.id ? 'marker-active' : ''
-              }`}
-              title={evt.titre}
-            >
-              !
-            </div>
+            {compactMarkers ? (
+              <div
+                className={`mini-marker ${classeEvenement(evt.gravite).split(' ').pop()}`}
+                style={{ transform: `scale(${markerScale})` }}
+              >
+                <span className="mini-marker-inner" />
+              </div>
+            ) : (
+              <div
+                className={`marker ${classeEvenement(evt.gravite)} ${
+                  evenementSelectionneId === evt.id ? 'marker-active' : ''
+                }`}
+                title={evt.titre}
+                style={{ transform: `scale(${markerScale})` }}
+              >
+                !
+              </div>
+            )}
           </Marker>
         ))}
         {ressourcesAffichees.map((ressource) => (
@@ -179,15 +333,89 @@ function MapView({
             longitude={ressource.longitude}
             latitude={ressource.latitude}
             anchor="bottom"
+            onClick={(e) => {
+              e.originalEvent?.stopPropagation()
+              onSelectRessource?.(ressource.id)
+            }}
           >
             <div
               className="marker marker-vehicule"
               title={ressource.nom}
+              style={{ transform: `scale(${markerScale})` }}
             >
               <VehicleIcon color={couleurRessource(ressource.disponibilite)} />
             </div>
           </Marker>
         ))}
+        {popupEvenement && (
+          <Popup
+            longitude={popupEvenement.longitude}
+            latitude={popupEvenement.latitude}
+            anchor="top"
+            closeOnClick={false}
+            closeButton
+            focusAfterOpen={false}
+            onClose={onClosePopups}
+          >
+            <div className="popup-content">
+              <h4>{popupEvenement.titre}</h4>
+              <p className="muted small">
+                Gravité : {popupEvenement.gravite}
+              </p>
+              <p className="muted small">
+                Statut :{' '}
+                {statutEvenementParId?.[popupEvenement.id] ??
+                  popupEvenement.statut}
+              </p>
+              <p className="muted small">
+                {popupEvenement.latitude.toFixed(4)},{' '}
+                {popupEvenement.longitude.toFixed(4)}
+              </p>
+              {popupEvenement.description && (
+                <p className="muted small">{popupEvenement.description}</p>
+              )}
+            </div>
+          </Popup>
+        )}
+        {popupRessource && (
+          <Popup
+            longitude={popupRessource.longitude}
+            latitude={popupRessource.latitude}
+            anchor="top"
+            closeOnClick={false}
+            closeButton
+            focusAfterOpen={false}
+            onClose={onClosePopups}
+          >
+            <div className="popup-content">
+              <h4>{popupRessource.nom}</h4>
+              <p className="muted small">
+                Statut : {popupRessource.statutBrut ?? popupRessource.disponibilite}
+              </p>
+              <p className="muted small">
+                Plaque : {popupRessource.plaque ?? '—'}
+              </p>
+              <p className="muted small">
+                {popupRessource.latitude.toFixed(4)},{' '}
+                {popupRessource.longitude.toFixed(4)}
+              </p>
+              <div className="muted small">
+                Ressources :
+                {popupRessource.equipements && popupRessource.equipements.length > 0 ? (
+                  <ul>
+                    {popupRessource.equipements.map((eq) => (
+                      <li key={`${popupRessource.id}-${eq.nom ?? 'equip'}`}>
+                        {eq.nom ?? 'Équipement'} ({eq.contenance ?? 0})
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="muted small">—</p>
+                )}
+              </div>
+            </div>
+          </Popup>
+        )}
       </Map>
     </div>
   )

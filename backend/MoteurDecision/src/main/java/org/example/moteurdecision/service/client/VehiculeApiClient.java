@@ -19,10 +19,12 @@ public class VehiculeApiClient {
     private final String baseUrl;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
+    private final TokenProvider tokenProvider;
 
-    public VehiculeApiClient(String baseUrl, ObjectMapper objectMapper) {
+    public VehiculeApiClient(String baseUrl, ObjectMapper objectMapper, TokenProvider tokenProvider) {
         this.baseUrl = baseUrl;
         this.objectMapper = objectMapper;
+        this.tokenProvider = tokenProvider;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(3))
                 .build();
@@ -33,6 +35,7 @@ public class VehiculeApiClient {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(uri)
                 .timeout(Duration.ofSeconds(5))
+                .header("Authorization", "Bearer " + tokenProvider.getAccessToken())
                 .GET()
                 .build();
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());

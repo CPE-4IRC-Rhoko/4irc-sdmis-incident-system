@@ -8,8 +8,14 @@ iot/microbit-terrain/build/
 **/target/
 .idea/
 frontend/.vite/
+frontend/.env.*
 **/.vite/
 # Ignorer les fichiers de configuration sensibles
 .env
+frontend/.env.*
 KEYCLOAK/WEB/
 PG_ADMIN/
+
+#Ignorer les fichiers simu carte
+simulator/donnees/
+simulator/.idea/

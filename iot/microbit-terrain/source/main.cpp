@@ -6,38 +6,60 @@ extern "C" {
 
 MicroBit uBit;
 
-// --- CONFIGURATION DES CLES ---
-uint8_t cleAES[16] = { 'V','i','n','c','e','n','t','L','e','P','l','u','B','o','1','2' };
-uint8_t keysHMAC[7][16] = {
+// Configuration des clés HMAC pour chaque camion
+uint8_t cleAES[16] = { 'V','E','8','c','e','n','t','L','e','P','0','u','B','o','1','2' }; //CLE AES (Doit être identique à celle dans la micro:bit QG)
+uint8_t keysHMAC[30][16] = {
     { 'K','e','y','1','0','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA100AA (Index 0)
     { 'K','e','y','1','1','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA101AA (Index 1)
     { 'K','e','y','1','2','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA102AA (Index 2)
     { 'K','e','y','1','3','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA103AA (Index 3)
     { 'K','e','y','1','4','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA104AA (Index 4)
     { 'K','e','y','1','5','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA105AA (Index 5)
-    { 'K','e','y','1','5','_','S','e','c','r','e','t','!','!','!','!' }  // Pour AA106AA (Index 6)
+    { 'K','e','y','1','6','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA106AA (Index 6)
+    { 'K','e','y','1','7','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA107AA (Index 7)
+    { 'K','e','y','1','8','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA108AA (Index 8)
+    { 'K','e','y','1','9','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA109AA (Index 9)
+    { 'K','e','y','2','0','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA110AA (Index 10)
+    { 'K','e','y','2','1','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA111AA (Index 11)
+    { 'K','e','y','2','2','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA112AA (Index 12)
+    { 'K','e','y','2','3','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA113AA (Index 13)
+    { 'K','e','y','2','4','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA114AA (Index 14)
+    { 'K','e','y','2','5','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA115AA (Index 15)
+    { 'K','e','y','2','6','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA116AA (Index 16)
+    { 'K','e','y','2','7','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA117AA (Index 17)
+    { 'K','e','y','2','8','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA118AA (Index 18)
+    { 'K','e','y','2','9','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA119AA (Index 19)
+    { 'K','e','y','3','0','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA120AA (Index 20)
+    { 'K','e','y','3','1','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA121AA (Index 21)
+    { 'K','e','y','3','2','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA122AA (Index 22)
+    { 'K','e','y','3','3','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA123AA (Index 23)
+    { 'K','e','y','3','4','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA124AA (Index 24)
+    { 'K','e','y','3','5','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA125AA (Index 25)
+    { 'K','e','y','3','6','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA126AA (Index 26)
+    { 'K','e','y','3','7','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA127AA (Index 27)
+    { 'K','e','y','3','8','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA128AA (Index 28)
+    { 'K','e','y','3','9','_','S','e','c','r','e','t','!','!','!','!' }  // Pour AA129AA (Index 29)
 };
 
-// --- STRUCTURE DE DONNÉES ---
+// Structure de données d'un camion
 struct EtatCamion {
     bool actif;         
-    ManagedString id;   // <--- STOCKAGE DE L'ID EN TEXTE (ex: "AA100AA")
+    ManagedString id;
     ManagedString geo;  
-    ManagedString eau;  
+    ManagedString res;  
     ManagedString time;  
     int sequence;       
     bool btnAppuye;     
 };
 
-// Notre flotte en mémoire (7 slots maximum pour cet exemple)
-EtatCamion flotte[7];
+// Notre flotte en mémoire (30 slots = 30 camions)
+EtatCamion flotte[30];
 
-// Buffers Radio
-PacketBuffer bufferAckRecu(0);
+PacketBuffer bufferAckRecu(0); // Buffers de transmission radio
 bool unAckEstArrive = false;
 bool ackReceived = false;
 
-// --- INTERRUPTIONS BOUTONS ---
+// Simulation interruptions boutons pour camion 1 et 2
 void onButtonA(MicroBitEvent) { 
     if (flotte[0].actif) {
         flotte[0].btnAppuye = true; 
@@ -51,7 +73,7 @@ void onButtonB(MicroBitEvent) {
     }
 }
 
-// --- OUTILS PARSING & CRYPTO ---
+
 ManagedString extractValue(ManagedString source, const char* tag) {
     const char* s = source.toCharArray();
     char* ptrStart = strstr((char*)s, tag);
@@ -62,7 +84,7 @@ ManagedString extractValue(ManagedString source, const char* tag) {
     return source.substring((ptrStart - s), ptrEnd - ptrStart);
 }
 
-// Conversion ID Texte -> Index Tableau (Mapping des clés)
+// Conversion ID Texte -> Index Tableau (Mapping des clés des camions)
 int getIndexFromID(ManagedString id) {
     if (id == "AA100AA") return 0;
     if (id == "AA101AA") return 1;
@@ -71,6 +93,29 @@ int getIndexFromID(ManagedString id) {
     if (id == "AA104AA") return 4;
     if (id == "AA105AA") return 5;
     if (id == "AA106AA") return 6;
+    if (id == "AA107AA") return 7;
+    if (id == "AA108AA") return 8;
+    if (id == "AA109AA") return 9;
+    if (id == "AA110AA") return 10;
+    if (id == "AA111AA") return 11;
+    if (id == "AA112AA") return 12;
+    if (id == "AA113AA") return 13;
+    if (id == "AA114AA") return 14;
+    if (id == "AA115AA") return 15;
+    if (id == "AA116AA") return 16;
+    if (id == "AA117AA") return 17;
+    if (id == "AA118AA") return 18;
+    if (id == "AA119AA") return 19;
+    if (id == "AA120AA") return 20;
+    if (id == "AA121AA") return 21;
+    if (id == "AA122AA") return 22;
+    if (id == "AA123AA") return 23;
+    if (id == "AA124AA") return 24;
+    if (id == "AA125AA") return 25;
+    if (id == "AA126AA") return 26;
+    if (id == "AA127AA") return 27;
+    if (id == "AA128AA") return 28;
+    if (id == "AA129AA") return 29; 
     return -1;
 }
 
@@ -82,23 +127,23 @@ uint32_t calculerAuth(const char* data, int len, uint8_t* cle) {
 }
 
 PacketBuffer chiffrerSecurise(ManagedString message, int keyIdx) {
-    // 80 OCTETS
-    uint8_t buffer[80]; memset(buffer, 0, 80);
+    // 96 OCTETS = 4 (auth) + 92 (message)
+    uint8_t buffer[96]; memset(buffer, 0, 96);
     int len = message.length(); 
-    if (len > 76) len = 76; 
+    if (len > 92) len = 92; 
     memcpy(buffer + 4, message.toCharArray(), len);
     
-    uint32_t auth = calculerAuth((const char*)(buffer + 4), 76, keysHMAC[keyIdx]);
+    uint32_t auth = calculerAuth((const char*)(buffer + 4), 92, keysHMAC[keyIdx]);
     memcpy(buffer, &auth, 4);
     
     AES_ctx ctx; AES_init_ctx(&ctx, cleAES);
-    for (int i = 0; i < 5; i++) AES_ECB_encrypt(&ctx, buffer + (i * 16));
-    return PacketBuffer(buffer, 80);
+    for (int i = 0; i < 6; i++) AES_ECB_encrypt(&ctx, buffer + (i * 16));
+    return PacketBuffer(buffer, 96);
 }
 
 ManagedString dechiffrerSecurise(PacketBuffer data, int keyIdx, bool* valide) {
     *valide = false;
-    // On peut recevoir des ACK chiffrés en 64 octets (suffisant pour un ACK court)
+    // On peut recevoir des ACK chiffrés en 64 octets
     if (data.length() < 64) return ManagedString("");
     
     uint8_t buffer[64]; memcpy(buffer, data.getBytes(), 64);
@@ -119,7 +164,7 @@ void onData(MicroBitEvent) {
     if (tmp.length() > 0) { bufferAckRecu = tmp; unAckEstArrive = true; }
 }
 
-// --- MISE A JOUR DE LA MÉMOIRE (Depuis le Java) ---
+// Mise à jour de la mémoire depuis le simulateur java
 void mettreAJourEtat(ManagedString ligneJava) {
     ManagedString sId = extractValue(ligneJava, "ID:");
 
@@ -128,7 +173,7 @@ void mettreAJourEtat(ManagedString ligneJava) {
     if (idx != -1) {
         flotte[idx].id = sId; // On stocke l'ID texte
         flotte[idx].geo = extractValue(ligneJava, "Geo:");
-        flotte[idx].eau = extractValue(ligneJava, "Eau:");
+        flotte[idx].res = extractValue(ligneJava, "Res:");
         flotte[idx].time = extractValue(ligneJava, "Time:");
         flotte[idx].actif = true; 
         
@@ -139,16 +184,15 @@ void mettreAJourEtat(ManagedString ligneJava) {
     }
 }
 
-// --- ENVOI RADIO (Depuis la mémoire) ---
-void envoyerCamionRadio(int index) {
-    if (!flotte[index].actif) return; 
 
-    // On utilise l'ID stocké en mémoire (ex: "AA100AA")
+bool envoyerCamionRadio(int index) {
+    if (!flotte[index].actif) return false;
+
     ManagedString idString = flotte[index].id;
     
     ManagedString payload = "ID:" + idString + 
                             ";Geo:" + flotte[index].geo + 
-                            ";Eau:" + flotte[index].eau + 
+                            ";Res:" + flotte[index].res + 
                             ";Btn:" + ManagedString(flotte[index].btnAppuye ? 1 : 0) + 
                             ";Seq:" + ManagedString(flotte[index].sequence) +
                             ";Time:" + flotte[index].time + ";";
@@ -162,19 +206,15 @@ void envoyerCamionRadio(int index) {
     int tentatives = 0;
     PacketBuffer paquet = chiffrerSecurise(payload, index); 
 
-    uBit.display.print(index + 1); 
 
     while (!ackReceived && tentatives < 3) {
         tentatives++;
         unAckEstArrive = false;
         
         uBit.radio.datagram.send(paquet);
-        uBit.serial.send("."); 
-        
-        uBit.sleep(100 + uBit.random(50));
         
         uint32_t start = uBit.systemTime();
-        while(uBit.systemTime() - start < 800) {
+        while(uBit.systemTime() - start < 300) {
             // Lecture Série continue
             if (uBit.serial.isReadable()) {
                 ManagedString s = uBit.serial.readUntil('\n');
@@ -198,7 +238,7 @@ void envoyerCamionRadio(int index) {
                 }
                 unAckEstArrive = false;
             }
-            uBit.sleep(10);
+            uBit.sleep(5);
         }
     }
     
@@ -218,6 +258,8 @@ void envoyerCamionRadio(int index) {
         uBit.display.image.setPixelValue(0, 4, 255); uBit.sleep(50); uBit.display.image.setPixelValue(0, 4, 0);
     }
     uBit.display.clear();
+
+    return true;
 }
 
 int main() {
@@ -231,7 +273,7 @@ int main() {
     uBit.messageBus.listen(MICROBIT_ID_BUTTON_B, MICROBIT_BUTTON_EVT_CLICK, onButtonB);
 
     // Initialisation
-    for(int i=0; i<7; i++) {
+    for(int i=0; i<30; i++) {
         flotte[i].actif = false; 
         flotte[i].sequence = 0;
         flotte[i].btnAppuye = false;
@@ -250,18 +292,30 @@ int main() {
             if (s.length() > 5) mettreAJourEtat(s);
         }
 
-        // 2. Envoyer
-        envoyerCamionRadio(camionEnCours);
+        // 2. Envoyer (Renvoie VRAI si actif, FAUX si inactif)
+        bool messageEnvoye = envoyerCamionRadio(camionEnCours);
+
+        // 3. Gestion intelligente du temps
+        if (messageEnvoye) {
+            // Si on a émis, on attend un peu pour laisser la radio respirer
+            uBit.sleep(100); 
+        } else {
+            // Si le camion est inactif on passe tout de suite au suivant (2ms)
+            uBit.sleep(2); 
+        }
+
+        // Vérification globale d'activité pour mode veille profonde
+        bool auMoinsUnActif = false;
+        for(int i=0; i<30; i++) {
+            if(flotte[i].actif) { auMoinsUnActif = true; break; }
+        }
+
+        if (!auMoinsUnActif) {
+            uBit.sleep(200); // Si tout le monde dort, on ralentit
+        }
 
         // 3. Suivant
         camionEnCours++;
-        if (camionEnCours > 6) camionEnCours = 0;
-
-        // 4. Pause eco
-        if (!flotte[0].actif && !flotte[1].actif && !flotte[2].actif && !flotte[3].actif && !flotte[4].actif && !flotte[5].actif && !flotte[6].actif) {
-            uBit.sleep(100);
-        } else {
-            uBit.sleep(500); 
-        }
+        if (camionEnCours > 29) camionEnCours = 0;
     }
 }

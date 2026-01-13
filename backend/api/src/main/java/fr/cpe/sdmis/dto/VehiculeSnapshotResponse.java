@@ -6,6 +6,7 @@ import java.util.UUID;
 
 public record VehiculeSnapshotResponse(
         UUID id,
+        String plaqueImmat,
         double latitude,
         double longitude,
         OffsetDateTime dernierePositionConnue,
