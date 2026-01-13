@@ -19,12 +19,7 @@ jobs:
           key: ${{ secrets.VPS_USER_SSH_KEY }}
           script: |
             set -e
-            source ~/.bashrc
-            env
-            whoami
-            pwd
             cd /srv/projets/4irc-sdmis-incident-system
-            ls -la
             git switch main
             git pull origin main
             docker compose -f docker-compose.yaml down
