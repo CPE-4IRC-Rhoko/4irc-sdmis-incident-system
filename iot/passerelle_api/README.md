@@ -4,6 +4,8 @@ Ce logiciel permet de faire le pont entre la **Micro:bit QG
 (Micro:bit de réception)** et l'**API Web**. Il récupère les 
 clés de chiffrement dynamiquement, s'authentifie via Keycloak et remonte les informations des camions.
 
+Cette version utilise désormais une architecture multi-threadée pour gérer une flotte importante (30+ véhicules) sans aucune latence.
+
 ## Architecture du Système
 
 Le système repose sur une chaîne de transmission en 4 étapes :
@@ -12,11 +14,8 @@ Le système repose sur une chaîne de transmission en 4 étapes :
 2.  **Transmission Radio Sécurisée :** Envoi des paquets chiffrés (**AES-128** + Signature **HMAC**) sur fréquence 2.4GHz via protocole Micro:bit Radio.
 3.  **Réception QG (Micro:bit V2) :** Une carte maître reçoit les paquets, vérifie l'intégrité, déchiffre le contenu et le transmet via USB.
 4.  **Passerelle Intelligente (Python) :** Ce script :
-    * Récupère les données brutes du port série.
-    * S'authentifie auprès du serveur **Keycloak** (flux Client Credentials).
-    * Gère le **provisioning** (récupération dynamique des clés de chiffrement depuis l'API).
-    * Formate les données en JSON compatible (Horodatage ISO 8601, Parsing des ressources).
-    * Envoie les données finales au Cloud via HTTPS sécurisé.
+    * Thread Principal (Lecture USB) : Écoute le port série à haute vitesse pour ne jamais perdre un paquet radio. Il utilise une stratégie de "Last Value Caching" (écrase les anciennes données par les nouvelles) pour garantir une latence zéro.
+    * Thread Secondaire (Envoi API) : Récupère la donnée la plus fraîche et l'envoie à l'API de manière asynchrone, gère l'authentification Keycloak et le formatage JSON.
 
 
 ---
@@ -82,16 +81,22 @@ python gateway.py
 ```
 
 ### Séquence de démarrage attendue :
-1. Auth : Authentification Keycloak en cours... -> Token récupéré.
-2. Détection du port : Micro:bit détectée sur : /dev/tty... (ou COMx).
-3. Synchronisation : GET https://... -> Récupération des clés.
-4. Injection : Injection : AA100AA -> Clé configurée.
-5. Écoute : Passerelle prête. En attente de radio...
+1. Détection du port : Micro:bit détectée sur : /dev/tty... (ou COMx).
+2. Synchronisation : GET https://... -> Récupération des clés.
+3. Injection : Injection : AA100AA -> Clé configurée.
+4. Écoute : Passerelle prête. En attente de radio...
 
 #### Lorsque les camions émettent, vous verrez :
-- Reçu : EXP:{...} (Données brutes).
-- Envoi API : {...} (Données formatées).
-- Sauvegardé (200 OK) (Confirmation serveur).
+- Vous verrez une ligne de points défiler. Chaque point représente un envoi réussi à l'API.
+```bash
+................................T................x(500)......
+```
+
+Légende des symboles :
+* . (Point) : Succès. Donnée envoyée et sauvegardée (200 OK).
+* T (Timeout) : Lenteur API. Le serveur a mis trop de temps à répondre (>2s). Le paquet a été abandonné pour ne pas bloquer le flux.
+* ! (Exclamation) : Erreur Réseau. Impossible de joindre le serveur.
+* x(CODE) : Erreur HTTP. Le serveur a répondu une erreur (ex: x(500) pour erreur serveur, x(400) pour mauvaise requête).
 
 ## Fonctionnalités Techniques
 * **Authentification OAuth** : Intégration complète de Keycloak. Gestion automatique de l'expiration des tokens (renouvellement auto sur erreur 401).
@@ -99,19 +104,16 @@ python gateway.py
 * **Provisioning Dynamique** : Les clés AES ne sont pas stockées "en dur". La passerelle les met à jour toutes les 2 minutes pour garantir que seuls les véhicules autorisés peuvent communiquer.
 * **Support Multi-Ressources** : Gestion intelligente des ressources envoyées sous forme textuelle (ex: Eau=80,Gaz=10) et conversion en objet JSON structuré pour l'API.
 * **Normalisation des Données** : Conversion Timestamp Unix -> ISO 8601 (standard WEB).
+* **Optimisation API** : Utilisation de timeouts stricts (2s) pour éviter les "embouteillages" réseaux.
+* **Architecture Multi-Threading** : Découplage total entre la lecture série (USB) et l'envoi réseau (HTTP). Le port série ne sature jamais, même si l'API est lente.
+* **Last Value Caching (Zero Latency)** : Si plusieurs positions pour un même camion arrivent pendant que l'API est occupée, la passerelle écrase les anciennes données pour n'envoyer que la position la plus récente. Cela garantit un affichage temps réel sur la carte ("Drop-on-full strategy").
 
 ## Dépannage
-* Erreur ModuleNotFoundError :
-  * Vous avez oublié l'étape pip install -r requirements.txt.
-* Erreur Access is denied ou Resource busy :
-  * Le port USB est déjà utilisé par un autre logiciel d'écoute. Fermez-le.
-* La détection "AUTO" échoue :
-  * Ouvrez config.json et remplacez "AUTO" par votre port précis (ex: "COM4").
-* Erreur API 400 (Bad Request) :
-  * Vérifiez les logs de la passerelle. L'API refuse probablement le format d'une donnée (ex: majuscule dans une clé).
-* Erreur Auth Keycloak (401/403) :
-  * Vérifiez que le secret dans le fichier .env est correct.
-  * Vérifiez l'URL et le Realm dans config.json.
+* Je ne vois que des . : Tout est parfait !
+* Je vois beaucoup de T : Votre API Java est trop lente ou surchargée. La passerelle fonctionne mais certaines positions sont sautées.
+* Je vois x(401) en boucle : Problème d'authentification Keycloak. Vérifiez votre secret dans .env.
+* Erreur ModuleNotFoundError : Lancez pip install -r requirements.txt.
+* Erreur Access is denied : Le port USB est utilisé par un autre logiciel (ex: MakeCode ou un autre terminal). Fermez-le.
 
 ## Auteurs
 Projet réalisé dans le cadre du module 4IRC - Projet Transversal.

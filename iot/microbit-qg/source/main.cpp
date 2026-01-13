@@ -13,8 +13,8 @@ uint8_t cleAES[16] = { 'V','E','8','c','e','n','t','L','e','P','0','u','B','o','
 // 2. Gestion dynamique des cles HMAC
 // Structure pour stocker une paire ID <-> Clé
 struct KeyEntry {
-    ManagedString id;
-    uint8_t key[16];
+    char id[10];     // Stockage fixe pour "AA100AA" + fin de chaîne
+    uint8_t key[16]; // Stockage brut de la clé binaire
     bool valid;
 };
 
@@ -27,14 +27,17 @@ void initKeyStore() {
 }
 
 // Ajouter ou mettre à jour une clé
-void updateKey(ManagedString id, ManagedString keyStr) {
+void updateKey(ManagedString idStr, ManagedString keyStr) {
+    const char* sId = idStr.toCharArray();
+    const char* sKey = keyStr.toCharArray();
     // 1. Chercher si l'ID existe déjà pour le mettre à jour
     for(int i=0; i<50; i++) {
-        if (keyStore[i].valid && keyStore[i].id == id) {
+        if (keyStore[i].valid && strcmp(keyStore[i].id, sId) == 0) {
             memset(keyStore[i].key, 0, 16);
-            int len = keyStr.length(); if (len > 16) len = 16;
-            memcpy(keyStore[i].key, keyStr.toCharArray(), len);
-            uBit.serial.send("LOG: Key Updated for " + id + "\r\n");
+            int len = keyStr.length(); 
+            if (len > 16) len = 16;
+            memcpy(keyStore[i].key, sKey, len);
+            uBit.serial.send("LOG: Key Updated for " + idStr + "\r\n");
             return;
         }
     }
@@ -42,12 +45,15 @@ void updateKey(ManagedString id, ManagedString keyStr) {
     // 2. Sinon, trouver un slot vide
     for(int i=0; i<50; i++) {
         if (!keyStore[i].valid) {
-            keyStore[i].id = id;
+            strncpy(keyStore[i].id, sId, 9);
+            keyStore[i].id[9] = '\0'; // Sécurité
+            
             memset(keyStore[i].key, 0, 16);
-            int len = keyStr.length(); if (len > 16) len = 16;
-            memcpy(keyStore[i].key, keyStr.toCharArray(), len);
+            int len = keyStr.length(); 
+            if (len > 16) len = 16;
+            memcpy(keyStore[i].key, sKey, len);
             keyStore[i].valid = true;
-            uBit.serial.send("LOG: New Key Added for " + id + "\r\n");
+            uBit.serial.send("LOG: New Key Added for " + idStr + "\r\n");
             return;
         }
     }
@@ -55,9 +61,10 @@ void updateKey(ManagedString id, ManagedString keyStr) {
 }
 
 // Récupérer la clé pour un ID donné
-uint8_t* getClePourID(ManagedString id) {
+uint8_t* getClePourID(ManagedString idStr) {
+    const char* sId = idStr.toCharArray();
     for(int i=0; i<50; i++) {
-        if (keyStore[i].valid && keyStore[i].id == id) {
+        if (keyStore[i].valid && strcmp(keyStore[i].id, sId) == 0) {
             return keyStore[i].key;
         }
     }
@@ -74,14 +81,14 @@ uint32_t calculerAuth(const char* data, int len, uint8_t* cle) {
     return hash;
 }
 
-ManagedString extractValue(ManagedString source, const char* tag) {
+// Extraction de valeur JSON (Faite maison pour éviter de charger une librairie JSON lourde)
+ManagedString extractJSONValue(ManagedString source, const char* tag) {
     const char* s = source.toCharArray();
     char* ptrStart = strstr((char*)s, tag);
-    if (!ptrStart) return "";
+    if (!ptrStart) return "0";
     ptrStart += strlen(tag);
-    char* ptrEnd = strstr(ptrStart, ":"); // Le séparateur dans CFG est ':'
-    if (!ptrEnd) ptrEnd = strstr(ptrStart, ";"); // Fallback
-    if (!ptrEnd) return source.substring(ptrStart - s, source.length());
+    char* ptrEnd = strstr(ptrStart, ";");
+    if (!ptrEnd) return "0";
     return source.substring((ptrStart - s), ptrEnd - ptrStart);
 }
 
@@ -101,13 +108,16 @@ ManagedString dechiffrerIntelligent(PacketBuffer data, bool* authValide, Managed
     *authValide = false;
     if (data.length() < 96) return ManagedString("");
     
-    uint8_t buffer[96]; memcpy(buffer, data.getBytes(), 96);
+    uint8_t buffer[96]; 
+    memcpy(buffer, data.getBytes(), 96);
+    
+    // 1. Déchiffrement AES global
     AES_ctx ctx; AES_init_ctx(&ctx, cleAES);
     for (int i = 0; i < 6; i++) AES_ECB_decrypt(&ctx, buffer + (i * 16));
 
     char* texteDebut = (char*)(buffer + 4);
     
-    // Extraction ID
+    // 2. Extraction ID pour trouver la bonne clé HMAC
     char* ptrID = strstr(texteDebut, "ID:");
     if (!ptrID) return ManagedString("");
     char* ptrFinID = strstr(ptrID, ";");
@@ -121,27 +131,21 @@ ManagedString dechiffrerIntelligent(PacketBuffer data, bool* authValide, Managed
     
     if (!cleSpecifique) return ManagedString("ERR_UNKNOWN_ID");
 
+    // 3. Vérification Signature HMAC
     uint32_t authRecu; memcpy(&authRecu, buffer, 4);
     uint32_t authCalc = calculerAuth(texteDebut, 92, cleSpecifique);
 
     if (authRecu != authCalc) return ManagedString("ERR_BAD_SIGNATURE");
 
     *authValide = true;
-    int realLen = 92; while (realLen > 0 && buffer[4 + realLen - 1] == 0) realLen--;
+    
+    // Nettoyage fin de chaine (Padding)
+    int realLen = 92; 
+    while (realLen > 0 && buffer[4 + realLen - 1] == 0) realLen--;
     return ManagedString(texteDebut, realLen);
 }
 
-ManagedString extractJSONValue(ManagedString source, const char* tag) {
-     // Extraire depuis le message déchiffré (séparateur ;)
-    const char* s = source.toCharArray();
-    char* ptrStart = strstr((char*)s, tag);
-    if (!ptrStart) return "0";
-    ptrStart += strlen(tag);
-    char* ptrEnd = strstr(ptrStart, ";");
-    if (!ptrEnd) return "0";
-    return source.substring((ptrStart - s), ptrEnd - ptrStart);
-}
-
+// Traitement Principal
 void traiterDonnees() {
     PacketBuffer raw = bufferRadioRecu;
     dataReady = false;
@@ -151,12 +155,13 @@ void traiterDonnees() {
     ManagedString msg = dechiffrerIntelligent(raw, &authValide, &idRecu);
     
     if (authValide) {
+        // Pixel de confirmation au centre
         uBit.display.image.setPixelValue(2, 2, 255); 
         
+        // Extraction des données
         ManagedString sGeo = extractJSONValue(msg, "Geo:");
         ManagedString sRes = extractJSONValue(msg, "Res:");
         ManagedString sBtn = extractJSONValue(msg, "Btn:");
-        ManagedString sSeq = extractJSONValue(msg, "Seq:");
         ManagedString sTime = extractJSONValue(msg, "Time:");
         
         // Séparation Lat/Lon
@@ -169,40 +174,49 @@ void traiterDonnees() {
             sLon = sGeo.substring(virguleIndex + 1, sGeo.length() - virguleIndex - 1);
         }
 
+        // Envoi Série JSON vers la Gateway (Python)
         uBit.serial.send("EXP:{\"plaqueImmat\":\"" + idRecu + "\"" + 
                          ",\"lat\":" + sLat + ",\"lon\":" + sLon +
                          ",\"timestamp\":" + sTime + 
                          ",\"raw_res\":\"" + sRes + "\"" +
                          ",\"btn\":" + sBtn + "}\r\n");
         
-        // ACK transmission radio avec micro:bit Terrain
+        // Envoi ACK radio au camion
+        ManagedString sSeq = extractJSONValue(msg, "Seq:");
         ManagedString ack = "ACK:" + idRecu + ";" + sSeq;
+        
+        // Petite pause pour laisser le temps à la radio de switcher en TX
         uBit.sleep(20);
         uint8_t* key = getClePourID(idRecu);
         if(key) uBit.radio.datagram.send(chiffrerReponse(ack, key));
         
     } else {
+        // Pixel d'erreur (Coin haut gauche)
         uBit.display.image.setPixelValue(0, 0, 255); 
     }
+    
     uBit.sleep(50);
     uBit.display.image.clear();
 }
 
+// Callback Radio (Interruption)
 void receive_from_microbit(MicroBitEvent) {
     PacketBuffer temp = uBit.radio.datagram.recv();
-    if (temp.length() > 0) { bufferRadioRecu = temp; dataReady = true; }
+    if (temp.length() > 0) { 
+        bufferRadioRecu = temp; 
+        dataReady = true;
+    }
 }
 
-// Gestion commandes serie (CFG)
+// Callback Série (Pour recevoir les clés depuis Python)
 void gererCommandesSerie() {
     ManagedString s = uBit.serial.readUntil('\n');
     
-    // Format attendu : CFG:AA100AA:KeySecret1234567
-    if (s.length() > 5 && s.substring(0, 4) == "CFG:") {
-        // Parsing manuel car ManagedString est limité
+    // Format attendu : "CFG:AA100AA:CléDe16Caracteres"
+    if (s.length() > 20 && s.substring(0, 4) == "CFG:") {
         const char* str = s.toCharArray();
         
-        // Trouver le premier :
+        // Parsing manuel (plus léger en RAM que split)
         char* ptrFirst = strstr((char*)str, ":");
         if(!ptrFirst) return;
         
@@ -229,7 +243,8 @@ int main() {
     
     initKeyStore(); // Vide la mémoire au démarrage
     
-    uBit.radio.enable(); uBit.radio.setGroup(16);
+    uBit.radio.enable(); 
+    uBit.radio.setGroup(16);
     uBit.messageBus.listen(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, receive_from_microbit);
     
     while(1) {
@@ -241,6 +256,6 @@ int main() {
             gererCommandesSerie();
         }
         
-        uBit.sleep(10);
+        uBit.sleep(5);
     }
 }
