@@ -1,6 +1,8 @@
 const AUTH_FLAG_KEY = 'keycloak-authenticated'
 const STATE_KEY = 'keycloak-state'
 const TOKEN_KEY = 'keycloak-access-token'
+const REFRESH_KEY = 'keycloak-refresh-token'
+const EXPIRES_AT_KEY = 'keycloak-expires-at'
 const ROLES_KEY = 'keycloak-roles'
 const POST_LOGIN_REDIRECT_KEY = 'keycloak-post-login-redirect'
 const CODE_VERIFIER_KEY = 'keycloak-code-verifier'
@@ -151,6 +153,111 @@ const extractRoles = (token: string, clientId: string) => {
   return Array.from(new Set([...realmRoles, ...clientRoles]))
 }
 
+let refreshTimer: number | null = null
+
+const setTokens = (
+  accessToken: string | null,
+  refreshToken?: string | null,
+  expiresInSeconds?: number | null,
+) => {
+  if (!isBrowser()) return
+  if (accessToken) {
+    sessionStorage.setItem(TOKEN_KEY, accessToken)
+  } else {
+    sessionStorage.removeItem(TOKEN_KEY)
+  }
+  if (refreshToken !== undefined) {
+    if (refreshToken) {
+      sessionStorage.setItem(REFRESH_KEY, refreshToken)
+    } else {
+      sessionStorage.removeItem(REFRESH_KEY)
+    }
+  }
+  if (expiresInSeconds && Number.isFinite(expiresInSeconds)) {
+    const expiresAt = Date.now() + expiresInSeconds * 1000
+    sessionStorage.setItem(EXPIRES_AT_KEY, String(expiresAt))
+  }
+}
+
+const clearRefreshTimer = () => {
+  if (refreshTimer) {
+    window.clearTimeout(refreshTimer)
+    refreshTimer = null
+  }
+}
+
+const scheduleRefresh = (expiresInSeconds?: number | null) => {
+  if (!isBrowser()) return
+  clearRefreshTimer()
+  if (!expiresInSeconds || !Number.isFinite(expiresInSeconds)) return
+  const delay = Math.max(1000, (expiresInSeconds - 60) * 1000)
+  refreshTimer = window.setTimeout(() => {
+    void refreshAccessToken()
+  }, delay)
+}
+
+const refreshAccessToken = async () => {
+  if (!isBrowser()) return null
+  const refreshToken = sessionStorage.getItem(REFRESH_KEY)
+  if (!refreshToken) return null
+  const { tokenUrl, clientId } = getAuthConfig()
+  const body = new URLSearchParams()
+  body.set('grant_type', 'refresh_token')
+  body.set('client_id', clientId)
+  body.set('refresh_token', refreshToken)
+
+  const response = await fetch(tokenUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  })
+
+  if (!response.ok) {
+    console.error('Refresh token échoué', response.status)
+    sessionStorage.removeItem(AUTH_FLAG_KEY)
+    sessionStorage.removeItem(TOKEN_KEY)
+    sessionStorage.removeItem(REFRESH_KEY)
+    sessionStorage.removeItem(EXPIRES_AT_KEY)
+    clearRefreshTimer()
+    return null
+  }
+
+  const tokenResponse = (await response.json()) as {
+    access_token?: string
+    refresh_token?: string
+    expires_in?: number
+  }
+
+  if (tokenResponse.access_token) {
+    setTokens(
+      tokenResponse.access_token,
+      tokenResponse.refresh_token ?? refreshToken,
+      tokenResponse.expires_in ?? null,
+    )
+    const roles = extractRoles(
+      tokenResponse.access_token,
+      requireEnvVar('VITE_KEYCLOAK_CLIENT_ID'),
+    )
+    if (roles.length > 0) {
+      sessionStorage.setItem(ROLES_KEY, JSON.stringify(roles))
+    }
+    scheduleRefresh(tokenResponse.expires_in ?? null)
+    return tokenResponse.access_token
+  }
+  return null
+}
+
+export const forceReauth = async () => {
+  if (!isBrowser()) return
+  sessionStorage.removeItem(AUTH_FLAG_KEY)
+  sessionStorage.removeItem(TOKEN_KEY)
+  sessionStorage.removeItem(REFRESH_KEY)
+  sessionStorage.removeItem(EXPIRES_AT_KEY)
+  sessionStorage.removeItem(ROLES_KEY)
+  clearRefreshTimer()
+  await redirectToKeycloak()
+}
+
 const exchangeCodeForToken = async (code: string) => {
   const { tokenUrl, clientId, redirectUri } = getAuthConfig()
   const usedRedirectUri =
@@ -233,7 +340,11 @@ export const ensureKeycloakAuth = async () => {
       try {
         const tokenResponse = await exchangeCodeForToken(code)
         if (tokenResponse.access_token) {
-          sessionStorage.setItem(TOKEN_KEY, tokenResponse.access_token)
+          setTokens(
+            tokenResponse.access_token,
+            tokenResponse.refresh_token ?? null,
+            tokenResponse.expires_in ?? null,
+          )
           const roles = extractRoles(
             tokenResponse.access_token,
             requireEnvVar('VITE_KEYCLOAK_CLIENT_ID'),
@@ -248,6 +359,7 @@ export const ensureKeycloakAuth = async () => {
         }
         sessionStorage.setItem(AUTH_FLAG_KEY, 'true')
         sessionStorage.removeItem(STATE_KEY)
+        scheduleRefresh(tokenResponse.expires_in ?? null)
         clearCodeVerifier()
         cleanAuthParamsFromUrl()
         return
@@ -284,6 +396,16 @@ export const ensureKeycloakAuth = async () => {
       await redirectToKeycloak()
       return
     }
+    const expiresAtRaw = sessionStorage.getItem(EXPIRES_AT_KEY)
+    const expiresAt = expiresAtRaw ? Number.parseInt(expiresAtRaw, 10) : NaN
+    if (Number.isFinite(expiresAt)) {
+      if (Date.now() > expiresAt - 30000) {
+        await refreshAccessToken()
+      } else {
+        const remainingSeconds = (expiresAt - Date.now()) / 1000
+        scheduleRefresh(remainingSeconds)
+      }
+    }
     return
   }
 
@@ -296,6 +418,19 @@ export const getStoredAccessToken = () => {
   return sessionStorage.getItem(TOKEN_KEY)
 }
 
+export const ensureFreshAccessToken = async () => {
+  if (!isBrowser()) return null
+  const access = sessionStorage.getItem(TOKEN_KEY)
+  const expiresAt = Number.parseInt(
+    sessionStorage.getItem(EXPIRES_AT_KEY) ?? '',
+    10,
+  )
+  if (access && Number.isFinite(expiresAt) && Date.now() < expiresAt - 30000) {
+    return access
+  }
+  return refreshAccessToken()
+}
+
 export const getStoredRoles = () => {
   if (!isBrowser()) return []
   const raw = sessionStorage.getItem(ROLES_KEY)
@@ -306,6 +441,25 @@ export const getStoredRoles = () => {
   } catch (error) {
     console.warn('Impossible de parser les rôles Keycloak', error)
     return []
+  }
+}
+
+export const getStoredProfile = () => {
+  if (!isBrowser()) return null
+  const token = sessionStorage.getItem(TOKEN_KEY)
+  if (!token) return null
+  const payload = decodeJwtPayload(token) as Record<string, unknown> | null
+  if (!payload) return null
+  const given = (payload?.given_name as string | undefined) ?? ''
+  const family = (payload?.family_name as string | undefined) ?? ''
+  const username = (payload?.preferred_username as string | undefined) ?? ''
+  const email = (payload?.email as string | undefined) ?? ''
+  return {
+    givenName: given,
+    familyName: family,
+    username,
+    email,
+    fullName: `${given} ${family}`.trim() || username || email || 'Utilisateur',
   }
 }
 
@@ -335,7 +489,7 @@ export const processKeycloakCallback = async () => {
   const code = searchParams.get('code')
 
   if (accessToken) {
-    sessionStorage.setItem(TOKEN_KEY, accessToken)
+    setTokens(accessToken, null, null)
     const roles = extractRoles(accessToken, requireEnvVar('VITE_KEYCLOAK_CLIENT_ID'))
     if (roles.length > 0) {
       sessionStorage.setItem(ROLES_KEY, JSON.stringify(roles))
@@ -350,7 +504,11 @@ export const processKeycloakCallback = async () => {
     try {
       const tokenResponse = await exchangeCodeForToken(code)
       if (tokenResponse.access_token) {
-        sessionStorage.setItem(TOKEN_KEY, tokenResponse.access_token)
+        setTokens(
+          tokenResponse.access_token,
+          tokenResponse.refresh_token ?? null,
+          tokenResponse.expires_in ?? null,
+        )
         const roles = extractRoles(
           tokenResponse.access_token,
           requireEnvVar('VITE_KEYCLOAK_CLIENT_ID'),
@@ -365,6 +523,7 @@ export const processKeycloakCallback = async () => {
       }
       sessionStorage.setItem(AUTH_FLAG_KEY, 'true')
       sessionStorage.removeItem(STATE_KEY)
+      scheduleRefresh(tokenResponse.expires_in ?? null)
       clearCodeVerifier()
     } catch (error) {
       const message =
@@ -397,4 +556,36 @@ export const getAuthDebugSnapshot = () => {
     codeVerifierFallbackPresent: !!localStorage.getItem(CODE_VERIFIER_FALLBACK_KEY),
     loginRedirectUri: sessionStorage.getItem(LOGIN_REDIRECT_URI_KEY),
   }
+}
+
+const logoutFromKeycloak = async (refreshToken: string | null) => {
+  const { tokenUrl, clientId } = getAuthConfig()
+  const logoutUrl = tokenUrl.replace(/\/token$/, '/logout')
+  const body = new URLSearchParams()
+  body.set('client_id', clientId)
+  if (refreshToken) {
+    body.set('refresh_token', refreshToken)
+  }
+  try {
+    await fetch(logoutUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    })
+  } catch (error) {
+    console.warn('Logout Keycloak: requête échouée', error)
+  }
+}
+
+export const logoutUser = async () => {
+  if (!isBrowser()) return
+  const refreshToken = sessionStorage.getItem(REFRESH_KEY)
+  await logoutFromKeycloak(refreshToken)
+  sessionStorage.removeItem(AUTH_FLAG_KEY)
+  sessionStorage.removeItem(TOKEN_KEY)
+  sessionStorage.removeItem(REFRESH_KEY)
+  sessionStorage.removeItem(EXPIRES_AT_KEY)
+  sessionStorage.removeItem(ROLES_KEY)
+  clearRefreshTimer()
+  window.location.href = '/'
 }

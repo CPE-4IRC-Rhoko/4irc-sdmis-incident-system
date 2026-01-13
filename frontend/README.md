@@ -1,33 +1,47 @@
 # 4IRC - QG/Terrain (front-end)
 
-Une base React + TypeScript + Vite en français pour piloter la vue QG/Terrain avec une carte MapLibre et des données fictives.
+Interface React + TypeScript (Vite) pour piloter la vue QG/Terrain : carte MapLibre, suivi temps-réel des événements et affectations, authentification Keycloak.
 
-## Démarrer
+## Prérequis
+- Node.js 20+ et npm.
+- Accès Keycloak (`sdmis-frontend`) et à l’API SDMIS.
+- Variables d’environnement Vite disponibles (voir ci-dessous).
 
+## Installation rapide
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-## Notes techniques
-- MapLibre via `react-map-gl/maplibre` + tuiles OSM (`https://tile.openstreetmap.org/{z}/{x}/{y}.png`).
+Scripts utiles :
+- `npm run dev` : serveur Vite en développement.
+- `npm run build` : build production (`dist/`).
+- `npm run preview` : prévisualisation du build.
+- `npm run lint` : lint TypeScript/React.
 
-## Authentification Keycloak
-- Une redirection automatique vers Keycloak est déclenchée dès l'ouverture de l'application pour authentifier l'utilisateur.
-- Variables d'environnement Vite obligatoires (dans un `.env` à la racine du dossier `frontend`) :
-  - `VITE_ENABLE_KEYCLOAK=true` pour activer/désactiver la redirection.
-  - `VITE_KEYCLOAK_AUTH_URL` (URL d'authorize complète).
-  - `VITE_KEYCLOAK_TOKEN_URL` (endpoint token pour l'échange code → token PKCE).
-  - `VITE_KEYCLOAK_CLIENT_ID` (client côté Keycloak).
-  - `VITE_KEYCLOAK_REDIRECT_URI` (URL de retour).
-  - `VITE_KEYCLOAK_SCOPE` et `VITE_KEYCLOAK_RESPONSE_TYPE` (ex. `openid profile email` / `code`).
+## Services et appels externes
 
-Des presets sont fournis :
-- `frontend/.env.development` : redirection vers `http://localhost:4173/callback`.
-- `frontend/.env.production` : redirection vers `https://sdmis.4irc.hugorodrigues.fr/callback`.
-Vite charge automatiquement le bon fichier selon le mode (`npm run dev` → `.env.development`, `npm run build` → `.env.production`).
+### Authentification Keycloak
+- Redirection automatique dès l’ouverture. Le callback `/callback` stocke `access_token`, extrait les rôles (`realm_access` + `resource_access[clientId]`) puis renvoie vers la page d’origine.
 
-Flux de callback :
-- Keycloak doit rediriger vers `/callback` (voir `VITE_KEYCLOAK_REDIRECT_URI` et les URIs autorisées côté Keycloak).
-- Le callback stocke `access_token` si fourni (hash), extrait les rôles (`realm_access` + `resource_access[clientId]`) et renvoie vers la page d’origine.
+### API SDMIS (backend)
+- Base : `VITE_API_URL` (`https://api.4irc.hugorodrigues.fr` en prod, override possible en local).
+- Endpoints consommés :
+  - REST : `/api/evenements`, `/api/interventions`, `/api/vehicules/operationnels`, `/api/vehicules/register`, `/api/vehicules/cle-ident`, `/api/references/{severites|types-evenement|casernes|equipements}`, `/api/interventions/validation`.
+  - Snapshots : `/api/evenements/snapshots`, `/api/interventions/snapshots`, `/api/vehicules/snapshots`.
+  - Temps réel : SSE sur `/api/sdmis/sse` (polyfill `event-source-polyfill` + header `Authorization: Bearer <token>`).
+
+### Cartographie et géocodage
+- Fond de carte raster Carto (style Voyager) : `https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png` (attribution OSM).
+- Routage OSRM : instance projet `https://api-osrm.4irc.hugorodrigues.fr` (configurable via `VITE_OSRM_URL`), repli automatique sur l’instance publique `https://router.project-osrm.org` en cas d’échec.
+- Géocodage / recherche d’adresse : Nominatim OSM `https://nominatim.openstreetmap.org/search` (limite à 5 résultats, headers `Accept` + `Accept-Language: fr`).
+
+### Autres ressources externes
+- Police Space Grotesk depuis Google Fonts (`https://fonts.googleapis.com`).
+
+## Stack technique
+- React 19 + TypeScript + Vite 7.
+- MapLibre via `react-map-gl/maplibre` + `maplibre-gl`.
+- `event-source-polyfill` pour la tolérance réseau des flux SSE.
+- ESLint 9 (config TypeScript/React) pour la qualité de code.

@@ -49,38 +49,49 @@ public class InterventionService {
 
         Set<UUID> vehiculesCibles = new HashSet<>(request.vehicules());
 
+        System.out.println("[VALIDATION] Start id_evenement=" + request.id_evenement() + " vehicules=" + vehiculesCibles);
+
         // Mettre en "En cours" les interventions existantes pour les véhicules fournis
         Instant now = Instant.now();
         vehiculesCibles.forEach(vehiculeId ->
                 interventionRepository.updateInterventionStatutEnCours(request.id_evenement(), vehiculeId, statutEnCours, now));
+        System.out.println("[VALIDATION] Interventions existantes mises en 'En cours'");
 
-        // Mettre les véhicules en "En route"
+        // Créer des interventions "En cours" manquantes pour les véhicules fournis
+        vehiculesCibles.forEach(vehiculeId ->
+                interventionRepository.insertInterventionEnCours(request.id_evenement(), vehiculeId, now, statutEnCours));
+        System.out.println("[VALIDATION] Interventions manquantes insérées (En cours)");
+
+        // Mettre les véhicules en "En route" uniquement après s'être assuré qu'une intervention existe
         vehiculesCibles.forEach(interventionRepository::updateVehiculeStatutEnRoute);
         broadcastVehicules(vehiculesCibles);
+        System.out.println("[VALIDATION] Véhicules passés en 'En route' et broadcastés");
 
         // Annuler les interventions restées en attente
         List<UUID> vehiculesEnAttente = interventionRepository.findVehiculesByInterventionStatut(request.id_evenement(), "En attente");
         interventionRepository.annulerInterventionsEnAttente(request.id_evenement(), statutEnAttente, statutAnnule);
+        System.out.println("[VALIDATION] Interventions en attente annulées. Véhicules concernés=" + vehiculesEnAttente);
         
         // Rendre disponibles ces véhicules si aucune autre intervention ne les laisse en "En proposition"
         for (UUID vehiculeId : vehiculesEnAttente) {
             if (!interventionRepository.vehiculeHasInterventionWithStatut(vehiculeId, "En proposition")) {
                 interventionRepository.updateVehiculeStatutDisponible(vehiculeId);
                 broadcastVehicules(Set.of(vehiculeId));
+                System.out.println("[VALIDATION] Véhicule " + vehiculeId + " repassé 'Disponible' (pas de proposition active)");
             }
         }
-        // Créer des interventions "En cours" manquantes pour les véhicules fournis
-        vehiculesCibles.forEach(vehiculeId ->
-                interventionRepository.insertInterventionEnCours(request.id_evenement(), vehiculeId, now, statutEnCours));
 
         // Mettre l'évènement en "En intervention"
         statutEvenementRepository.findIdByNom("En intervention")
                 .ifPresent(id -> {
                     evenementRepository.updateStatut(request.id_evenement(), id);
                     broadcastEvenementSnapshot(request.id_evenement());
+                    System.out.println("[VALIDATION] Évènement " + request.id_evenement() + " passé en 'En intervention' et broadcasté");
                 });
 
         broadcastSnapshotsFor(request.id_evenement(), vehiculesCibles);
+        System.out.println("[VALIDATION] Broadcast interventions pour vehicules=" + vehiculesCibles);
+        System.out.println("[VALIDATION] End id_evenement=" + request.id_evenement());
     }
 
     public void cloturerIntervention(ClotureInterventionRequest request) {
@@ -88,6 +99,7 @@ public class InterventionService {
         interventionRepository.cloturerIntervention(request.id_evenement(), request.id_vehicule());
         interventionRepository.updateVehiculeStatutDisponible(request.id_vehicule());
         broadcastVehicules(java.util.Set.of(request.id_vehicule()));
+        System.out.println("[CLOTURE] Intervention cloturee pour evt=" + request.id_evenement() + " vehicule=" + request.id_vehicule());
 
         // Si plus aucune intervention en cours pour l'évènement, passer l'évènement en "Résolu"
         if (!interventionRepository.hasInterventionEnCours(request.id_evenement())) {
@@ -95,10 +107,12 @@ public class InterventionService {
                     .ifPresent(id -> {
                         evenementRepository.updateStatut(request.id_evenement(), id);
                         broadcastEvenementSnapshot(request.id_evenement());
+                        System.out.println("[CLOTURE] Évènement " + request.id_evenement() + " passé en 'Résolu' et broadcasté");
                     });
         }
 
         broadcastSnapshotsFor(request.id_evenement(), java.util.Set.of(request.id_vehicule()));
+        System.out.println("[CLOTURE] Broadcast intervention/vehicule pour evt=" + request.id_evenement() + " vehicule=" + request.id_vehicule());
     }
 
     private void broadcastSnapshotsFor(UUID idEvenement, Set<UUID> vehicules) {

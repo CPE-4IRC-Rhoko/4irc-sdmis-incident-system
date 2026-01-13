@@ -1,4 +1,4 @@
-package fr.cpe.sdmis.api;
+package fr.cpe.sdmis.controller;
 
 import fr.cpe.sdmis.dto.EvenementCreateRequest;
 import fr.cpe.sdmis.dto.EvenementResponse;
@@ -34,7 +34,7 @@ public class EvenementController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('API_Admin')")
+    @PreAuthorize("hasAnyRole('API_Admin','API_Operateur')")
     public EvenementResponse update(@PathVariable("id") UUID id, @Valid @RequestBody EvenementUpdateRequest request) {
         return evenementService.updateEvenement(id, request);
     }
@@ -46,7 +46,7 @@ public class EvenementController {
     }
 
     @GetMapping("/snapshots")
-    @PreAuthorize("hasAnyRole('API_Admin','API_Operateur','API_Simulation')")
+    @PreAuthorize("hasAnyRole('API_Admin','API_Operateur','API_Simulation','API_Terrain')")
     public List<EvenementSnapshotResponse> listSnapshots() {
         return evenementService.listSnapshots();
     }

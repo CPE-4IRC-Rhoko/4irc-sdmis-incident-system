@@ -28,29 +28,48 @@ jobs:
           docker compose \
             --env-file .env.ci \
             -f docker-compose.yaml.local \
-            up -d --build frontend api db 
+            up -d --build frontend api db rabbitmq keycloak
+
+      - name: Show running containers
+        run: |
+          echo "📋 Running containers:"
+          docker compose --env-file .env.ci -f docker-compose.yaml.local ps 
 
       - name: Wait for API
         run: |
           echo "Waiting for API..."
-          for i in {1..30}; do
-            if curl -s http://127.0.0.1:8080/v3/api-docs > /dev/null; then
-              echo "API is ready"
-              break
+          max_attempts=60
+          attempt=0
+          while [ $attempt -lt $max_attempts ]; do
+            if curl -s http://127.0.0.1:8080/v3/api-docs > /dev/null 2>&1; then
+              echo "✅ API is ready after $((attempt * 5)) seconds"
+              exit 0
             fi
+            attempt=$((attempt + 1))
+            echo "Attempt $attempt/$max_attempts - API not ready yet..."
             sleep 5
           done
+          echo "❌ API failed to start after $((max_attempts * 5)) seconds"
+          docker compose --env-file .env.ci -f docker-compose.yaml.local logs api
+          exit 1
 
       - name: Wait for FRONTEND
         run: |
           echo "Waiting for FRONTEND..."
-          for i in {1..30}; do
-            if curl -s http://127.0.0.1:5173 > /dev/null; then
-              echo "FRONTEND is ready"
-              break
+          max_attempts=30
+          attempt=0
+          while [ $attempt -lt $max_attempts ]; do
+            if curl -s http://127.0.0.1:5173 > /dev/null 2>&1; then
+              echo "✅ FRONTEND is ready after $((attempt * 5)) seconds"
+              exit 0
             fi
+            attempt=$((attempt + 1))
+            echo "Attempt $attempt/$max_attempts - FRONTEND not ready yet..."
             sleep 5
           done
+          echo "❌ FRONTEND failed to start after $((max_attempts * 5)) seconds"
+          docker compose --env-file .env.ci -f docker-compose.yaml.local logs frontend
+          exit 1
 
       - name: Fix workspace permissions
         run: sudo chmod -R 777 ${{ github.workspace }}

@@ -3,20 +3,39 @@ import './App.css'
 import Tabs from './components/Tabs'
 import QGPage from './pages/QGPage'
 import TerrainPage from './pages/TerrainPage'
-import { getStoredRoles } from './services/auth'
+import { getStoredProfile, getStoredRoles, logoutUser } from './services/auth'
 
 type OngletId = 'QG' | 'TERRAIN'
 
 function App() {
   const [roles, setRoles] = useState<string[]>(getStoredRoles())
+  const [profile, setProfile] = useState(getStoredProfile())
+  const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
     setRoles(getStoredRoles())
+    setProfile(getStoredProfile())
   }, [])
 
   const isAdmin = roles.includes('ROLE_FRONT_Admin')
   const peutVoirQG = isAdmin || roles.includes('ROLE_FRONT_Operateur')
   const peutVoirTerrain = isAdmin || roles.includes('ROLE_FRONT_Terrain')
+
+  const rolesFiltrees = useMemo(() => {
+    const ignores = new Set([
+      'offline_access',
+      'default-roles-sdmis-realm',
+      'uma_authorization',
+    ])
+    return roles.filter((role) => !ignores.has(role))
+  }, [roles])
+
+  const rolesAffiches =
+    rolesFiltrees.length > 0
+      ? rolesFiltrees.join(', ')
+      : isAdmin
+        ? 'Admin'
+        : 'Connecté'
 
   const ongletsVisibles: { id: OngletId; label: string }[] = useMemo(() => {
     const resultat: { id: OngletId; label: string }[] = []
@@ -69,6 +88,45 @@ function App() {
             />
           </div>
         )}
+        <div className="header-user">
+          <button
+            type="button"
+            className="user-chip"
+            onClick={() => setMenuOpen((prev) => !prev)}
+          >
+            <div className="avatar">
+              {(profile?.fullName ?? 'Utilisateur').slice(0, 2).toUpperCase()}
+            </div>
+            <div className="user-info">
+              <span className="user-name">{profile?.fullName ?? 'Utilisateur'}</span>
+              <span className="user-role">{rolesAffiches}</span>
+            </div>
+          </button>
+          {menuOpen && (
+            <div className="user-menu">
+              <div className="user-menu-item">
+                <div className="avatar small">
+                  {(profile?.fullName ?? 'U').slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <strong>{profile?.fullName ?? 'Utilisateur'}</strong>
+                  <p className="muted small">{profile?.email ?? ''}</p>
+                  <p className="muted small">{rolesAffiches}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="user-menu-action"
+                onClick={() => {
+                  setMenuOpen(false)
+                  void logoutUser()
+                }}
+              >
+                Se déconnecter
+              </button>
+            </div>
+          )}
+        </div>
       </header>
 
       <main className="app-main">

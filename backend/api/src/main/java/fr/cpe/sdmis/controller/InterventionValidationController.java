@@ -1,4 +1,4 @@
-package fr.cpe.sdmis.api;
+package fr.cpe.sdmis.controller;
 
 import fr.cpe.sdmis.dto.ValidationInterventionRequest;
 import fr.cpe.sdmis.service.InterventionService;

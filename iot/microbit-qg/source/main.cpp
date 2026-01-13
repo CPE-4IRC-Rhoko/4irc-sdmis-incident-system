@@ -7,10 +7,10 @@ extern "C" {
 
 MicroBit uBit;
 
-// --- 1. CLE AES (Doit être IDENTIQUE au Terrain) ---
+// 1. CLE AES (Doit être identique à celle dans la micro:bit Terrain)
 uint8_t cleAES[16] = { 'V','E','8','c','e','n','t','L','e','P','0','u','B','o','1','2' };
 
-// --- 2. GESTION DYNAMIQUE DES CLES HMAC ---
+// 2. Gestion dynamique des cles HMAC
 // Structure pour stocker une paire ID <-> Clé
 struct KeyEntry {
     ManagedString id;
@@ -18,18 +18,18 @@ struct KeyEntry {
     bool valid;
 };
 
-// Stockage RAM (10 camions)
-KeyEntry keyStore[10]; 
+// Stockage RAM (50 camions)
+KeyEntry keyStore[50]; 
 
 // Initialisation du stockage
 void initKeyStore() {
-    for(int i=0; i<10; i++) keyStore[i].valid = false;
+    for(int i=0; i<50; i++) keyStore[i].valid = false;
 }
 
 // Ajouter ou mettre à jour une clé
 void updateKey(ManagedString id, ManagedString keyStr) {
     // 1. Chercher si l'ID existe déjà pour le mettre à jour
-    for(int i=0; i<10; i++) {
+    for(int i=0; i<50; i++) {
         if (keyStore[i].valid && keyStore[i].id == id) {
             memset(keyStore[i].key, 0, 16);
             int len = keyStr.length(); if (len > 16) len = 16;
@@ -40,7 +40,7 @@ void updateKey(ManagedString id, ManagedString keyStr) {
     }
     
     // 2. Sinon, trouver un slot vide
-    for(int i=0; i<10; i++) {
+    for(int i=0; i<50; i++) {
         if (!keyStore[i].valid) {
             keyStore[i].id = id;
             memset(keyStore[i].key, 0, 16);
@@ -56,16 +56,15 @@ void updateKey(ManagedString id, ManagedString keyStr) {
 
 // Récupérer la clé pour un ID donné
 uint8_t* getClePourID(ManagedString id) {
-    for(int i=0; i<10; i++) {
+    for(int i=0; i<50; i++) {
         if (keyStore[i].valid && keyStore[i].id == id) {
             return keyStore[i].key;
         }
     }
-    return NULL; // Clé introuvable
+    return NULL; // Si Clé introuvable
 }
 
-// --- BUFFERS & OUTILS ---
-PacketBuffer bufferRadioRecu(0);
+PacketBuffer bufferRadioRecu(0); // Buffers de transmission radio
 bool dataReady = false; 
 
 uint32_t calculerAuth(const char* data, int len, uint8_t* cle) {
@@ -86,7 +85,7 @@ ManagedString extractValue(ManagedString source, const char* tag) {
     return source.substring((ptrStart - s), ptrEnd - ptrStart);
 }
 
-// --- CRYPTO (Adapté pour chercher la clé dynamique) ---
+// Crypto (Adapté pour chercher la clé dynamique)
 PacketBuffer chiffrerReponse(ManagedString message, uint8_t* cleSpecifique) {
     uint8_t buffer[64]; memset(buffer, 0, 64);
     int len = message.length(); if (len > 56) len = 56;
@@ -117,7 +116,7 @@ ManagedString dechiffrerIntelligent(PacketBuffer data, bool* authValide, Managed
     int lenID = ptrFinID - ptrID;
     *idDetecte = ManagedString(ptrID, lenID);
 
-    // --- RECHERCHE DYNAMIQUE DE LA CLE ---
+    // Recherche dynamique de la clé
     uint8_t* cleSpecifique = getClePourID(*idDetecte);
     
     if (!cleSpecifique) return ManagedString("ERR_UNKNOWN_ID");
@@ -133,7 +132,7 @@ ManagedString dechiffrerIntelligent(PacketBuffer data, bool* authValide, Managed
 }
 
 ManagedString extractJSONValue(ManagedString source, const char* tag) {
-     // Version simplifiée pour extraire depuis le message déchiffré (séparateur ;)
+     // Extraire depuis le message déchiffré (séparateur ;)
     const char* s = source.toCharArray();
     char* ptrStart = strstr((char*)s, tag);
     if (!ptrStart) return "0";
@@ -176,7 +175,7 @@ void traiterDonnees() {
                          ",\"raw_res\":\"" + sRes + "\"" +
                          ",\"btn\":" + sBtn + "}\r\n");
         
-        // ACK
+        // ACK transmission radio avec micro:bit Terrain
         ManagedString ack = "ACK:" + idRecu + ";" + sSeq;
         uBit.sleep(20);
         uint8_t* key = getClePourID(idRecu);
@@ -184,7 +183,6 @@ void traiterDonnees() {
         
     } else {
         uBit.display.image.setPixelValue(0, 0, 255); 
-        // uBit.serial.send("LOG: Rejet securite\r\n"); // Commenté pour ne pas polluer la gateway
     }
     uBit.sleep(50);
     uBit.display.image.clear();
@@ -195,17 +193,17 @@ void receive_from_microbit(MicroBitEvent) {
     if (temp.length() > 0) { bufferRadioRecu = temp; dataReady = true; }
 }
 
-// --- GESTION COMMANDES SERIE (CFG) ---
+// Gestion commandes serie (CFG)
 void gererCommandesSerie() {
     ManagedString s = uBit.serial.readUntil('\n');
     
-    // Format attendu : CFG:AA100AA:KeySecret12345
+    // Format attendu : CFG:AA100AA:KeySecret1234567
     if (s.length() > 5 && s.substring(0, 4) == "CFG:") {
         // Parsing manuel car ManagedString est limité
         const char* str = s.toCharArray();
         
         // Trouver le premier :
-        char* ptrFirst = strstr((char*)str, ":"); // Fin de CFG
+        char* ptrFirst = strstr((char*)str, ":");
         if(!ptrFirst) return;
         
         // Trouver le deuxième : (Entre ID et Key)
