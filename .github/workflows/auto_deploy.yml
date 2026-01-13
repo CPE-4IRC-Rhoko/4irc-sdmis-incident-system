@@ -21,8 +21,9 @@ jobs:
             set -e
             source ~/.bashrc
             env
+            whoami
             pwd
-            cd $VPS_PATH
+            cd /srv/projets/4irc-sdmis-incident-system
             ls -la
             git switch main
             git pull origin main
