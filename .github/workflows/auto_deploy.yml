@@ -20,6 +20,7 @@ jobs:
           script: |
             set -e
             source ~/.bashrc
+            env
             cd $VPS_PATH
             ls -la
             git switch main
