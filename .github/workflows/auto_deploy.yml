@@ -15,7 +15,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_IP_ADDRESS }}
           username: ${{ secrets.VPS_USER_USERNAME }}
-          key: ${{ secrets.VPS_USER_SSH_KEY }}
+          password: ${{ secrets.VPS_USER_PASSWORD }}
           script: |
             set -e
             cd ${{ secrets.VPS_PATH }}
