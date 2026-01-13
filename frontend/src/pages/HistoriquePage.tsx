@@ -26,6 +26,7 @@ type TimelineEntry = {
 }
 
 const KINDS: LogKind[] = ['CREATION', 'DECISION', 'AFFECTATION', 'FIN']
+const FINGERPRINT_STORAGE_KEY = 'sdmis-historique-fingerprints'
 
 const kindLabel = (kind: LogKind) => {
   switch (kind) {
@@ -58,12 +59,6 @@ const isSameDay = (isoDate: string, day: string) => {
     d.getMonth() === target.getMonth() &&
     d.getDate() === target.getDate()
   )
-}
-
-const shiftDay = (day: string, delta: number) => {
-  const base = new Date(`${day}T00:00:00`)
-  base.setDate(base.getDate() + delta)
-  return dateInputValue(base)
 }
 
 const determineKindFromStatus = (
@@ -105,23 +100,55 @@ const determineKindFromStatus = (
 const synthesizeTime = (index: number) =>
   new Date(Date.now() - index * 4 * 60 * 1000).toISOString()
 
+const chargerEmpreintes = (): string[] => {
+  if (typeof window === 'undefined') return []
+  try {
+    const brut = sessionStorage.getItem(FINGERPRINT_STORAGE_KEY)
+    if (!brut) return []
+    const parsed = JSON.parse(brut)
+    return Array.isArray(parsed) ? (parsed as string[]) : []
+  } catch {
+    return []
+  }
+}
+
+const sauvegarderEmpreintes = (empreintes: Set<string>) => {
+  if (typeof window === 'undefined') return
+  const MAX = 1200
+  const arr = Array.from(empreintes)
+  const trimmed = arr.length > MAX ? arr.slice(arr.length - MAX) : arr
+  try {
+    sessionStorage.setItem(FINGERPRINT_STORAGE_KEY, JSON.stringify(trimmed))
+  } catch {
+    // non bloquant
+  }
+}
+
 function HistoriquePage() {
   const [etat, setEtat] = useState<'idle' | 'loading' | 'ready' | 'error'>(
     'idle',
   )
   const [erreur, setErreur] = useState<string | null>(null)
   const [selectedDay, setSelectedDay] = useState<string>(dateInputValue(new Date()))
-  const [plageHeures, setPlageHeures] = useState<6 | 12 | 24>(12)
   const [filtreTypes, setFiltreTypes] = useState<Set<LogKind>>(
     () => new Set(KINDS),
   )
   const [entries, setEntries] = useState<TimelineEntry[]>([])
   const [rechercheTexte, setRechercheTexte] = useState('')
+  const [typeMenuOpen, setTypeMenuOpen] = useState(false)
 
   const evenementsRef = useRef<Map<string, EvenementSnapshot>>(new Map())
   const interventionsRef = useRef<Map<string, InterventionSnapshot>>(new Map())
   const vehiculesRef = useRef<Map<string, VehiculeSnapshot>>(new Map())
   const fingerprintsRef = useRef<Set<string>>(new Set())
+  const typeMenuRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const existantes = chargerEmpreintes()
+    if (existantes.length > 0) {
+      fingerprintsRef.current = new Set(existantes)
+    }
+  }, [])
 
   const ajouterEntries = useCallback((ajouts: TimelineEntry[]) => {
     if (!ajouts || ajouts.length === 0) return
@@ -139,6 +166,7 @@ function HistoriquePage() {
       )
       return next.slice(0, 400)
     })
+    sauvegarderEmpreintes(fingerprintsRef.current)
   }, [])
 
   const buildEvenementEntry = useCallback(
@@ -355,44 +383,10 @@ function HistoriquePage() {
     [entriesJour],
   )
 
-  const totalJour = useMemo(
-    () =>
-      entries.filter((entry) => isSameDay(entry.at, selectedDay)).length,
-    [entries, selectedDay],
+  const selectedKinds = useMemo(
+    () => KINDS.filter((kind) => filtreTypes.has(kind)),
+    [filtreTypes],
   )
-
-  const totalHier = useMemo(() => {
-    const veille = shiftDay(selectedDay, -1)
-    return entries.filter((entry) => isSameDay(entry.at, veille)).length
-  }, [entries, selectedDay])
-
-  const variation = useMemo(() => {
-    if (totalHier === 0) return null
-    return Math.round(((totalJour - totalHier) / totalHier) * 100)
-  }, [totalHier, totalJour])
-
-  const buckets = useMemo(() => {
-    const today = dateInputValue(new Date())
-    const now = new Date()
-    const endHour = selectedDay === today ? now.getHours() : 23
-    const startHour = Math.max(0, endHour - plageHeures + 1)
-    const serie: Array<{ hour: number; count: number; current: boolean }> = []
-    for (let hour = startHour; hour <= endHour; hour += 1) {
-      const count = entriesJour.filter(
-        (entry) => new Date(entry.at).getHours() === hour,
-      ).length
-      serie.push({
-        hour,
-        count,
-        current: selectedDay === today && hour === now.getHours(),
-      })
-    }
-    const max = serie.reduce((acc, cur) => Math.max(acc, cur.count), 0)
-    return serie.map((point) => ({
-      ...point,
-      ratio: max === 0 ? 0 : point.count / max,
-    }))
-  }, [entriesJour, plageHeures, selectedDay])
 
   const toggleType = (kind: LogKind) => {
     setFiltreTypes((prev) => {
@@ -408,6 +402,21 @@ function HistoriquePage() {
       return next
     })
   }
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        typeMenuRef.current &&
+        !typeMenuRef.current.contains(event.target as Node)
+      ) {
+        setTypeMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
 
   const exporterCsv = () => {
     const header = [
@@ -463,110 +472,80 @@ function HistoriquePage() {
         </div>
       </header>
 
-      <section className="history-activity-card">
-        <div className="activity-metric">
-          <p className="muted small">Volume d’activité</p>
-          <div className="activity-count">
-            <h3>{totalJour}</h3>
-            {variation !== null && (
-              <span className={variation >= 0 ? 'trend up' : 'trend down'}>
-                {variation > 0 ? '+' : ''}
-                {variation}% vs veille
-              </span>
+      <section className="history-toolbar">
+        <div className="toolbar-left">
+          <div className="toolbar-input">
+            <span aria-hidden="true">🔍</span>
+            <input
+              type="text"
+              placeholder="Rechercher un incident, un véhicule ou un statut…"
+              value={rechercheTexte}
+              onChange={(e) => setRechercheTexte(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="toolbar-right">
+          <div className="period-picker inline">
+            <label className="muted small">Période</label>
+            <input
+              type="date"
+              value={selectedDay}
+              onChange={(e) => setSelectedDay(e.target.value)}
+            />
+          </div>
+          <div className="type-filter" ref={typeMenuRef}>
+            <button
+              type="button"
+              className="multi-select-trigger"
+              onClick={() => setTypeMenuOpen((open) => !open)}
+            >
+              <span className="muted small">Types</span>
+              <div className="multi-badges">
+                {filtreTypes.size === KINDS.length && (
+                  <span className="chip active">Tout voir</span>
+                )}
+                {filtreTypes.size !== KINDS.length &&
+                  selectedKinds.slice(0, 3).map((kind) => (
+                    <span
+                      key={kind}
+                      className={`chip ${kind === 'CREATION' ? 'creation' : kind === 'DECISION' ? 'decision' : kind === 'AFFECTATION' ? 'affectation' : 'fin'} active`}
+                    >
+                      {kindLabel(kind)}
+                    </span>
+                  ))}
+                {selectedKinds.length > 3 && (
+                  <span className="chip muted">+{selectedKinds.length - 3}</span>
+                )}
+              </div>
+              <span className="chevron">{typeMenuOpen ? '^' : 'v'}</span>
+            </button>
+            {typeMenuOpen && (
+              <div className="multi-select-menu">
+                <label className="multi-option">
+                  <input
+                    type="checkbox"
+                    checked={filtreTypes.size === KINDS.length}
+                    onChange={() => setFiltreTypes(new Set(KINDS))}
+                  />
+                  <span className="chip active">Tout voir</span>
+                </label>
+                {KINDS.map((kind) => (
+                  <label key={kind} className="multi-option">
+                    <input
+                      type="checkbox"
+                      checked={filtreTypes.has(kind)}
+                      onChange={() => toggleType(kind)}
+                    />
+                    <span
+                      className={`chip ${kind === 'CREATION' ? 'creation' : kind === 'DECISION' ? 'decision' : kind === 'AFFECTATION' ? 'affectation' : 'fin'} ${filtreTypes.has(kind) ? 'active' : ''}`}
+                    >
+                      {kindLabel(kind)}
+                    </span>
+                  </label>
+                ))}
+              </div>
             )}
           </div>
-        </div>
-        <div className="activity-chart">
-          <div className="chart-bars">
-            {buckets.map((bucket) => (
-              <div key={bucket.hour} className="chart-bar">
-                <div
-                  className={`bar ${bucket.current ? 'active' : ''}`}
-                  style={{ height: `${Math.max(bucket.ratio * 100, 6)}%` }}
-                  title={`${bucket.count} événements à ${bucket.hour
-                    .toString()
-                    .padStart(2, '0')}h`}
-                />
-                <span className="bar-label">
-                  {bucket.hour.toString().padStart(2, '0')}h
-                </span>
-              </div>
-            ))}
-          </div>
-          <div className="chart-legend">
-            <div className="toggle-group">
-              {[6, 12, 24].map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={plageHeures === value ? 'active' : ''}
-                  onClick={() => setPlageHeures(value as 6 | 12 | 24)}
-                >
-                  {value}h
-                </button>
-              ))}
-            </div>
-            <p className="muted small">
-              Dernières {plageHeures} heures sur la journée sélectionnée.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="history-toolbar">
-        <div className="period-picker">
-          <label className="muted small">Période</label>
-          <input
-            type="date"
-            value={selectedDay}
-            onChange={(e) => setSelectedDay(e.target.value)}
-          />
-        </div>
-        <div className="toolbar-input">
-          <span aria-hidden="true">🔍</span>
-          <input
-            type="text"
-            placeholder="Rechercher un incident, un véhicule ou un statut…"
-            value={rechercheTexte}
-            onChange={(e) => setRechercheTexte(e.target.value)}
-          />
-        </div>
-        <div className="chips">
-          <button
-            type="button"
-            className={filtreTypes.size === KINDS.length ? 'chip active' : 'chip'}
-            onClick={() => setFiltreTypes(new Set(KINDS))}
-          >
-            Tout voir
-          </button>
-          <button
-            type="button"
-            className={`chip ${filtreTypes.has('CREATION') ? 'active creation' : ''}`}
-            onClick={() => toggleType('CREATION')}
-          >
-            Création
-          </button>
-          <button
-            type="button"
-            className={`chip ${filtreTypes.has('DECISION') ? 'active decision' : ''}`}
-            onClick={() => toggleType('DECISION')}
-          >
-            Décision
-          </button>
-          <button
-            type="button"
-            className={`chip ${filtreTypes.has('AFFECTATION') ? 'active affectation' : ''}`}
-            onClick={() => toggleType('AFFECTATION')}
-          >
-            Affectation
-          </button>
-          <button
-            type="button"
-            className={`chip ${filtreTypes.has('FIN') ? 'active fin' : ''}`}
-            onClick={() => toggleType('FIN')}
-          >
-            Fin d’intervention
-          </button>
         </div>
       </section>
 
@@ -592,6 +571,7 @@ function HistoriquePage() {
         )}
 
         {etat === 'ready' && entriesTriees.length > 0 && (
+          <div className="table-scroll">
             <table className="history-table">
               <thead>
                 <tr>
@@ -604,34 +584,35 @@ function HistoriquePage() {
               <tbody>
                 {entriesTriees.map((entry) => (
                   <tr key={entry.id}>
-                  <td className="muted">{toHour(entry.at)}</td>
-                  <td>
-                    {entry.incidentId ? (
-                      <span className="incident-id">#{entry.incidentId.slice(0, 8)}</span>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td>
-                    <span className={`type-badge ${entry.kind.toLowerCase()}`}>
-                      <span className="dot" />
-                      {kindLabel(entry.kind)}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="description-cell">
-                      <p className="table-primary">{entry.description}</p>
-                      <p className="muted small">
-                        {entry.incidentLabel}
-                        {entry.vehicule ? ` • ${entry.vehicule}` : ''}
-                        {entry.badgeNote ? ` • ${entry.badgeNote}` : ''}
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <td className="muted">{toHour(entry.at)}</td>
+                    <td>
+                      {entry.incidentId ? (
+                        <span className="incident-id">#{entry.incidentId.slice(0, 8)}</span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td>
+                      <span className={`type-badge ${entry.kind.toLowerCase()}`}>
+                        <span className="dot" />
+                        {kindLabel(entry.kind)}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="description-cell">
+                        <p className="table-primary">{entry.description}</p>
+                        <p className="muted small">
+                          {entry.incidentLabel}
+                          {entry.vehicule ? ` • ${entry.vehicule}` : ''}
+                          {entry.badgeNote ? ` • ${entry.badgeNote}` : ''}
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
     </div>
