@@ -11,12 +11,11 @@ import java.util.Random;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 
 public class CallAPI {
 
-    private static final String API_URL_TYPE_EVENEMENT = "http://localhost:8082/api/references/types-evenement";
-    private static final String API_URL_SEVERTIE = "http://localhost:8082/api/references/severites";
+    private static final String API_URL_TYPE_EVENEMENT = "https://api.4irc.hugorodrigues.fr/api/references/types-evenement";
+    private static final String API_URL_SEVERTIE = "https://api.4irc.hugorodrigues.fr/api/references/severites";
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final Random random;
@@ -33,17 +32,19 @@ public class CallAPI {
      * @throws IOException En cas d'erreur de communication
      * @throws InterruptedException Si la requête est interrompue
      */
-    public List<TypeEvenement> recupererEvenements() throws IOException, InterruptedException {
+    public List<TypeEvenement> recupererEvenements(String token) throws IOException, InterruptedException {
         // Créer les requêtes HTTP GET
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(API_URL_TYPE_EVENEMENT))
                 .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + token)
                 .GET()
                 .build();
 
         HttpRequest request2 = HttpRequest.newBuilder()
                 .uri(URI.create(API_URL_SEVERTIE))
                 .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + token)
                 .GET()
                 .build();
 
@@ -65,7 +66,7 @@ public class CallAPI {
         for (String type : liste1) {
             for (String severite : liste2)
             {
-                resultatFinal.add(new TypeEvenement(severite, type, "Description générée automatiquement"));
+                resultatFinal.add(new TypeEvenement(severite, type, "Description générée par Maxence"));
             }
         }
 
@@ -106,26 +107,7 @@ public class CallAPI {
         int indexAleatoire = random.nextInt(evenements.size());
         return evenements.get(indexAleatoire);
     }
-
-    /**
-     * Méthode principale pour tester
-     **/
-    /*
-    public static void main(String[] args) {
-        CallAPI callAPI = new CallAPI();
-
-        try {
-
-            //EVENEMENTS ALEATOIRES
-            List<TypeEvenement> evenements = callAPI.recupererEvenements();
-            TypeEvenement evenementsAleatoire = callAPI.selectionnerEvenementAleatoire(evenements);
-            System.out.println("Événement récupéré :");
-            System.out.println(evenementsAleatoire);
-
-        } catch (IOException | InterruptedException e) {
-            System.err.println("Erreur lors de l'appel API : " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-    */
 }
+
+
+

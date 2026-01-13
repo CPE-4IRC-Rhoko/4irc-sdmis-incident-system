@@ -36,14 +36,6 @@ function Sidebar({
   incidentSelectionne,
   onOuvrirFormulaire,
 }: Props) {
-  const formatterDate = (date: string) =>
-    new Date(date).toLocaleString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
@@ -160,9 +152,6 @@ function Sidebar({
               Gravité : {LIBELLES_GRAVITE_INCIDENT[incidentSelectionne.gravite]}
             </span>
           </div>
-          <p className="muted small">
-            Dernière mise à jour : {formatterDate(incidentSelectionne.derniereMiseAJour)}
-          </p>
           <p className="muted small">
             Coords : {incidentSelectionne.latitude.toFixed(4)} /{' '}
             {incidentSelectionne.longitude.toFixed(4)}

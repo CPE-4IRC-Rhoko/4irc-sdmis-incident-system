@@ -1,6 +1,7 @@
 package fr.cpe.sdmis.repository;
 
 import fr.cpe.sdmis.domain.model.Evenement;
+import fr.cpe.sdmis.dto.EvenementSnapshotResponse;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -14,6 +15,22 @@ import java.util.UUID;
 
 @Repository
 public class EvenementRepository implements IEvenementRepository {
+    private static final String SNAPSHOT_QUERY = """
+            SELECT e.id_evenement,
+                   e.description,
+                   e.latitude,
+                   e.longitude,
+                   se.nom_statut AS statut_evenement,
+                   te.nom AS type_evenement,
+                   s.nom_severite AS severite,
+                   s.valeur_échelle AS echelle_severite,
+                   s.nb_vehicules_necessaire
+            FROM evenement e
+            JOIN statut_evenement se ON se.id_statut = e.id_statut
+            JOIN type_evenement te ON te.id_type_evenement = e.id_type_evenement
+            JOIN severite s ON s.id_severite = e.id_severite
+            """;
+
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
     public EvenementRepository(NamedParameterJdbcTemplate jdbcTemplate) {
@@ -109,5 +126,61 @@ public class EvenementRepository implements IEvenementRepository {
                     rs.getInt("nb_vehicules_necessaire")
             );
         }
+    }
+
+    public void updateStatut(UUID idEvenement, UUID idStatut) {
+        jdbcTemplate.update("""
+                UPDATE evenement
+                SET id_statut = :statut
+                WHERE id_evenement = :id
+                """, new MapSqlParameterSource()
+                .addValue("statut", idStatut)
+                .addValue("id", idEvenement));
+    }
+
+    public List<EvenementSnapshotResponse> findSnapshots() {
+        return jdbcTemplate.query(SNAPSHOT_QUERY + " ORDER BY s.valeur_échelle DESC", this::mapSnapshot);
+    }
+
+    public Optional<EvenementSnapshotResponse> findSnapshotById(UUID idEvenement) {
+        List<EvenementSnapshotResponse> res = jdbcTemplate.query(
+                SNAPSHOT_QUERY + " WHERE e.id_evenement = :id",
+                new MapSqlParameterSource("id", idEvenement),
+                this::mapSnapshot
+        );
+        return res.stream().findFirst();
+    }
+
+    @Override
+    public void update(UUID idEvenement, String description, double latitude, double longitude, UUID idTypeEvenement, UUID idSeverite) {
+        jdbcTemplate.update("""
+                UPDATE evenement
+                SET description = :description,
+                    latitude = :latitude,
+                    longitude = :longitude,
+                    id_type_evenement = :id_type_evenement,
+                    id_severite = :id_severite
+                WHERE id_evenement = :id
+                """, new MapSqlParameterSource()
+                .addValue("description", description)
+                .addValue("latitude", latitude)
+                .addValue("longitude", longitude)
+                .addValue("id_type_evenement", idTypeEvenement)
+                .addValue("id_severite", idSeverite)
+                .addValue("id", idEvenement));
+    }
+
+    private EvenementSnapshotResponse mapSnapshot(ResultSet rs, int rowNum) throws SQLException {
+        return new EvenementSnapshotResponse(
+                rs.getObject("id_evenement", UUID.class),
+                rs.getString("description"),
+                rs.getDouble("latitude"),
+                rs.getDouble("longitude"),
+                rs.getString("statut_evenement"),
+                rs.getString("type_evenement"),
+                rs.getString("severite"),
+                rs.getString("echelle_severite"),
+                rs.getInt("nb_vehicules_necessaire")
+        );
     }
 }

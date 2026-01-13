@@ -2,12 +2,19 @@ name: DAST - ZAP (docker-compose local)
 
 on:
   pull_request:
-  push:
     branches: [ "main" ]
+  push:
+    branches: [ "main", "dev"]
+
 
 jobs:
   dast:
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      issues: write
+      security-events: write
 
     steps:
       - name: Checkout code
@@ -21,34 +28,105 @@ jobs:
           docker compose \
             --env-file .env.ci \
             -f docker-compose.yaml.local \
-            up -d --build
+            up -d --build frontend api db rabbitmq keycloak
+
+      - name: Show running containers
+        run: |
+          echo "📋 Running containers:"
+          docker compose --env-file .env.ci -f docker-compose.yaml.local ps 
 
       - name: Wait for API
         run: |
-          echo "Waiting for API..."          
-          sleep 30
+          echo "Waiting for API..."
+          max_attempts=60
+          attempt=0
+          while [ $attempt -lt $max_attempts ]; do
+            if curl -s http://127.0.0.1:8080/v3/api-docs > /dev/null 2>&1; then
+              echo "✅ API is ready after $((attempt * 5)) seconds"
+              exit 0
+            fi
+            attempt=$((attempt + 1))
+            echo "Attempt $attempt/$max_attempts - API not ready yet..."
+            sleep 5
+          done
+          echo "❌ API failed to start after $((max_attempts * 5)) seconds"
+          docker compose --env-file .env.ci -f docker-compose.yaml.local logs api
+          exit 1
+
+      - name: Wait for FRONTEND
+        run: |
+          echo "Waiting for FRONTEND..."
+          max_attempts=30
+          attempt=0
+          while [ $attempt -lt $max_attempts ]; do
+            if curl -s http://127.0.0.1:5173 > /dev/null 2>&1; then
+              echo "✅ FRONTEND is ready after $((attempt * 5)) seconds"
+              exit 0
+            fi
+            attempt=$((attempt + 1))
+            echo "Attempt $attempt/$max_attempts - FRONTEND not ready yet..."
+            sleep 5
+          done
+          echo "❌ FRONTEND failed to start after $((max_attempts * 5)) seconds"
+          docker compose --env-file .env.ci -f docker-compose.yaml.local logs frontend
+          exit 1
 
       - name: Fix workspace permissions
-        run: sudo chmod -R a+w $GITHUB_WORKSPACE
+        run: sudo chmod -R 777 ${{ github.workspace }}
 
-      - name: ZAP Baseline Scan (API)
-        uses: zaproxy/action-baseline@v0.10.0
+      -   
+        uses: zaproxy/action-api-scan@v0.10.0
         with:
-          target: 'http://localhost:8080'
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifact_name: ''
+          format: openapi
+          target: 'http://127.0.0.1:8080/v3/api-docs'
           cmd_options: >
-            -a
-            -J zap.json
-            -r zap_report.html
-          rules_file_name: '.zap/rules.tsv'
+            -J zap_api.json
+            -r zap_api.html
+        
+      - name: Upload ZAP reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-API-report
+          path: |
+            zap_api.json
+            zap_api.html
 
+      - name: remove common files of ZAP for FRONTEND
+        run: |
+          ls -al
+          whoami
+          pwd          
+          sudo chmod 777 -R *
+          ls -al 
+          rm report_md.md
+          ls -al
+
+      - name: ZAP Full Scan (FRONTEND)
+        run: |
+          docker run --rm \
+            --network="host" \
+            -v ${{ github.workspace }}:/zap/wrk/:rw \
+            -t ghcr.io/zaproxy/zaproxy:stable \
+            zap-full-scan.py \
+            -P 5180 \
+            -t http://127.0.0.1:5173 \
+            -c .zap/rules.tsv \
+            -r zap_frontend.html \
+            -j zap_frontend.json \
+            -I \
+            -m 1 \
+            -d
 
       - name: Upload ZAP reports
         uses: actions/upload-artifact@v4
         with:
-          name: zap-report
+          name: zap-frontend-report
           path: |
-            zap_report.html
-            zap.json
+            zap_frontend.html
+            zap_frontend.json
+            zap-frontend.md
 
       - name: Stop docker-compose
         if: always()

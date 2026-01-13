@@ -1,13 +1,20 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Modal from '../components/Modal'
 import './EvenementsPage.css'
 import '../components/IncidentForm.css'
 import {
   createEvenement,
-  getEvenements,
+  getEvenementsSnapshots,
   getSeverites,
   getTypesEvenement,
+  updateEvenement,
 } from '../services/evenements'
+import {
+  subscribeSdmisSse,
+  type EvenementSnapshot,
+  type InterventionSnapshot,
+} from '../services/sse'
+import { getInterventionsSnapshots } from '../services/interventions'
 import type {
   EvenementApi,
   EvenementCreatePayload,
@@ -25,9 +32,9 @@ interface FormState extends EvenementCreatePayload {
 }
 
 const niveauSeverite = (
-  libelle: string,
+  libelle: string | null | undefined,
 ): 'critique' | 'moyenne' | 'faible' => {
-  const texte = libelle.toLowerCase()
+  const texte = (libelle ?? '').toLowerCase()
   if (
     texte.includes('crit') ||
     texte.includes('grave') ||
@@ -39,11 +46,28 @@ const niveauSeverite = (
   return 'faible'
 }
 
-const poidsSeverite = (libelle: string) => {
+const poidsSeverite = (libelle: string | null | undefined) => {
   const niveau = niveauSeverite(libelle)
   if (niveau === 'critique') return 3
   if (niveau === 'moyenne') return 2
   return 1
+}
+
+const poidsStatut = (statut: string | null | undefined) => {
+  const ordre = [
+    'déclaré',
+    'declare',
+    'en cours de traitement',
+    'en cours',
+    'en intervention',
+    'résolu',
+    'resolu',
+    'annulé',
+    'annule',
+  ]
+  const texte = (statut ?? '').toLowerCase()
+  const idx = ordre.findIndex((mot) => texte.includes(mot))
+  return idx === -1 ? ordre.length + 1 : idx
 }
 
 const classSeverite = (libelle: string) =>
@@ -63,17 +87,75 @@ const classStatut = (statut: string) => {
     texte.includes('résol') ||
     texte.includes('resol') ||
     texte.includes('clos') ||
-    texte.includes('clôt')
+    texte.includes('clôt') ||
+    texte.includes('annul')
   ) {
     return 'statut-resolu'
   }
   return 'statut-neutre'
 }
 
+const estCloture = (statut: string) => {
+  const texte = (statut ?? '').toLowerCase()
+  return (
+    texte.includes('résol') ||
+    texte.includes('resol') ||
+    texte.includes('clos') ||
+    texte.includes('clôt') ||
+    texte.includes('annul')
+  )
+}
+
+const estActif = (statut: string) => !estCloture(statut)
+
 const formatCoord = (value: number) => value.toFixed(4)
 
 const localisationLisible = (evt: EvenementApi) =>
   `${formatCoord(evt.latitude)}, ${formatCoord(evt.longitude)}`
+
+const STATUT_CREATION_FIXE = 'Déclaré'
+
+const enrichirEvenementAvecRefs = (
+  evt: EvenementApi,
+  types: TypeEvenementReference[],
+  severites: SeveriteReference[],
+): EvenementApi => {
+  const typeRef =
+    types.find((type) => type.id === evt.idTypeEvenement) ??
+    types.find(
+      (type) =>
+        type.nom.toLowerCase() === evt.nomTypeEvenement.toLowerCase(),
+    )
+  const severiteRef =
+    severites.find((sev) => sev.id === evt.idSeverite) ??
+    severites.find(
+      (sev) =>
+        sev.nomSeverite.toLowerCase() === evt.nomSeverite.toLowerCase(),
+    )
+  return {
+    ...evt,
+    idTypeEvenement: evt.idTypeEvenement || typeRef?.id || '',
+    idSeverite: evt.idSeverite || severiteRef?.id || '',
+    nomStatut: evt.nomStatut || STATUT_CREATION_FIXE,
+  }
+}
+
+const evenementDepuisSnapshot = (
+  snapshot: EvenementSnapshot,
+): EvenementApi => ({
+  id: snapshot.idEvenement,
+  description: snapshot.description,
+  latitude: snapshot.latitude,
+  longitude: snapshot.longitude,
+  idTypeEvenement: '',
+  idStatut: '',
+  idSeverite: '',
+  nomTypeEvenement: snapshot.typeEvenement,
+  nomStatut: snapshot.statutEvenement,
+  nomSeverite: snapshot.severite,
+  valeurEchelle: snapshot.echelleSeverite,
+  nbVehiculesNecessaire: snapshot.nbVehiculesNecessaire ?? null,
+})
 
 function EvenementsPage() {
   const [evenements, setEvenements] = useState<EvenementApi[]>([])
@@ -95,11 +177,26 @@ function EvenementsPage() {
   const [formState, setFormState] = useState<FormState | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [formLoading, setFormLoading] = useState(false)
+  const [interventions, setInterventions] = useState<InterventionSnapshot[]>([])
+
+  const finParEvenement = useMemo(() => {
+    const map = new Map<string, number>()
+    interventions.forEach((intervention) => {
+      if (!intervention.dateFinIntervention) return
+      const fin = new Date(intervention.dateFinIntervention).getTime()
+      const current = map.get(intervention.idEvenement)
+      if (!current || fin > current) {
+        map.set(intervention.idEvenement, fin)
+      }
+    })
+    return map
+  }, [interventions])
 
   const statutsDisponibles = useMemo(() => {
     const map = new Map<string, string>()
     evenements.forEach((evt) => {
-      map.set(evt.idStatut, evt.nomStatut)
+      const key = evt.idStatut || evt.nomStatut
+      map.set(key, evt.nomStatut)
     })
     if (map.size === 0) {
       map.set('default', 'Déclaré')
@@ -113,12 +210,26 @@ function EvenementsPage() {
       setEtat('loading')
       setErreur(null)
       try {
-        const [evtApi, severitesApi, typesApi] = await Promise.all([
-          getEvenements(controller.signal),
+        const [evtSnapshots, interventionsApi, severitesApi, typesApi] = await Promise.all([
+          getEvenementsSnapshots(controller.signal),
+          getInterventionsSnapshots(controller.signal),
           getSeverites(controller.signal),
           getTypesEvenement(controller.signal),
         ])
+        const evtApi = evtSnapshots
+          .map(evenementDepuisSnapshot)
+          .map((evt) => enrichirEvenementAvecRefs(evt, typesApi, severitesApi))
         setEvenements(evtApi)
+        setInterventions(
+          interventionsApi.map((intervention) => ({
+            idEvenement: intervention.idEvenement,
+            idVehicule: intervention.idVehicule,
+            statusIntervention: intervention.statusIntervention,
+            dateDebutIntervention: intervention.dateDebutIntervention,
+            dateFinIntervention: intervention.dateFinIntervention,
+            plaqueImmat: intervention.plaqueImmat,
+          })),
+        )
         const severitesTriees = [...severitesApi].sort(
           (a, b) =>
             Number.parseInt(a.valeurEchelle, 10) -
@@ -152,9 +263,96 @@ function EvenementsPage() {
     return () => controller.abort()
   }, [refreshKey])
 
+const appliquerSnapshotsEvenements = useCallback(
+  (snapshots: EvenementSnapshot[]) => {
+    if (snapshots.length === 0) return
+    setEvenements((prev) => {
+      const map = new Map(prev.map((evt) => [evt.id, evt]))
+      snapshots.forEach((snapshot) => {
+        const courant = map.get(snapshot.idEvenement)
+        const enrichi = enrichirEvenementAvecRefs(
+          {
+            ...courant,
+            id: snapshot.idEvenement,
+            description: snapshot.description,
+            latitude: snapshot.latitude,
+            longitude: snapshot.longitude,
+            idTypeEvenement: courant?.idTypeEvenement ?? '',
+            idStatut: courant?.idStatut ?? '',
+            idSeverite: courant?.idSeverite ?? '',
+            nomTypeEvenement: snapshot.typeEvenement,
+            nomStatut: snapshot.statutEvenement,
+            nomSeverite: snapshot.severite,
+            valeurEchelle: snapshot.echelleSeverite,
+            nbVehiculesNecessaire:
+              snapshot.nbVehiculesNecessaire ??
+              courant?.nbVehiculesNecessaire ??
+              null,
+          },
+          types,
+          severites,
+        )
+        map.set(snapshot.idEvenement, {
+          ...courant,
+          ...enrichi,
+        })
+      })
+      const next = Array.from(map.values())
+      setSelectedId((prev) =>
+        prev && next.some((evt) => evt.id === prev) ? prev : next[0]?.id ?? null,
+      )
+      return next
+    })
+  },
+  [types, severites],
+)
+
+  const appliquerSnapshotsInterventions = useCallback(
+    (snapshots: InterventionSnapshot[]) => {
+      if (snapshots.length === 0) return
+      setInterventions((prev) => {
+        const map = new Map(
+          prev.map((intervention) => [
+            `${intervention.idEvenement}-${intervention.idVehicule}`,
+            intervention,
+          ]),
+        )
+        snapshots.forEach((intervention) => {
+          map.set(
+            `${intervention.idEvenement}-${intervention.idVehicule}`,
+            intervention,
+          )
+        })
+        return Array.from(map.values())
+      })
+    },
+    [],
+  )
+
+  useEffect(() => {
+    const es = subscribeSdmisSse({
+      onEvenements: appliquerSnapshotsEvenements,
+      onInterventions: appliquerSnapshotsInterventions,
+      onError: (err) => console.error('SSE événements (onglet)', err),
+    })
+    return () => es.close()
+  }, [appliquerSnapshotsEvenements, appliquerSnapshotsInterventions])
+
+  const evenementsRecents = useMemo(() => {
+    const limite = Date.now() - 24 * 60 * 60 * 1000
+    return evenements.filter((evt) => {
+      if (!estCloture(evt.nomStatut)) return true
+      const fin = finParEvenement.get(evt.id)
+      if (fin && fin < limite) {
+        return false
+      }
+      return true
+    })
+  }, [evenements, finParEvenement])
+
   const evenementsFiltres = useMemo(() => {
     const recherche = filtreTexte.trim().toLowerCase()
-    return [...evenements]
+    return [...evenementsRecents]
       .filter((evt) => {
         const correspondTexte =
           recherche.length === 0 ||
@@ -169,13 +367,19 @@ function EvenementsPage() {
         const correspondSeverite =
           filtreSeverite === 'toutes' || evt.idSeverite === filtreSeverite
         const correspondStatut =
-          filtreStatut === 'tous' || evt.idStatut === filtreStatut
+          filtreStatut === 'tous' ||
+          evt.idStatut === filtreStatut ||
+          evt.nomStatut === filtreStatut
         return correspondTexte && correspondSeverite && correspondStatut
       })
       .sort(
-        (a, b) => poidsSeverite(b.nomSeverite) - poidsSeverite(a.nomSeverite),
+        (a, b) => {
+          const diffStatut = poidsStatut(a.nomStatut) - poidsStatut(b.nomStatut)
+          if (diffStatut !== 0) return diffStatut
+          return poidsSeverite(b.nomSeverite) - poidsSeverite(a.nomSeverite)
+        },
       )
-  }, [evenements, filtreTexte, filtreSeverite, filtreStatut])
+  }, [evenementsRecents, filtreTexte, filtreSeverite, filtreStatut])
 
   useEffect(() => {
     if (evenementsFiltres.length === 0) {
@@ -194,6 +398,10 @@ function EvenementsPage() {
     }
   }, [evenementsFiltres, selectedId])
 
+  useEffect(() => {
+    setPage(1)
+  }, [filtreTexte, filtreSeverite, filtreStatut])
+
   const totalPages = Math.max(1, Math.ceil(evenementsFiltres.length / pageSize))
   const evenementsPage = useMemo(() => {
     const start = (page - 1) * pageSize
@@ -201,28 +409,43 @@ function EvenementsPage() {
   }, [evenementsFiltres, page])
 
   const metriques = useMemo(() => {
-    const severiteCritique = evenements.filter(
-      (evt) => niveauSeverite(evt.nomSeverite) === 'critique',
+    const severiteCritique = evenementsRecents.filter(
+      (evt) =>
+        estActif(evt.nomStatut) &&
+        niveauSeverite(evt.nomSeverite) === 'critique',
     ).length
-    const besoinsRessources = evenements.filter(
+    const besoinsRessources = evenementsRecents.filter(
       (evt) => (evt.nbVehiculesNecessaire ?? 0) > 0,
     ).length
-    const clotures = evenements.filter((evt) => {
-      const statut = evt.nomStatut.toLowerCase()
-      return (
-        statut.includes('résol') ||
-        statut.includes('resol') ||
-        statut.includes('clos') ||
-        statut.includes('clôt')
-      )
+    const limite = Date.now() - 24 * 60 * 60 * 1000
+    const clotures = evenementsRecents.filter((evt) => {
+      if (!estCloture(evt.nomStatut)) return false
+      const fin = finParEvenement.get(evt.id)
+      return !fin || fin >= limite
     }).length
+    const actifs = evenementsRecents.filter((evt) => estActif(evt.nomStatut)).length
+    const geres24h = new Set<string>()
+    interventions.forEach((intervention) => {
+      const debut = intervention.dateDebutIntervention
+        ? new Date(intervention.dateDebutIntervention).getTime()
+        : null
+      const fin = intervention.dateFinIntervention
+        ? new Date(intervention.dateFinIntervention).getTime()
+        : null
+      if (
+        (debut && debut >= limite) ||
+        (fin && fin >= limite)
+      ) {
+        geres24h.add(intervention.idEvenement)
+      }
+    })
     return {
-      total: evenements.length,
+      actifs,
       critiques: severiteCritique,
       besoinsRessources,
       clotures,
     }
-  }, [evenements])
+  }, [evenementsRecents, interventions])
 
   const remettreAZeroForm = () => {
     setFormMode(null)
@@ -236,31 +459,38 @@ function EvenementsPage() {
     setFormError(null)
     const typeRef = types[0]
     const severiteRef = severites[0]
-    const statutRef =
-      statutsDisponibles.find((s) =>
-        s.nom.toLowerCase().includes('déclar'),
-      ) ?? statutsDisponibles[0]
     setFormState({
       description: '',
       latitude: evenements[0]?.latitude ?? 45.7578,
       longitude: evenements[0]?.longitude ?? 4.8351,
       nomTypeEvenement: typeRef?.nom ?? '',
       nomSeverite: severiteRef?.nomSeverite ?? '',
-      nomStatut: statutRef?.nom ?? 'Déclaré',
+      nomStatut: STATUT_CREATION_FIXE,
       idTypeEvenement: typeRef?.id,
       idSeverite: severiteRef?.id,
-      idStatut: statutRef?.id,
+      idStatut: undefined,
     })
   }
 
-  const ouvrirEdition = (evt: EvenementApi) => {
-    setFormMode('edition')
-    setFormError(null)
-    const typeRef = types.find((type) => type.id === evt.idTypeEvenement)
-    const severiteRef = severites.find((sev) => sev.id === evt.idSeverite)
-    const statutRef = statutsDisponibles.find(
-      (statut) => statut.id === evt.idStatut,
-    )
+const ouvrirEdition = (evt: EvenementApi) => {
+  setFormMode('edition')
+  setFormError(null)
+  const typeRef =
+      types.find((type) => type.id === evt.idTypeEvenement) ??
+      types.find(
+        (type) =>
+          type.nom.toLowerCase() === evt.nomTypeEvenement.toLowerCase(),
+      )
+    const severiteRef =
+      severites.find((sev) => sev.id === evt.idSeverite) ??
+      severites.find(
+        (sev) => sev.nomSeverite.toLowerCase() === evt.nomSeverite.toLowerCase(),
+      )
+    const statutRef =
+      statutsDisponibles.find((statut) => statut.id === evt.idStatut) ??
+      statutsDisponibles.find(
+        (statut) => statut.nom.toLowerCase() === evt.nomStatut.toLowerCase(),
+      )
     setFormState({
       id: evt.id,
       description: evt.description,
@@ -269,11 +499,11 @@ function EvenementsPage() {
       nomTypeEvenement: typeRef?.nom ?? evt.nomTypeEvenement,
       nomSeverite: severiteRef?.nomSeverite ?? evt.nomSeverite,
       nomStatut: statutRef?.nom ?? evt.nomStatut,
-      idTypeEvenement: evt.idTypeEvenement,
-      idSeverite: evt.idSeverite,
-      idStatut: evt.idStatut,
+      idTypeEvenement: typeRef?.id ?? evt.idTypeEvenement ?? evt.nomTypeEvenement,
+      idSeverite: severiteRef?.id ?? evt.idSeverite ?? evt.nomSeverite,
+      idStatut: statutRef?.id ?? evt.idStatut ?? evt.nomStatut,
     })
-  }
+}
 
   const mettreAJourForm = (champ: keyof FormState, valeur: string | number) => {
     setFormState((prev) =>
@@ -290,13 +520,6 @@ function EvenementsPage() {
     if (!formState || !formMode) return
     setFormError(null)
 
-    if (!formState.nomStatut) {
-      setFormError(
-        'Choisissez un statut (aucune référence de statut encore fournie par l’API).',
-      )
-      return
-    }
-
     if (formMode === 'edition') {
       if (!formState.id) {
         setFormError('Impossible de modifier : identifiant manquant.')
@@ -306,32 +529,51 @@ function EvenementsPage() {
         (sev) => sev.id === formState.idSeverite,
       )
       const typeRef = types.find((type) => type.id === formState.idTypeEvenement)
-      const statutRef = statutsDisponibles.find(
-        (statut) => statut.id === formState.idStatut,
-      )
 
-      setEvenements((prev) =>
-        prev.map((evt) =>
-          evt.id === formState.id
-            ? {
-                ...evt,
-                description: formState.description,
-                latitude: Number(formState.latitude),
-                longitude: Number(formState.longitude),
-                idTypeEvenement: formState.idTypeEvenement ?? evt.idTypeEvenement,
-                idSeverite: formState.idSeverite ?? evt.idSeverite,
-                idStatut: formState.idStatut ?? evt.idStatut,
-                nomTypeEvenement: typeRef?.nom ?? evt.nomTypeEvenement,
-                nomSeverite: severiteRef?.nomSeverite ?? evt.nomSeverite,
-                nomStatut: statutRef?.nom ?? evt.nomStatut,
-                nbVehiculesNecessaire:
-                  severiteRef?.nbVehiculesNecessaire ?? evt.nbVehiculesNecessaire,
-                valeurEchelle: severiteRef?.valeurEchelle ?? evt.valeurEchelle,
-              }
-            : evt,
-        ),
-      )
-      remettreAZeroForm()
+      if (!typeRef || !severiteRef) {
+        setFormError('Type ou gravité manquant pour la mise à jour.')
+        return
+      }
+
+      try {
+        setFormLoading(true)
+        const updated = await updateEvenement(formState.id, {
+          description: formState.description,
+          latitude: Number(formState.latitude),
+          longitude: Number(formState.longitude),
+          nomTypeEvenement: typeRef.nom,
+          nomSeverite: severiteRef.nomSeverite,
+        })
+        setEvenements((prev) =>
+          prev.map((evt) =>
+            evt.id === updated.id
+              ? {
+                  ...evt,
+                  description: updated.description,
+                  latitude: updated.latitude,
+                  longitude: updated.longitude,
+                  idTypeEvenement: updated.idTypeEvenement,
+                  idSeverite: updated.idSeverite,
+                  nomTypeEvenement: updated.nomTypeEvenement,
+                  nomSeverite: updated.nomSeverite,
+                  nomStatut: updated.nomStatut,
+                  nbVehiculesNecessaire: updated.nbVehiculesNecessaire,
+                  valeurEchelle: updated.valeurEchelle,
+                }
+              : evt,
+          ),
+        )
+        remettreAZeroForm()
+        return
+      } catch (error) {
+        setFormError(
+          error instanceof Error
+            ? error.message
+            : 'Échec de la mise à jour de l’événement.',
+        )
+      } finally {
+        setFormLoading(false)
+      }
       return
     }
 
@@ -341,7 +583,7 @@ function EvenementsPage() {
       const severiteRef = severites.find(
         (sev) => sev.id === formState.idSeverite,
       )
-      const statutNom = formState.nomStatut ?? undefined
+      const statutNom = formMode === 'creation' ? STATUT_CREATION_FIXE : formState.nomStatut ?? undefined
 
       if (!typeRef || !severiteRef || !statutNom) {
         setFormError(
@@ -401,14 +643,14 @@ function EvenementsPage() {
       <div className="events-metrics">
         <div className="metric-card">
           <p className="muted small">Événements actifs</p>
-          <h3>{metriques.total}</h3>
+          <h3>{metriques.actifs}</h3>
         </div>
         <div className="metric-card severe">
           <p className="muted small">Gravité critique</p>
           <h3>{metriques.critiques}</h3>
         </div>
         <div className="metric-card success">
-          <p className="muted small">Événements clôturés</p>
+          <p className="muted small">Événements clôturés (24h)</p>
           <h3>{metriques.clotures}</h3>
         </div>
       </div>
@@ -496,12 +738,11 @@ function EvenementsPage() {
             <table className="events-table">
               <thead>
                 <tr>
-                  <th>ID</th>
                   <th>Type</th>
                   <th>Gravité</th>
                   <th>Localisation</th>
                   <th>Échelle</th>
-                  <th>Ressources</th>
+                  <th>Ressources recommandées</th>
                   <th>Statut</th>
                 </tr>
               </thead>
@@ -515,7 +756,6 @@ function EvenementsPage() {
                       ouvrirEdition(evt)
                     }}
                   >
-                    <td className="id-cell">#{evt.id.slice(0, 8)}</td>
                     <td>
                       <div className="table-primary">{evt.nomTypeEvenement}</div>
                       <p className="muted small">{evt.description}</p>
@@ -627,7 +867,7 @@ function EvenementsPage() {
               <label>
                 Type d'événement
                 <select
-                  value={formState.idTypeEvenement}
+                  value={formState.idTypeEvenement ?? ''}
                 onChange={(e) => {
                   const value = e.target.value
                   const ref = types.find((type) => type.id === value)
@@ -658,7 +898,7 @@ function EvenementsPage() {
               <label>
                 Gravité
                 <select
-                  value={formState.idSeverite}
+                  value={formState.idSeverite ?? ''}
                 onChange={(e) => {
                   const value = e.target.value
                   const ref = severites.find((sev) => sev.id === value)
@@ -679,46 +919,19 @@ function EvenementsPage() {
                       Référentiel gravité manquant
                     </option>
                   )}
-                  {severites.map((sev) => (
-                    <option key={sev.id} value={sev.id}>
+                  {severites.map((sev, index) => (
+                    <option key={sev.id ?? `${sev.nomSeverite}-${index}`} value={sev.id}>
                       {sev.nomSeverite} ({sev.valeurEchelle})
                     </option>
                   ))}
                 </select>
               </label>
+            {formMode === 'edition' && (
               <label>
                 Statut
-                <select
-                  value={formState.idStatut}
-                onChange={(e) => {
-                  const value = e.target.value
-                  const ref = statutsDisponibles.find(
-                    (statut) => statut.id === value,
-                  )
-                  setFormState((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          idStatut: value,
-                          nomStatut: ref?.nom ?? prev.nomStatut,
-                        }
-                      : prev,
-                  )
-                }}
-                required
-              >
-                  {statutsDisponibles.length === 0 && (
-                    <option value="" disabled>
-                      Aucun statut disponible pour le moment
-                    </option>
-                  )}
-                  {statutsDisponibles.map((statut) => (
-                    <option key={statut.id} value={statut.id}>
-                      {statut.nom}
-                    </option>
-                  ))}
-                </select>
+                <input type="text" value={formState.nomStatut ?? ''} disabled />
               </label>
+            )}
             </div>
 
             <div className="form-grid">
@@ -762,12 +975,6 @@ function EvenementsPage() {
                 {formMode === 'creation' ? 'Créer un événement' : 'Enregistrer'}
               </button>
             </div>
-            {formMode === 'edition' && (
-              <p className="muted small">
-                En attendant un endpoint PUT côté API, la modification reste
-                locale.
-              </p>
-            )}
           </form>
         </Modal>
       )}

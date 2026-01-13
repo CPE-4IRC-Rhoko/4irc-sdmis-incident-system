@@ -1,22 +1,315 @@
-.terrain-layout {
-  display: grid;
-  grid-template-columns: 1.1fr 1.4fr;
-  gap: 1.2rem;
-  align-items: center;
+.terrain-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
-.terrain-text {
+.terrain-topline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.terrain-selection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 220px;
+}
+
+.terrain-selection select {
+  border: 1px solid #d7dce6;
+  border-radius: 10px;
+  padding: 0.45rem 0.55rem;
+  background: #f9fbff;
+}
+
+.terrain-sub {
   margin-top: 0.35rem;
-  color: #243047;
-  line-height: 1.5;
+  color: #4b5563;
+  max-width: 720px;
+}
+
+.terrain-counters {
+  display: flex;
+  align-items: stretch;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.terrain-side-counters {
+  display: flex;
+  align-items: stretch;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.35rem;
+  justify-content: center;
+  width: 100%;
+}
+
+.terrain-counter {
+  min-width: 170px;
+  background: linear-gradient(135deg, #ffffff 0%, #f5f7fb 65%, #eef2ff 100%);
+  border: 1px solid #dfe3eb;
+  border-radius: 14px;
+  padding: 0.75rem 1rem;
+  box-shadow: 0 14px 38px rgba(15, 31, 64, 0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  text-align: center;
+}
+
+.counter-label {
+  color: #6b7285;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.counter-sub {
+  color: #1d4ed8;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.terrain-grid {
+  display: grid;
+  grid-template-columns: 2.3fr 1fr;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.terrain-map-card {
+  background: #ffffff;
+  border: 1px solid #dfe3eb;
+  border-radius: 20px;
+  padding: 1rem;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 18px 42px rgba(15, 31, 64, 0.12);
+}
+
+.terrain-map-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 80% at 20% 15%, rgba(37, 99, 235, 0.08), transparent 55%),
+    radial-gradient(80% 70% at 80% 0%, rgba(14, 165, 233, 0.08), transparent 60%);
+  pointer-events: none;
+}
+
+.terrain-map-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  z-index: 1;
 }
 
 .terrain-map {
-  min-height: 380px;
+  position: relative;
+  z-index: 1;
+  margin-top: 0.75rem;
+  min-height: 560px;
 }
 
-@media (max-width: 900px) {
-  .terrain-layout {
+.terrain-legend {
+  position: absolute;
+  left: 0.9rem;
+  bottom: 0.9rem;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #dfe3eb;
+  border-radius: 12px;
+  padding: 0.45rem 0.6rem;
+  box-shadow: 0 10px 26px rgba(15, 31, 64, 0.12);
+  z-index: 2;
+}
+
+.legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.55rem;
+  background: #f5f7fb;
+  border: 1px solid #e6ebf4;
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
+
+.legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  display: inline-block;
+  background: #e53935;
+}
+
+.legend-dot.modere {
+  background: #f39c12;
+}
+
+.legend-dot.mineur {
+  background: #2eb88a;
+}
+
+.legend-dot.crit {
+  background: #e53935;
+}
+
+.legend-line {
+  width: 32px;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #0ea5e9, #2563eb);
+  box-shadow: 0 0 0 1px #ffffff;
+}
+
+.legend-vehicle {
+  width: 18px;
+  height: 12px;
+  background: #2fbf71;
+  border-radius: 4px;
+  border: 2px solid #1d4ed8;
+  display: inline-block;
+}
+
+.terrain-side {
+  background: #ffffff;
+  border: 1px solid #dfe3eb;
+  border-radius: 18px;
+  padding: 1rem;
+  box-shadow: 0 12px 30px rgba(15, 31, 64, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 100%;
+}
+
+.terrain-side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.terrain-missions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-height: 620px;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
+.terrain-mission {
+  text-align: left;
+  background: linear-gradient(135deg, #f8fafc 0%, #f3f4ff 60%, #f8f0ff 100%);
+  border: 1px solid #e6ebf4;
+  border-radius: 12px;
+  padding: 0.75rem 0.9rem;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.terrain-mission.active {
+  box-shadow: 0 16px 32px rgba(15, 31, 64, 0.16);
+  border-color: #c7d2fe;
+}
+
+.terrain-mission:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 32px rgba(15, 31, 64, 0.12);
+}
+
+.mission-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+
+.mission-title {
+  margin: 0;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.mission-meta {
+  display: flex;
+  gap: 0.7rem;
+  color: #1d4ed8;
+  font-weight: 700;
+  margin-top: 0.35rem;
+}
+
+.terrain-mission-detail {
+  border: 1px solid #e6ebf4;
+  border-radius: 14px;
+  padding: 0.8rem 0.9rem;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mission-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.mission-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem;
+}
+
+.mission-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pill-soft {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.55rem;
+  border-radius: 10px;
+  background: #eef2ff;
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+.pill-error {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.55rem;
+  border-radius: 10px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.pill-vehicule {
+  color: #ffffff;
+  border: none;
+}
+
+@media (max-width: 1100px) {
+  .terrain-grid {
     grid-template-columns: 1fr;
+  }
+
+  .terrain-map {
+    min-height: 440px;
   }
 }
