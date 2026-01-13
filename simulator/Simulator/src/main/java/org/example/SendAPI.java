@@ -15,9 +15,9 @@ public class SendAPI
         this.incidentGPS = new IncidentGPS();
     }
 
-    private static final String API_URL = "http://localhost:8082/api/evenements";
+    private static final String API_URL = "https://api.4irc.hugorodrigues.fr/api/evenements";
 
-    public void envoyerEvenement(TypeEvenement evenement) throws IOException {
+    public void envoyerEvenement(TypeEvenement evenement, String token) throws IOException {
 
         // Récupération des informations depuis TypeEvenement
         String severite = evenement.getNomSeverite();
@@ -55,6 +55,7 @@ public class SendAPI
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(API_URL))
                     .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + token)
                     .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                     .build();
 

@@ -1,0 +1,25 @@
+services:
+
+  api-osrm:
+    image: osrm/osrm-backend
+    container_name: api-osrm
+    volumes:
+      - ./donnees:/data
+    command: >
+      sh -c "
+      osrm-extract -p /opt/car.lua /data/rhone-alpes-260106.osm.pbf &&
+      osrm-partition /data/rhone-alpes-260106.osrm &&
+      osrm-customize /data/rhone-alpes-260106.osrm
+      "
+
+  osrm-routed:
+    image: osrm/osrm-backend
+    container_name: osrm-routed
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./donnees:/data
+    command: osrm-routed --algorithm mld /data/rhone-alpes-260106.osrm
+    depends_on:
+      api-osrm:
+        condition: service_completed_successfully

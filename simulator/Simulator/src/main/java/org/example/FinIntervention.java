@@ -11,19 +11,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class FinIntervention {
 
-    private static final String API_URL = "http://localhost:8082/api/interventions/cloture";
+    private static final String API_URL = "https://api.4irc.hugorodrigues.fr/api/interventions/cloture";
 
     /**
-     * Méthode pour clôturer l'intervention en envoyant un POST
+     * Méthode pour clôturer l'intervention en envoyant un POST avec des valeurs fixes
      */
     public void cloturerIntervention(CalllAPIVehicule.VehiculeData v, String token) {
         try {
-            ObjectMapper mapper = new ObjectMapper();
 
-            // 1. Préparer les données à envoyer (idVehicule et idEvenement)
+            ObjectMapper mapper = new ObjectMapper();
+            CallAPICaserne caserneService = new CallAPICaserne();
+
+            // 1. Préparer les données avec les valeurs fixées
             Map<String, String> data = new HashMap<>();
-            data.put("idVehicule", v.idVehicule);
-            data.put("idEvenement", v.idEvenement);
+            data.put("id_evenement", v.idEvenement);
+            data.put("id_vehicule", v.idVehicule);
 
             // 2. Convertir la Map en chaîne JSON
             String jsonBody = mapper.writeValueAsString(data);
@@ -32,27 +34,29 @@ public class FinIntervention {
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(API_URL))
-                    .header("Content-Type", "application/json") // Très important pour le POST
+                    .header("Content-Type", "application/json")
                     .header("Authorization", "Bearer " + token)
                     .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                     .build();
 
-            System.out.println("Envoi de la clôture pour le véhicule " + v.idVehicule + "...");
+            System.out.print("JSON BRUT ENVOYÉ : ");
+            System.out.println(jsonBody);
+
+            System.out.println("Envoi de la clôture (Fixe) : Vehicule=" + v.idVehicule + ", Event=" + v.idEvenement);
             
             // 4. Envoyer et récupérer la réponse
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
-            if (response.statusCode() == 200 || response.statusCode() == 204) 
+            if (response.statusCode() == 200 || response.statusCode() == 204)
             {
-                System.out.println("Succès : Intervention clôturée pour le véhicule " + v.idVehicule);
-                // Retour du véhicule à la caserne
+                System.out.println("✅ Succès : Intervention clôturée (Valeurs fixes)");
                 
             } else {
-                System.err.println("Erreur API lors de la clôture (" + response.statusCode() + ") : " + response.body());
+                System.err.println("❌ Erreur API lors de la clôture (" + response.statusCode() + ") : " + response.body());
             }
 
         } catch (Exception e) {
-            System.err.println("Erreur lors de l'envoi du POST : " + e.getMessage());
+            System.err.println("❌ Erreur lors de l'envoi du POST : " + e.getMessage());
         }
     }
 }

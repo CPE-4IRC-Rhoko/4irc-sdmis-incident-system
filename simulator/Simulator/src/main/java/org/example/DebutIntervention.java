@@ -4,6 +4,7 @@ import java.util.Locale;
 import java.util.Random;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -13,7 +14,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class DebutIntervention {
 
     private static final int MISE_A_JOUR_MS = 500; 
-    private static final String API_URL = "http://localhost:8082/api/vehicules/statut/en-intervention";
+    private static final String API_URL = "https://api.4irc.hugorodrigues.fr/api/vehicules/statut/en-intervention";
+    
+    // On instancie le service qui vérifie les interventions terminées
+    private final CallAPIevenementFINI checkFini = new CallAPIevenementFINI();
 
     public void gererIntervention(CalllAPIVehicule.VehiculeData v, MicrobitSender emetteur, String token) {
         ObjectMapper mapper = new ObjectMapper();
@@ -32,49 +36,51 @@ public class DebutIntervention {
                     .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                     .build();
             
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-            if (response.statusCode() == 200 || response.statusCode() == 204) {
-                System.out.println("Statut mis à jour : " + v.idVehicule + " est maintenant EN INTERVENTION.");
-            } else {
-                System.err.println("Erreur Statut API (" + response.statusCode() + ") : " + response.body());
-            }
+            client.send(request, HttpResponse.BodyHandlers.ofString());
 
             // --- 2. LOGIQUE DE SIMULATION ---
             Random random = new Random();
-            int dureeSecondes = random.nextInt(301); // 0 à 300s soit 5 minutes
-
-            String nomEquipement = v.getNomEquipement();
-            int contenanceInitiale = v.getContenanceCourante();
+            int dureeSecondes = random.nextInt(301); 
+            String nomEquipement = (v.getNomEquipement() != null) ? v.getNomEquipement() : "Inconnu";
+            int contenanceInitiale = (v.getContenanceCourante() != null) ? v.getContenanceCourante() : 0;
             
-            // Calcul de la consommation finale (ex: consomme entre 10% et 40% de la capacité actuelle)
-            double pourcentageConso = (random.nextInt(31) + 10) / 100.0; 
+            double pourcentageConso = (random.nextInt(31) + 10) / 100.0;
             int niveauEauFinal = (int) (contenanceInitiale - (contenanceInitiale * pourcentageConso));
 
-            System.out.println("\n>>> DÉBUT DE L'INTERVENTION SUR PLACE [" + v.plaqueImmat + "]");
-            System.out.printf("Équipement : %s | Durée : %ds | Cible finale : %d%n", nomEquipement, dureeSecondes, niveauEauFinal);
+            System.out.println("\n>>> INTERVENTION EN COURS [" + v.plaqueImmat + "]");
 
-            // 3. Boucle d'attente active
+            // --- 3. BOUCLE D'ATTENTE AVEC VÉRIFICATION API ---
             for (int i = 0; i <= dureeSecondes; i++) {
+                
+                // --- TOUTES LES 4 ITÉRATIONS (environ 2 secondes), ON VÉRIFIE SI L'EVENT EST FINI ---
+                if (i % 3 == 0) 
+                    {
+                        List<CallAPIevenementFINI.InterventionTerminee> terminees = checkFini.fetchInterventionsTerminees(token);
+                        boolean estFini = terminees.stream().anyMatch(t -> t.idEvenement.equals(v.idEvenement) && t.idVehicule.equals(v.idVehicule)
+                    );
+                    if (estFini) {
+                        System.out.println("INTERRUPTION : L'événement " + v.idEvenement + " a été marqué comme FINI dans l'API. Arrêt de la simulation.");
+                        break; // On sort de la boucle for immédiatement
+                    }
+                }
+
+                // Calcul de la décrétion de l'eau
                 double progression = (dureeSecondes == 0) ? 1 : (double) i / dureeSecondes;
                 int valeurActuelle = (int) (contenanceInitiale - (progression * (contenanceInitiale - niveauEauFinal)));
 
-                // Envoi à la Micro:bit
                 emetteur.envoyerDonnees(v.plaqueImmat, v.evenementLat, v.evenementLon, nomEquipement, valeurActuelle);
                 
-                System.out.printf(Locale.US, "[ACTION] %s - %s: %d | Temps restant: %ds%n", 
-                        v.plaqueImmat, nomEquipement, valeurActuelle, (dureeSecondes - i));
+                if (i % 10 == 0) { // Log console moins fréquent
+                    System.out.printf(Locale.US, "[ACTION] %s - %d L | Temps max restant: %ds%n", v.plaqueImmat, valeurActuelle, (dureeSecondes - i));
+                }
                 
                 Thread.sleep(MISE_A_JOUR_MS);
             }
 
-            System.out.println(">>> FIN DE L'INTERVENTION SUR PLACE POUR " + v.plaqueImmat + "\n");
+            System.out.println(">>> FIN DE L'ACTION SUR PLACE POUR " + v.plaqueImmat + "\n");
 
         } catch (Exception e) {
-            System.err.println("Erreur durant l'intervention de " + v.idVehicule + " : " + e.getMessage());
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
+            System.err.println("Erreur durant l'intervention : " + e.getMessage());
         }
     }
 }

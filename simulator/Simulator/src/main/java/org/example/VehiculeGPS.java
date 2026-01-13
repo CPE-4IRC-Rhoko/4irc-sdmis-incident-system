@@ -21,6 +21,7 @@ public class VehiculeGPS {
         DebutIntervention action = new DebutIntervention();
         FinIntervention cloture = new FinIntervention();
         Trajet trajetSimu = new Trajet();
+        CallAPICaserne caserneService = new CallAPICaserne();
 
         // Registre pour ne pas lancer deux fois le même véhicule
         Set<String> vehiculesEnCours = Collections.synchronizedSet(new HashSet<>());
@@ -30,7 +31,6 @@ public class VehiculeGPS {
         while (true) { // Boucle infinie
             try
             {
-                // Dans ta boucle while(true)...
                 String token = authService.getAccessToken(); // On récupère le token ici
 
                 // 1. On récupère la liste actuelle des véhicules en route depuis l'API
@@ -47,7 +47,12 @@ public class VehiculeGPS {
                                 System.out.println("\n>>> NOUVEAU VÉHICULE DÉTECTÉ : " + v.plaqueImmat);
                                 trajetSimu.executer(v, emetteur);
                                 action.gererIntervention(v, emetteur, token);
-                                //cloture.cloturerIntervention(v, token);
+                                cloture.cloturerIntervention(v, token);
+                                CallAPICaserne.CaserneData caserne = caserneService.recupererCaserne(v, token);
+                                if (caserne != null) {
+                                    trajetSimu.executerRetourCaserne(v, caserne, emetteur);
+                                }
+                                
                             } finally {
                                 // 3. UNE FOIS FINI : On le retire du registre pour qu'il puisse repartir sur une autre mission plus tard
                                 vehiculesEnCours.remove(v.idVehicule);

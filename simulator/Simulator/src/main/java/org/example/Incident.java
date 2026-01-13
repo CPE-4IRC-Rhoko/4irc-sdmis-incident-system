@@ -10,21 +10,23 @@ public class Incident {
       // Initialisation des outils dont on a besoin (voir les classes dédiées)
         CallAPI callAPI = new CallAPI();
         SendAPI sendAPI = new SendAPI();
+        AuthService authService = new AuthService();
 
         while (true) {
             long debutCycle = System.currentTimeMillis();
+            String token = authService.getAccessToken(); // token keycloak
 
             try {
                 System.out.println("\n--- Nouveau cycle de création d'incident ---");
 
                 // 1. Récupération des types d'événements
-                List<TypeEvenement> evenements = callAPI.recupererEvenements();
+                List<TypeEvenement> evenements = callAPI.recupererEvenements(token);
                 if (evenements != null && !evenements.isEmpty())
                   {
                     // 2. Sélection aléatoire
                     TypeEvenement evenementAleatoire = callAPI.selectionnerEvenementAleatoire(evenements);
                     // 3. Envoi de l'événement (GPS aléatoire inclus dans envoyerEvenement)
-                    sendAPI.envoyerEvenement(evenementAleatoire);
+                    sendAPI.envoyerEvenement(evenementAleatoire, token);
                   }
             } catch (IOException e) {
                 System.err.println("Erreur de connexion à l'API : " + e.getMessage());

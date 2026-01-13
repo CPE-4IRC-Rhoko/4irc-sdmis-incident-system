@@ -1,58 +1,90 @@
-package org.example;
+// package org.example;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
+// import java.net.URI;
+// import java.net.http.HttpClient;
+// import java.net.http.HttpRequest;
+// import java.net.http.HttpResponse;
+// import java.util.HashMap;
+// import java.util.Map;
+// import com.fasterxml.jackson.databind.ObjectMapper;
 
-public class Test {
+// public class Test {
 
-    public static void main(String[] args) {
-        // --- CONFIGURATION ---
-        String urlApi = "http://localhost:8082/api/vehicules/en-route";
-        // ---------------------
+//     private static final String API_URL = "http://localhost:8082/api/interventions/cloture";
 
-        AuthService authService = new AuthService();
-        HttpClient client = HttpClient.newHttpClient();
+//     // Cette méthode main te permet de lancer le test d'un simple clic droit -> Run
+//     public static void main(String[] args) {
+//         Test instanceDeTest = new Test();
+//         AuthService auth = new AuthService();
+        
+//         System.out.println("🚀 Démarrage du test de clôture...");
+        
+//         // 1. Récupération automatique du token
+//         String token = auth.getAccessToken();
+        
+//         if (token != null) {
+//             // 2. Appel de la méthode de clôture (on passe null pour v car on utilise des ID fixes)
+//             instanceDeTest.cloturerIntervention(null, token);
+//         } else {
+//             System.err.println("❌ Impossible de tester : Échec de l'authentification Keycloak.");
+//         }
+//     }
 
-        try {
-            // 1. Récupération du token via ton nouveau service
-            System.out.println("⏳ Récupération du token Keycloak...");
-            String token = authService.getAccessToken();
+//     /**
+//      * Méthode pour clôturer l'intervention avec des valeurs fixes
+//      */
+//     public void cloturerIntervention(CalllAPIVehicule.VehiculeData v, String token) {
+//         try {
+//             // --- VALEURS EN DUR À TESTER ---
+//             String idVehiculeFixe = "592d7ede-6ed0-4e00-98c5-4dd1a87f510b";
+//             String idEvenementFixe = "e882ada6-4400-42ea-b61f-ba5801247fb2";
+//             // -------------------------------------
 
-            if (token == null) {
-                System.err.println("❌ Échec : Impossible de récupérer le token.");
-                return;
-            }
-            System.out.println("✅ Token obtenu avec succès.");
+//             ObjectMapper mapper = new ObjectMapper();
+            
+//             // 1. Préparer le JSON
+//             Map<String, String> data = new HashMap<>();
+//             data.put("idVehicule", idVehiculeFixe);
+//             data.put("idEvenement", idEvenementFixe);
 
-            // 2. Préparation de la requête vers ton API avec le Header Authorization
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(urlApi))
-                    .header("Authorization", "Bearer " + token) // Ajout du token
-                    .header("Accept", "application/json")
-                    .GET()
-                    .build();
+//             String jsonBody = mapper.writeValueAsString(data);
 
-            System.out.println("🌐 Appel de l'API : " + urlApi);
+//             // 2. Préparer la requête
+//             HttpClient client = HttpClient.newHttpClient();
+//             HttpRequest request = HttpRequest.newBuilder()
+//                     .uri(URI.create(API_URL))
+//                     .header("Content-Type", "application/json")
+//                     .header("Authorization", "Bearer " + token)
+//                     .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+//                     .build();
 
-            // 3. Envoi de la requête
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+//             System.out.println("📡 Envoi POST vers : " + API_URL);
+//             System.out.println("📦 Body : " + jsonBody);
+            
+//             // 3. Envoyer
+//             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
-            // 4. Affichage du résultat
-            System.out.println("\n--- RÉSULTAT DE L'API ---");
-            System.out.println("Code Statut : " + response.statusCode());
-            System.out.println("Corps de la réponse :");
-            System.out.println(response.body());
-            System.out.println("--------------------------");
+//             // 4. Analyser la réponse
+//             if (response.statusCode() == 200 || response.statusCode() == 204) {
+//                 System.out.println("✅ SUCCÈS : L'intervention a été clôturée sur le serveur.");
+                
+//                 // Note : On ne peut pas appeler caserneService.afficherCaserneVehicule(v) 
+//                 // ici si v est null (ce qui est le cas dans ce test main).
+//                 if (v != null) {
+//                     CallAPICaserne caserneService = new CallAPICaserne();
+//                     caserneService.afficherCaserneVehicule(v, token);
+//                 } else {
+//                     System.out.println("ℹ️ Test terminé (Appel Caserne sauté car lancé sans objet véhicule).");
+//                 }
 
-            if (response.statusCode() == 401 || response.statusCode() == 403) {
-                System.err.println("⚠️ Erreur d'autorisation : Le token est peut-être invalide ou n'a pas les droits nécessaires.");
-            }
+//             } else {
+//                 System.err.println("❌ ÉCHEC : Code " + response.statusCode());
+//                 System.err.println("💬 Réponse du serveur : " + response.body());
+//             }
 
-        } catch (Exception e) {
-            System.err.println("❌ Erreur lors du test : " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-}
+//         } catch (Exception e) {
+//             System.err.println("❌ Erreur critique : " + e.getMessage());
+//             e.printStackTrace();
+//         }
+//     }
+// }
