@@ -18,12 +18,12 @@ struct KeyEntry {
     bool valid;
 };
 
-// Stockage RAM (50 camions)
-KeyEntry keyStore[50]; 
+// Stockage RAM (32 camions)
+KeyEntry keyStore[32]; 
 
 // Initialisation du stockage
 void initKeyStore() {
-    for(int i=0; i<50; i++) keyStore[i].valid = false;
+    for(int i=0; i<32; i++) keyStore[i].valid = false;
 }
 
 // Ajouter ou mettre à jour une clé
@@ -31,7 +31,7 @@ void updateKey(ManagedString idStr, ManagedString keyStr) {
     const char* sId = idStr.toCharArray();
     const char* sKey = keyStr.toCharArray();
     // 1. Chercher si l'ID existe déjà pour le mettre à jour
-    for(int i=0; i<50; i++) {
+    for(int i=0; i<32; i++) {
         if (keyStore[i].valid && strcmp(keyStore[i].id, sId) == 0) {
             memset(keyStore[i].key, 0, 16);
             int len = keyStr.length(); 
@@ -43,7 +43,7 @@ void updateKey(ManagedString idStr, ManagedString keyStr) {
     }
     
     // 2. Sinon, trouver un slot vide
-    for(int i=0; i<50; i++) {
+    for(int i=0; i<32; i++) {
         if (!keyStore[i].valid) {
             strncpy(keyStore[i].id, sId, 9);
             keyStore[i].id[9] = '\0'; // Sécurité
@@ -63,7 +63,7 @@ void updateKey(ManagedString idStr, ManagedString keyStr) {
 // Récupérer la clé pour un ID donné
 uint8_t* getClePourID(ManagedString idStr) {
     const char* sId = idStr.toCharArray();
-    for(int i=0; i<50; i++) {
+    for(int i=0; i<32; i++) {
         if (keyStore[i].valid && strcmp(keyStore[i].id, sId) == 0) {
             return keyStore[i].key;
         }
