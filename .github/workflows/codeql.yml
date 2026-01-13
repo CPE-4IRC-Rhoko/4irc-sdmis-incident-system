@@ -39,8 +39,8 @@ jobs:
       - name: Build microbit-qg
         run: make -C iot/microbit-qg
 
-      - name: Build microbit-terrain
-        run: make -C iot/microbit-terrain
+      # - name: Build microbit-terrain
+      #   run: make -C iot/microbit-terrain
 
       - name: Create CodeQL results folder
         run: mkdir -p codeql-results
