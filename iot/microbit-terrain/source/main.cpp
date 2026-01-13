@@ -8,7 +8,7 @@ MicroBit uBit;
 
 // Configuration des clés HMAC pour chaque camion
 uint8_t cleAES[16] = { 'V','E','8','c','e','n','t','L','e','P','0','u','B','o','1','2' }; //CLE AES (Doit être identique à celle dans la micro:bit QG)
-const uint8_t keysHMAC[20][16] = {
+uint8_t keysHMAC[30][16] = {
     { 'K','e','y','1','0','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA100AA (Index 0)
     { 'K','e','y','1','1','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA101AA (Index 1)
     { 'K','e','y','1','2','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA102AA (Index 2)
@@ -28,22 +28,32 @@ const uint8_t keysHMAC[20][16] = {
     { 'K','e','y','2','6','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA116AA (Index 16)
     { 'K','e','y','2','7','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA117AA (Index 17)
     { 'K','e','y','2','8','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA118AA (Index 18)
-    { 'K','e','y','2','9','_','S','e','c','r','e','t','!','!','!','!' } // Pour AA119AA (Index 19)
+    { 'K','e','y','2','9','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA119AA (Index 19)
+    { 'K','e','y','3','0','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA120AA (Index 20)
+    { 'K','e','y','3','1','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA121AA (Index 21)
+    { 'K','e','y','3','2','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA122AA (Index 22)
+    { 'K','e','y','3','3','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA123AA (Index 23)
+    { 'K','e','y','3','4','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA124AA (Index 24)
+    { 'K','e','y','3','5','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA125AA (Index 25)
+    { 'K','e','y','3','6','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA126AA (Index 26)
+    { 'K','e','y','3','7','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA127AA (Index 27)
+    { 'K','e','y','3','8','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA128AA (Index 28)
+    { 'K','e','y','3','9','_','S','e','c','r','e','t','!','!','!','!' }  // Pour AA129AA (Index 29)
 };
 
 // Structure de données d'un camion
 struct EtatCamion {
     bool actif;         
-    char id[10];    // Ex: "AA100AA"
-    char geo[20];   // Ex: "45.12,4.89"
-    char res[20];   // Ex: "Eau=100"
-    char time[10];  // Ex: "12:00:00"
+    ManagedString id;
+    ManagedString geo;  
+    ManagedString res;  
+    ManagedString time;  
     int sequence;       
     bool btnAppuye;     
 };
 
-// Notre flotte en mémoire (20 slots = 20 camions)
-EtatCamion flotte[20];
+// Notre flotte en mémoire (30 slots = 30 camions)
+EtatCamion flotte[30];
 
 PacketBuffer bufferAckRecu(0); // Buffers de transmission radio
 bool unAckEstArrive = false;
@@ -96,10 +106,20 @@ int getIndexFromID(ManagedString id) {
     if (id == "AA117AA") return 17;
     if (id == "AA118AA") return 18;
     if (id == "AA119AA") return 19;
+    if (id == "AA120AA") return 20;
+    if (id == "AA121AA") return 21;
+    if (id == "AA122AA") return 22;
+    if (id == "AA123AA") return 23;
+    if (id == "AA124AA") return 24;
+    if (id == "AA125AA") return 25;
+    if (id == "AA126AA") return 26;
+    if (id == "AA127AA") return 27;
+    if (id == "AA128AA") return 28;
+    if (id == "AA129AA") return 29; 
     return -1;
 }
 
-uint32_t calculerAuth(const char* data, int len, const uint8_t* cle) {
+uint32_t calculerAuth(const char* data, int len, uint8_t* cle) {
     uint32_t hash = 0x12345678;
     for (int i = 0; i < 16; i++) { hash ^= cle[i]; hash = (hash << 5) | (hash >> 27); }
     for (int i = 0; i < len; i++) { hash ^= (uint8_t)data[i]; hash *= 0x5bd1e995; hash ^= (hash >> 15); }
@@ -151,18 +171,10 @@ void mettreAJourEtat(ManagedString ligneJava) {
     int idx = getIndexFromID(sId);
     
     if (idx != -1) {
-        strncpy(flotte[idx].id, sId.toCharArray(), 9); flotte[idx].id[9] = '\0';
-        
-        ManagedString sGeo = extractValue(ligneJava, "Geo:");
-        strncpy(flotte[idx].geo, sGeo.toCharArray(), 19); flotte[idx].geo[19] = '\0';
-
-        ManagedString sRes = extractValue(ligneJava, "Res:");
-        strncpy(flotte[idx].res, sRes.toCharArray(), 19); flotte[idx].res[19] = '\0';
-        
-        ManagedString sTime = extractValue(ligneJava, "Time:");
-        strncpy(flotte[idx].time, sTime.toCharArray(), 9); flotte[idx].time[9] = '\0';
-        // ---------------------------------
-        
+        flotte[idx].id = sId; // On stocke l'ID texte
+        flotte[idx].geo = extractValue(ligneJava, "Geo:");
+        flotte[idx].res = extractValue(ligneJava, "Res:");
+        flotte[idx].time = extractValue(ligneJava, "Time:");
         flotte[idx].actif = true; 
         
         // Feedback visuel court
@@ -176,22 +188,18 @@ void mettreAJourEtat(ManagedString ligneJava) {
 bool envoyerCamionRadio(int index) {
     if (!flotte[index].actif) return false;
 
-    // On reconstruit l'objet String juste pour l'envoi
-    ManagedString idString(flotte[index].id);
-    ManagedString geoString(flotte[index].geo);
-    ManagedString resString(flotte[index].res);
-    ManagedString timeString(flotte[index].time);
+    ManagedString idString = flotte[index].id;
     
     ManagedString payload = "ID:" + idString + 
-                            ";Geo:" + geoString + 
-                            ";Res:" + resString + 
+                            ";Geo:" + flotte[index].geo + 
+                            ";Res:" + flotte[index].res + 
                             ";Btn:" + ManagedString(flotte[index].btnAppuye ? 1 : 0) + 
                             ";Seq:" + ManagedString(flotte[index].sequence) +
-                            ";Time:" + timeString + ";";
+                            ";Time:" + flotte[index].time + ";";
 
     // Logs Série
     uBit.serial.send("\r\n--------------------------------\r\n");
-    uBit.serial.send("Envoi Radio ID:" + idString + " Time:" + timeString + "\r\n");
+    uBit.serial.send("Envoi Radio ID:" + idString + " Time:" + flotte[index].time + "\r\n");
     uBit.serial.send("Contenu: " + payload + "\r\n");
 
     ackReceived = false;
@@ -222,7 +230,7 @@ bool envoyerCamionRadio(int index) {
                     ManagedString idCheck = idString; // On compare avec l'ID texte
                     ManagedString seqCheck = ManagedString(flotte[index].sequence);
                     
-                    if (strstr(msg.toCharArray(), idString.toCharArray()) && 
+                    if (strstr(msg.toCharArray(), idCheck.toCharArray()) && 
                         strstr(msg.toCharArray(), (";" + seqCheck).toCharArray())) {
                         ackReceived = true;
                         break;
@@ -256,11 +264,8 @@ bool envoyerCamionRadio(int index) {
 
 int main() {
     uBit.init();
-
-    uBit.serial.setRxBufferSize(100); 
-    uBit.serial.setTxBufferSize(100);
-    
     uBit.serial.baud(115200);
+    uBit.serial.setRxBufferSize(254);
     
     uBit.radio.enable(); uBit.radio.setGroup(16); uBit.radio.setTransmitPower(7);
     uBit.messageBus.listen(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, onData);
@@ -268,10 +273,11 @@ int main() {
     uBit.messageBus.listen(MICROBIT_ID_BUTTON_B, MICROBIT_BUTTON_EVT_CLICK, onButtonB);
 
     // Initialisation
-    for(int i=0; i<20; i++) {
+    for(int i=0; i<30; i++) {
         flotte[i].actif = false; 
         flotte[i].sequence = 0;
         flotte[i].btnAppuye = false;
+        flotte[i].id = ""; // Init vide
     }
     
     uBit.display.print("R"); 
@@ -300,7 +306,7 @@ int main() {
 
         // Vérification globale d'activité pour mode veille profonde
         bool auMoinsUnActif = false;
-        for(int i=0; i<20; i++) {
+        for(int i=0; i<30; i++) {
             if(flotte[i].actif) { auMoinsUnActif = true; break; }
         }
 
@@ -310,6 +316,6 @@ int main() {
 
         // 3. Suivant
         camionEnCours++;
-        if (camionEnCours > 19) camionEnCours = 0;
+        if (camionEnCours > 29) camionEnCours = 0;
     }
 }
