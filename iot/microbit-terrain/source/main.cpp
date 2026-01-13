@@ -8,7 +8,7 @@ MicroBit uBit;
 
 // Configuration des clés HMAC pour chaque camion
 uint8_t cleAES[16] = { 'V','E','8','c','e','n','t','L','e','P','0','u','B','o','1','2' }; //CLE AES (Doit être identique à celle dans la micro:bit QG)
-uint8_t keysHMAC[30][16] = {
+const uint8_t keysHMAC[30][16] = {
     { 'K','e','y','1','0','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA100AA (Index 0)
     { 'K','e','y','1','1','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA101AA (Index 1)
     { 'K','e','y','1','2','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA102AA (Index 2)
@@ -119,7 +119,7 @@ int getIndexFromID(ManagedString id) {
     return -1;
 }
 
-uint32_t calculerAuth(const char* data, int len, uint8_t* cle) {
+uint32_t calculerAuth(const char* data, int len, const uint8_t* cle) {
     uint32_t hash = 0x12345678;
     for (int i = 0; i < 16; i++) { hash ^= cle[i]; hash = (hash << 5) | (hash >> 27); }
     for (int i = 0; i < len; i++) { hash ^= (uint8_t)data[i]; hash *= 0x5bd1e995; hash ^= (hash >> 15); }
