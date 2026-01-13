@@ -19,6 +19,7 @@ jobs:
           key: ${{ secrets.VPS_USER_SSH_KEY }}
           script: |
             set -e
+            source ~/.bashrc
             cd $VPS_PATH
             ls -la
             git switch main
