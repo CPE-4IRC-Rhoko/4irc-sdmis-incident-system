@@ -20,7 +20,7 @@ public class InterventionClotureController {
     }
 
     @PostMapping("/cloture")
-    @PreAuthorize("hasAnyRole('API_Simulation','API_Admin')")
+    @PreAuthorize("hasAnyRole('API_Simulation','API_Admin','API_Terrain')")
     public void cloturer(@Valid @RequestBody ClotureInterventionRequest request) {
         interventionService.cloturerIntervention(request);
     }

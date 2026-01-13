@@ -1,4 +1,4 @@
-import { getStoredAccessToken } from './auth'
+import { forceReauth, getStoredAccessToken } from './auth'
 
 const PROD_API_BASE = 'https://api.4irc.hugorodrigues.fr'
 
@@ -31,6 +31,10 @@ export const buildAuthHeaders = (headers?: HeadersInit): HeadersInit => {
 
 export const parseJson = async <T>(response: Response): Promise<T> => {
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      // Session expirée : on déclenche une reconnexion Keycloak.
+      await forceReauth()
+    }
     const message = await response.text()
     throw new Error(
       `Appel API échoué (${response.status}) : ${

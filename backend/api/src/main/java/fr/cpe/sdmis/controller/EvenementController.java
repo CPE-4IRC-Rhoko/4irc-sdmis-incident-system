@@ -34,7 +34,7 @@ public class EvenementController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('API_Admin')")
+    @PreAuthorize("hasAnyRole('API_Admin','API_Operateur')")
     public EvenementResponse update(@PathVariable("id") UUID id, @Valid @RequestBody EvenementUpdateRequest request) {
         return evenementService.updateEvenement(id, request);
     }

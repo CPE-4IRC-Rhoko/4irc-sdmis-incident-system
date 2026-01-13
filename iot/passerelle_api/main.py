@@ -5,264 +5,237 @@ import json
 import time
 import sys
 import os
+import threading
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 # Nom du fichier de configuration
 CONFIG_FILE = "config.json"
 
-# Variable globale pour stocker le token ---
+# Variables partagées (Thread)
+latest_packet = None
+packet_lock = threading.Lock()
+new_data_event = threading.Event()
+
+# Variable globale pour stocker le token
 current_token = None
+config_global = None
 
 
 def charger_config():
-    """Charge la configuration JSON et surcharge avec le .env"""
+    # Charge la configuration JSON et surcharge avec le .env
     # 1. Charger les variables d'environnement du .env
     load_dotenv()
-
     if not os.path.exists(CONFIG_FILE):
-        print(f"Erreur : Le fichier {CONFIG_FILE} est introuvable.")
+        print(f"Erreur : {CONFIG_FILE} introuvable.")
         sys.exit(1)
-
     with open(CONFIG_FILE, 'r') as f:
         config = json.load(f)
-
     # 2. Injecter le secret venant du .env dans la config chargée
     secret_env = os.getenv("KEYCLOAK_CLIENT_SECRET")
-
     if secret_env:
         # On écrase la valeur du JSON par celle du .env
         config["keycloak"]["client_secret"] = secret_env
-    else:
-        print("ATTENTION : Variable KEYCLOAK_CLIENT_SECRET introuvable dans le .env")
-        # Optionnel : Arrêter le script si pas de secret
-        # sys.exit(1)
-
     return config
 
 
 def trouver_port_microbit(config_port):
-    # Trouve le port USB. Si 'AUTO', cherche une Micro:bit.
-    if config_port != "AUTO":
-        return config_port
-
-    print("Recherche automatique de la Micro:bit...")
-    ports = list(serial.tools.list_ports.comports())
-    for p in ports:
+    # Trouve le port USB. Si 'AUTO' dans "port_usb" du fichier config.json, cherche une Micro:bit
+    if config_port != "AUTO": return config_port
+    print("Recherche Micro:bit...")
+    for p in list(serial.tools.list_ports.comports()):
         if "0D28" in p.hwid or "Micro:bit" in p.description or "BBC" in p.description:
-            print(f"Micro:bit détectée sur : {p.device}")
+            print(f"Trouvé : {p.device}")
             return p.device
-
-    print("Aucune Micro:bit détectée automatiquement.")
-    print("   -> Modifiez config.json avec le port exact.")
-    sys.exit(1)
+    sys.exit("Aucune Micro:bit trouvée.")
 
 
 def obtenir_token_keycloak(config):
-    # Récupère un token d'accès via Keycloak (Client Credentials).
-    print("Authentification Keycloak en cours...")
-    kc_conf = config["keycloak"]
-
-    # Construction de l'URL du token (Standard OpenID Connect)
-    # Assure-toi que l'URL ne finit pas par '/' dans le config
-    base_url = kc_conf["url"].rstrip('/')
-    token_url = f"{base_url}/realms/{kc_conf['realm']}/protocol/openid-connect/token"
-
-    payload = {
-        "grant_type": "client_credentials",
-        "client_id": kc_conf["client_id"],
-        "client_secret": kc_conf["client_secret"]
-    }
-
+    # Récupère un token d'accès via Keycloak
     try:
-        r = requests.post(token_url, data=payload)
-        if r.status_code == 200:
-            token = r.json().get("access_token")
-            print("Token Keycloak récupéré avec succès.")
-            return token
-        else:
-            print(f"Erreur Auth Keycloak ({r.status_code}): {r.text}")
-            return None
+        kc = config["keycloak"]
+        url = f"{kc['url'].rstrip('/')}/realms/{kc['realm']}/protocol/openid-connect/token"
+        payload = {"grant_type": "client_credentials", "client_id": kc["client_id"],
+                   "client_secret": kc["client_secret"]}
+        r = requests.post(url, data=payload, timeout=5)
+        if r.status_code == 200: return r.json().get("access_token")
     except Exception as e:
-        print(f"Erreur connexion Keycloak : {e}")
-        return None
+        print(f"\n[Auth] Erreur Keycloak: {e}")
+    return None
 
 
+# Fonction de synchro des clés micro:bit QG
 def fetch_and_sync_keys(ser, config):
-    global current_token  # On utilise le token global
+    global current_token # On utilise le token global
     url = config["api_url_keys"]
-    print(f"--- Synchronisation des clés depuis l'API ---")
+    print(f"\n--- [Admin] Synchronisation des clés ---")
 
-    # 1. Récupération Web (AVEC AUTHENTIFICATION)
+    # 1. Récupération Web (avec authentification)
     try:
-        # On prépare les headers
+        # préparation des headers
         headers = {}
-        if current_token:
-            headers["Authorization"] = f"Bearer {current_token}"
+        if current_token: headers["Authorization"] = f"Bearer {current_token}"
+        resp = requests.get(url, headers=headers, timeout=5)
 
-        resp = requests.get(url, headers=headers)
-
-        # GESTION TOKEN EXPIRÉ (401)
+        # gestion token expiré (erreur 401)
         if resp.status_code == 401:
-            print("Token expiré ou invalide (401). Tentative de renouvellement...")
+            print("Token expiré (401). Renouvellement...")
             current_token = obtenir_token_keycloak(config)
             if current_token:
-                # On réessaie une fois avec le nouveau token
+                # Nouvelle tentative avec le nouveau token
                 headers["Authorization"] = f"Bearer {current_token}"
-                resp = requests.get(url, headers=headers)
-            else:
-                print("Impossible de renouveler le token.")
-                return
+                resp = requests.get(url, headers=headers, timeout=5)
 
         if resp.status_code == 200:
             vehicules_list = resp.json()
-            print(f"API a répondu : {len(vehicules_list)} véhicules trouvés.")
+            print(f"API : {len(vehicules_list)} véhicules trouvés.")
+
+            # Injection dans la Micro:bit via Série des clé HMAC
+            count = 0
+            for vehicule in vehicules_list:
+                plaque = vehicule.get("plaqueImmat")
+                cle = vehicule.get("cleIdent")
+                if plaque and cle:
+                    # Format CFG:ID:KEY
+                    command = f"CFG:{plaque}:{cle}\n"
+                    ser.write(command.encode('utf-8'))
+                    ser.flush()
+                    count += 1
+                    time.sleep(0.05)  # Petite pause pour ne pas saturer le buffer d'entrée du QG
+            print(f"Injection terminée ({count} clés).")
         else:
-            print(f"Erreur API : Code {resp.status_code}")
-            return
+            print(f"Erreur API Keys: {resp.status_code}")
 
     except Exception as e:
-        print(f"Erreur Connexion API : {e}")
-        return
-
-    # 2. Injection dans la Micro:bit
-    count = 0
-    for vehicule in vehicules_list:
-        plaque = vehicule.get("plaqueImmat")
-        cle = vehicule.get("cleIdent")
-
-        if plaque and cle:
-            command = f"CFG:{plaque}:{cle}\n"
-            ser.write(command.encode('utf-8'))
-            ser.flush()
-            print(f"Injection : {plaque} -> Clé configurée")
-            count += 1
-            time.sleep(0.15)
-        else:
-            print(f"Ignoré : {vehicule}")
-
-    print(f"--- Synchro terminée ({count} clés actives) ---")
+        print(f"Erreur Synchro Clés : {e}")
+    print("--- Fin Synchro ---\n")
 
 
+# Thread: Envoi API
+def api_worker():
+    global current_token, latest_packet
+    print("--- Thread 'Temps Réel' démarré ---")
+
+    while True:
+        new_data_event.wait()
+
+        payload_to_send = None
+        with packet_lock:
+            if latest_packet:
+                payload_to_send = latest_packet
+                latest_packet = None
+            new_data_event.clear()
+
+        if payload_to_send:
+            try:
+                headers = {}
+                if current_token: headers["Authorization"] = f"Bearer {current_token}"
+
+                try:
+                    r = requests.post(config_global["api_url_data"], json=payload_to_send, headers=headers, timeout=2)
+
+                    if r.status_code == 401:
+                        # print("\n[Thread] Token 401...")
+                        current_token = obtenir_token_keycloak(config_global)
+                        if current_token:
+                            headers["Authorization"] = f"Bearer {current_token}"
+                            r = requests.post(config_global["api_url_data"], json=payload_to_send, headers=headers, timeout=2)
+
+                    if r.status_code in [200, 201]:
+                        print(".", end="", flush=True)
+                    else:
+                        print(f"x({r.status_code})", end="", flush=True)
+
+                except requests.exceptions.Timeout:
+                    print("T", end="", flush=True)
+                except Exception as e:
+                    print("!", end="", flush=True)
+
+            except Exception as e:
+                print(f"\n[Thread] Erreur: {e}")
+
+
+# Thread: Lecture série
 def demarrer_passerelle():
-    global current_token
-    config = charger_config()
+    global current_token, config_global, latest_packet
+    config_global = charger_config()
 
-    # --- Récupération initiale du token ---
-    current_token = obtenir_token_keycloak(config)
-    if not current_token:
-        print("Attention : Démarrage sans token valide.")
+    current_token = obtenir_token_keycloak(config_global)
+    port = trouver_port_microbit(config_global["port_usb"])
 
-    port = trouver_port_microbit(config["port_usb"])
-    baud = config["baudrate"]
-    print(f"--- Démarrage Passerelle QG sur {port} ---")
+    threading.Thread(target=api_worker, daemon=True).start()
 
     try:
-        ser = serial.Serial(port, baud, timeout=1)
+        ser = serial.Serial(port, config_global["baudrate"], timeout=1)
         time.sleep(2)
 
+        # 1. Injection Initiale des Clés
+        fetch_and_sync_keys(ser, config_global)
         last_key_update = time.time()
 
-        # ETAPE 1 : CONFIGURATION AU DEMARRAGE
-        fetch_and_sync_keys(ser, config)
-
-        # ETAPE 2 : ECOUTE ET TRANSFERT
-        print("\nPasserelle prête. En attente de radio...")
+        print("\nPasserelle 'LAST-VALUE' prête. En attente...")
 
         while True:
-            current_time = time.time()
-            if current_time - last_key_update > config["update_interval_sec"]:
-                print("\n[Timer] Mise à jour automatique des clés...")
-                fetch_and_sync_keys(ser, config)
-                last_key_update = current_time
-                print("[Timer] Retour à l'écoute radio...\n")
+            # 2. Vérification Timer pour mise à jour des clés
+            if time.time() - last_key_update > config_global.get("update_interval_sec", 3600):
+                fetch_and_sync_keys(ser, config_global)
+                last_key_update = time.time()
 
+            # 3. Lecture Radio
             if ser.in_waiting > 0:
                 try:
                     line = ser.readline().decode('utf-8', errors='ignore').strip()
 
-                    if line.startswith("LOG:"):
-                        print(f"Microbit : {line}")
-
-                    elif line.startswith("EXP:"):
-                        print(f"Reçu : {line}")
+                    if line.startswith("EXP:"):
                         json_text = line[4:]
-
                         try:
-                            raw_data = json.loads(json_text)
+                            raw = json.loads(json_text)
 
                             ts_iso = None
-                            if "timestamp" in raw_data and isinstance(raw_data["timestamp"], (int, float)):
-                                dt = datetime.fromtimestamp(raw_data["timestamp"], timezone.utc)
+                            if "timestamp" in raw and isinstance(raw["timestamp"], (int, float)):
+                                dt = datetime.fromtimestamp(raw["timestamp"], timezone.utc)
                                 ts_iso = dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 
-                            res_dict = {}
-                            if "raw_res" in raw_data:
-                                res_string = raw_data.get("raw_res", "")
-                                if res_string and res_string != "0":
-                                    try:
-                                        items = res_string.split(',')
-                                        for item in items:
-                                            if '=' in item:
-                                                key, val = item.split('=')
-                                                key = key.strip().lower()  # Modif minuscule
-                                                val = val.strip()
-                                                try:
-                                                    res_dict[key] = int(val)
-                                                except ValueError:
-                                                    res_dict[key] = val
-                                    except Exception:
-                                        pass
-                            elif "ressources" in raw_data:
-                                res_dict = raw_data["ressources"]
+                            res_dict = raw.get("ressources", {})
+                            if "raw_res" in raw:
+                                try:
+                                    for item in raw["raw_res"].split(','):
+                                        if '=' in item:
+                                            k, v = item.split('=')
+                                            res_dict[k.strip()] = int(v.strip()) if v.strip().isdigit() else v.strip()
+                                except:
+                                    pass
 
-                            payload_api = {
-                                "plaqueImmat": raw_data.get("plaqueImmat") or raw_data.get("id"),
-                                "lat": raw_data.get("lat"),
-                                "lon": raw_data.get("lon"),
+                            payload = {
+                                "plaqueImmat": raw.get("plaqueImmat") or raw.get("id"),
+                                "lat": raw.get("lat"),
+                                "lon": raw.get("lon"),
                                 "timestamp": ts_iso,
                                 "ressources": res_dict,
-                                "btn": raw_data.get("btn")
+                                "btn": raw.get("btn")
                             }
 
-                            # 5. ENVOI (AVEC AUTHENTIFICATION)
-                            try:
-                                print(f"Payload envoyé : {json.dumps(payload_api)}")
-
-                                # --- Ajout headers Auth ---
-                                headers = {}
-                                if current_token:
-                                    headers["Authorization"] = f"Bearer {current_token}"
-
-                                r = requests.post(config["api_url_data"], json=payload_api, headers=headers)
-
-                                # GESTION TOKEN EXPIRÉ (401)
-                                if r.status_code == 401:
-                                    print("Token 401. Renouvellement et nouvel essai...")
-                                    current_token = obtenir_token_keycloak(config)
-                                    if current_token:
-                                        headers["Authorization"] = f"Bearer {current_token}"
-                                        r = requests.post(config["api_url_data"], json=payload_api, headers=headers)
-
-                                if r.status_code in [200, 201]:
-                                    print(f"Donnée sauvegardée : {res_dict} (200 OK)")
-                                else:
-                                    print(f"Erreur BDD : {r.status_code} - {r.text}")
-
-                            except Exception as e:
-                                print(f"Erreur envoi POST : {e}")
+                            # Ecrasement de la donnée
+                            with packet_lock:
+                                latest_packet = payload
+                                new_data_event.set()
 
                         except json.JSONDecodeError:
-                            print("JSON malformé")
+                            pass
+
+                    elif line.startswith("LOG:"):
+                        # print(f"Log: {line}")
+                        pass
 
                 except UnicodeDecodeError:
                     pass
+            else:
+                time.sleep(0.001)
 
-    except serial.SerialException:
-        print(f"\nERREUR CRITIQUE : Impossible d'ouvrir {port}")
     except KeyboardInterrupt:
-        if 'ser' in locals() and ser.is_open: ser.close()
         print("\nArrêt.")
+    except Exception as e:
+        print(f"\nErreur Critique: {e}")
 
 
 if __name__ == "__main__":

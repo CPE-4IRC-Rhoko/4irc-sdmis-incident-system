@@ -13,7 +13,7 @@
 .app-header {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
   padding: 1rem 1.5rem;
   border-bottom: 1px solid #dfe3eb;
   background: #ffffff;
@@ -30,6 +30,7 @@
 
 .header-tabs {
   margin-left: 1.5rem;
+  margin-right: auto;
 }
 
 .brand-logo {
@@ -74,6 +75,87 @@
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+}
+
+.header-user {
+  position: relative;
+}
+
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: #f5f7fb;
+  border: 1px solid #e6ebf4;
+  border-radius: 14px;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(15, 31, 64, 0.08);
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2f6fed, #3bb3f3);
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.avatar.small {
+  width: 28px;
+  height: 28px;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.user-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.user-role {
+  color: #6b7285;
+  font-size: 0.85rem;
+}
+
+.user-menu {
+  position: absolute;
+  right: 0;
+  top: 110%;
+  background: #ffffff;
+  border: 1px solid #e6ebf4;
+  border-radius: 14px;
+  box-shadow: 0 16px 36px rgba(15, 31, 64, 0.14);
+  min-width: 240px;
+  padding: 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 5;
+}
+
+.user-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.user-menu-action {
+  border: 1px solid #d7dce6;
+  border-radius: 10px;
+  padding: 0.45rem 0.65rem;
+  background: #f8fafc;
+  cursor: pointer;
+  font-weight: 700;
+  text-align: left;
 }
 
 .page-surface {

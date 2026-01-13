@@ -143,6 +143,7 @@ function RessourcesPage() {
   const interventionsRef = useRef<InterventionSnapshot[]>([])
   const evenementsMapRef = useRef<Record<string, string>>({})
   const equipementsSelectionnes = formVehicule.equipements.length
+  const equipementsLimitAtteint = equipementsSelectionnes >= 10
 
   useEffect(() => {
     const controller = new AbortController()
@@ -391,6 +392,9 @@ function RessourcesPage() {
   const toggleEquipement = useCallback((equipementId: string) => {
     setFormVehicule((prev) => {
       const present = prev.equipements.includes(equipementId)
+      if (!present && prev.equipements.length >= 10) {
+        return prev
+      }
       return {
         ...prev,
         equipements: present
@@ -426,6 +430,10 @@ function RessourcesPage() {
       }
       if (plaqueExisteDeja) {
         setCreationErreur('Cette immatriculation existe déjà en base, choisissez-en une autre.')
+        return
+      }
+      if (formVehicule.equipements.length > 10) {
+        setCreationErreur('Sélectionnez au maximum 10 équipements.')
         return
       }
       if (cle.length !== 16) {
@@ -828,12 +836,20 @@ function RessourcesPage() {
                       type="checkbox"
                       checked={formVehicule.equipements.includes(eq.id)}
                       onChange={() => toggleEquipement(eq.id)}
-                      disabled={creationChargement}
+                      disabled={
+                        creationChargement ||
+                        (!formVehicule.equipements.includes(eq.id) && equipementsLimitAtteint)
+                      }
                     />
                     <span>{eq.nom}</span>
                   </label>
                 ))}
               </div>
+              {equipementsLimitAtteint && (
+                <p className="muted small">
+                  Limite de 10 équipements atteinte.
+                </p>
+              )}
             </div>
 
             {chargementReferences && (
@@ -866,6 +882,7 @@ function RessourcesPage() {
                   cleIdentExisteDeja ||
                   plaqueInvalide ||
                   plaqueExisteDeja ||
+                  formVehicule.equipements.length > 10 ||
                   formVehicule.cleIdent.trim().length !== 16 ||
                   formVehicule.plaqueImmat.trim().length !== 7 ||
                   !formVehicule.idCaserne

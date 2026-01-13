@@ -110,9 +110,12 @@ public class VehiculeRepository {
                 JOIN intervention i ON i.id_vehicule = v.id_vehicule
                 JOIN evenement e ON e.id_evenement = i.id_evenement
                 JOIN statut_evenement se ON se.id_statut = e.id_statut
+                JOIN statut_intervention si ON si.id_statut_intervention = i.id_statut_intervention
                 LEFT JOIN est_equipe_de eed ON eed.id_vehicule = v.id_vehicule
                 LEFT JOIN equipement eq ON eq.id_equipement = eed.id_equipement
-                WHERE sv.nom_statut = 'En route' and se.nom_statut = 'En intervention'
+                WHERE sv.nom_statut = 'En route'
+                  AND se.nom_statut = 'En intervention'
+                  AND si.nom = 'En cours'
                 GROUP BY v.id_vehicule, v.plaque_immat, v.latitude, v.longitude, i.id_evenement, e.latitude, e.longitude
                 """, new VehiculeEnRouteRowMapper());
     }
