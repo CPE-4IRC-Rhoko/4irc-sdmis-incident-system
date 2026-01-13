@@ -8,7 +8,7 @@ MicroBit uBit;
 
 // Configuration des clés HMAC pour chaque camion
 uint8_t cleAES[16] = { 'V','E','8','c','e','n','t','L','e','P','0','u','B','o','1','2' }; //CLE AES (Doit être identique à celle dans la micro:bit QG)
-const uint8_t keysHMAC[25][16] = {
+const uint8_t keysHMAC[20][16] = {
     { 'K','e','y','1','0','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA100AA (Index 0)
     { 'K','e','y','1','1','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA101AA (Index 1)
     { 'K','e','y','1','2','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA102AA (Index 2)
@@ -28,12 +28,7 @@ const uint8_t keysHMAC[25][16] = {
     { 'K','e','y','2','6','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA116AA (Index 16)
     { 'K','e','y','2','7','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA117AA (Index 17)
     { 'K','e','y','2','8','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA118AA (Index 18)
-    { 'K','e','y','2','9','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA119AA (Index 19)
-    { 'K','e','y','3','0','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA120AA (Index 20)
-    { 'K','e','y','3','1','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA121AA (Index 21)
-    { 'K','e','y','3','2','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA122AA (Index 22)
-    { 'K','e','y','3','3','_','S','e','c','r','e','t','!','!','!','!' }, // Pour AA123AA (Index 23)
-    { 'K','e','y','3','4','_','S','e','c','r','e','t','!','!','!','!' } // Pour AA124AA (Index 24)
+    { 'K','e','y','2','9','_','S','e','c','r','e','t','!','!','!','!' } // Pour AA119AA (Index 19)
 };
 
 // Structure de données d'un camion
@@ -47,8 +42,8 @@ struct EtatCamion {
     bool btnAppuye;     
 };
 
-// Notre flotte en mémoire (25 slots = 25 camions)
-EtatCamion flotte[25];
+// Notre flotte en mémoire (20 slots = 20 camions)
+EtatCamion flotte[20];
 
 PacketBuffer bufferAckRecu(0); // Buffers de transmission radio
 bool unAckEstArrive = false;
@@ -101,11 +96,6 @@ int getIndexFromID(ManagedString id) {
     if (id == "AA117AA") return 17;
     if (id == "AA118AA") return 18;
     if (id == "AA119AA") return 19;
-    if (id == "AA120AA") return 20;
-    if (id == "AA121AA") return 21;
-    if (id == "AA122AA") return 22;
-    if (id == "AA123AA") return 23;
-    if (id == "AA124AA") return 24;
     return -1;
 }
 
@@ -278,7 +268,7 @@ int main() {
     uBit.messageBus.listen(MICROBIT_ID_BUTTON_B, MICROBIT_BUTTON_EVT_CLICK, onButtonB);
 
     // Initialisation
-    for(int i=0; i<25; i++) {
+    for(int i=0; i<20; i++) {
         flotte[i].actif = false; 
         flotte[i].sequence = 0;
         flotte[i].btnAppuye = false;
@@ -310,7 +300,7 @@ int main() {
 
         // Vérification globale d'activité pour mode veille profonde
         bool auMoinsUnActif = false;
-        for(int i=0; i<25; i++) {
+        for(int i=0; i<20; i++) {
             if(flotte[i].actif) { auMoinsUnActif = true; break; }
         }
 
@@ -320,6 +310,6 @@ int main() {
 
         // 3. Suivant
         camionEnCours++;
-        if (camionEnCours > 24) camionEnCours = 0;
+        if (camionEnCours > 19) camionEnCours = 0;
     }
 }
