@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.4
+        env:
+          VPS_PATH: ${{ secrets.VPS_PATH }}
         with:
           host: ${{ secrets.VPS_IP_ADDRESS }}
           username: ${{ secrets.VPS_USER_USERNAME }}
@@ -19,7 +21,7 @@ jobs:
           key: ${{ secrets.VPS_USER_SSH_KEY }}
           script: |
             set -e
-            cd ${{ secrets.VPS_PATH }}
+            cd "$VPS_PATH"
             git switch main
             git pull origin main
             docker compose -f docker-compose.yaml down
