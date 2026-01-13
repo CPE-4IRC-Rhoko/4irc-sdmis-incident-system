@@ -276,8 +276,11 @@ bool envoyerCamionRadio(int index) {
 
 int main() {
     uBit.init();
+
+    uBit.serial.setRxBufferSize(100); 
+    uBit.serial.setTxBufferSize(100);
+    
     uBit.serial.baud(115200);
-    uBit.serial.setRxBufferSize(254);
     
     uBit.radio.enable(); uBit.radio.setGroup(16); uBit.radio.setTransmitPower(7);
     uBit.messageBus.listen(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, onData);
