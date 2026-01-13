@@ -16,6 +16,7 @@ import {
   type ClotureInterventionPayload,
 } from '../services/interventions'
 import { getVehiculesSnapshots } from '../services/vehicules'
+import { getCasernes } from '../services/casernes'
 import { fetchOsrmRoute } from '../services/osrm'
 import { getStoredRoles } from '../services/auth'
 import './TerrainPage.css'
@@ -171,6 +172,9 @@ function TerrainPage() {
   const [statutEvenementParId, setStatutEvenementParId] = useState<
     Record<string, string>
   >({})
+  const [casernes, setCasernes] = useState<
+    Array<{ id: string; nom: string; latitude: number; longitude: number }>
+  >([])
   const [routes, setRoutes] = useState<TrajetAssocie[]>([])
   const [popupEvenementId, setPopupEvenementId] = useState<string | null>(null)
   const [popupVehiculeId, setPopupVehiculeId] = useState<string | null>(null)
@@ -388,14 +392,19 @@ const synchroniserRoutes = useCallback(() => {
       setEtatChargement('loading')
       setErreurChargement(null)
       try {
+        const promCasernes = isAdmin
+          ? getCasernes(controller.signal).catch(() => [])
+          : Promise.resolve([])
         const [
           evtSnapshots,
           vehiculesSnapshots,
           interventionsSnapshots,
+          casernesApi,
         ] = await Promise.all([
           getEvenementsSnapshots(controller.signal),
           getVehiculesSnapshots(controller.signal),
           getInterventionsSnapshots(controller.signal),
+          promCasernes,
         ])
 
         const evtApi = evtSnapshots.map(evenementDepuisSnapshot)
@@ -424,6 +433,24 @@ const synchroniserRoutes = useCallback(() => {
 
         setEvenementsApi(evtApi)
         setEvenements(evtApi.map(incidentDepuisApi))
+        if (isAdmin) {
+          const casernesAvecCoord = casernesApi
+            .filter(
+              (caserne) =>
+                caserne.latitude != null &&
+                caserne.longitude != null &&
+                isValidCoord(caserne.latitude, caserne.longitude),
+            )
+            .map((caserne) => ({
+              id: caserne.id,
+              nom: caserne.nom,
+              latitude: caserne.latitude as number,
+              longitude: caserne.longitude as number,
+            }))
+          setCasernes(casernesAvecCoord)
+        } else {
+          setCasernes([])
+        }
         setVehicules(vehiculesInitial)
         setInterventions(interventionsInitial)
 
@@ -810,6 +837,7 @@ const synchroniserRoutes = useCallback(() => {
                 setPopupEvenementId(null)
                 setPopupVehiculeId(null)
               }}
+              casernes={casernes}
               vue={vue}
               onMove={setVue}
             />

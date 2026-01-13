@@ -28,6 +28,7 @@ import EvenementsPage from './EvenementsPage'
 import RessourcesPage from './RessourcesPage'
 import AffectationsPage from './AffectationsPage'
 import HistoriquePage from './HistoriquePage'
+import { getCasernes } from '../services/casernes'
 import './QGPage.css'
 import '../components/IncidentForm.css'
 
@@ -239,6 +240,9 @@ function QGPage() {
   const [evenements, setEvenements] = useState<Incident[]>([])
   const [evenementsApi, setEvenementsApi] = useState<EvenementApi[]>([])
   const [ressources, setRessources] = useState<Ressource[]>([])
+  const [casernes, setCasernes] = useState<
+    Array<{ id: string; nom: string; latitude: number; longitude: number }>
+  >([])
   const [evenementSelectionneId, setEvenementSelectionneId] = useState<
     string | undefined
   >(undefined)
@@ -563,12 +567,14 @@ function QGPage() {
           interventionsSnapshots,
           severitesApi,
           typesApi,
+          casernesApi,
         ] = await Promise.all([
           getEvenementsSnapshots(controller.signal),
           getVehiculesSnapshots(controller.signal),
           getInterventionsSnapshots(controller.signal),
           getSeverites(controller.signal),
           getTypesEvenement(controller.signal),
+          getCasernes(controller.signal).catch(() => []),
         ])
 
         const evtApi = evtSnapshots.map(evenementDepuisSnapshot)
@@ -601,6 +607,21 @@ function QGPage() {
         setRessources(
           ressourcesDepuisEtat(vehiculesInitial, interventionsInitial, evtApi),
         )
+        const casernesAvecCoord = casernesApi
+          .filter(
+            (caserne) =>
+              caserne.latitude != null &&
+              caserne.longitude != null &&
+              Number.isFinite(caserne.latitude) &&
+              Number.isFinite(caserne.longitude),
+          )
+          .map((caserne) => ({
+            id: caserne.id,
+            nom: caserne.nom,
+            latitude: caserne.latitude as number,
+            longitude: caserne.longitude as number,
+          }))
+        setCasernes(casernesAvecCoord)
         const severitesTriees = [...severitesApi].sort(
           (a, b) =>
             Number.parseInt(a.valeurEchelle, 10) -
@@ -856,6 +877,7 @@ function QGPage() {
             <MapView
               evenements={evenementsCarte}
               ressources={ressources}
+              casernes={casernes}
               pointInteret={
                 pointRecherche
                   ? {

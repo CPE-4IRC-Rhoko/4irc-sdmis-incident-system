@@ -41,6 +41,7 @@ interface Props {
   routes?: RouteTrace[]
   vue: VueCarte
   onMove: (vue: VueCarte) => void
+  casernes?: Array<{ id: string; nom?: string; latitude: number; longitude: number }>
 }
 
 const attribution =
@@ -114,14 +115,15 @@ function MapView({
   routes = [],
   vue,
   onMove,
+  casernes,
 }: Props) {
-  const isValidCoord = (lat?: number, lon?: number) =>
-    Number.isFinite(lat) &&
-    Number.isFinite(lon) &&
-    (lat as number) >= -90 &&
-    (lat as number) <= 90 &&
-    (lon as number) >= -180 &&
-    (lon as number) <= 180
+const isValidCoord = (lat?: number, lon?: number) =>
+  Number.isFinite(lat) &&
+  Number.isFinite(lon) &&
+  (lat as number) >= -90 &&
+  (lat as number) <= 90 &&
+  (lon as number) >= -180 &&
+  (lon as number) <= 180
 
   const evenementsAffiches = useMemo(
     () => evenements.filter((evt) => isValidCoord(evt.latitude, evt.longitude)),
@@ -138,6 +140,17 @@ function MapView({
     pointInteret && isValidCoord(pointInteret.latitude, pointInteret.longitude)
       ? pointInteret
       : undefined
+
+  const casernesAffichees = useMemo(() => {
+    if (!casernes) return []
+    return casernes
+      .filter((c) => isValidCoord(c.latitude, c.longitude))
+      .map((c) => ({
+        ...c,
+        latitude: c.latitude,
+        longitude: c.longitude,
+      }))
+  }, [casernes])
 
   const styleCarte = useMemo<StyleSpecification>(
     () => ({
@@ -249,11 +262,26 @@ function MapView({
           </Source>
         )}
         {navigationEnabled && <NavigationControl position="top-right" />}
+        {casernesAffichees.map((caserne) => (
+          <Marker
+            key={caserne.id}
+            longitude={caserne.longitude}
+            latitude={caserne.latitude}
+            anchor="bottom"
+          >
+            <div
+              className="marker marker-caserne"
+              title={caserne.nom ?? 'Caserne'}
+            >
+              🏥
+            </div>
+          </Marker>
+        ))}
         {pointInteretValide && (
-        <Marker
-          longitude={pointInteretValide.longitude}
-          latitude={pointInteretValide.latitude}
-          anchor="bottom"
+          <Marker
+            longitude={pointInteretValide.longitude}
+            latitude={pointInteretValide.latitude}
+            anchor="bottom"
           onClick={(e) => {
             e.originalEvent?.stopPropagation()
             onClickPointInteret?.()
