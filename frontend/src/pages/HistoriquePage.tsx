@@ -20,7 +20,6 @@ type TimelineEntry = {
   incidentId?: string
   incidentLabel: string
   description: string
-  actor: string
   badgeNote?: string
   vehicule?: string
   source: 'snapshot' | 'live'
@@ -103,14 +102,6 @@ const determineKindFromStatus = (
   return 'AFFECTATION'
 }
 
-const actorFromStatus = (status: string | null | undefined) => {
-  const texte = (status ?? '').toLowerCase()
-  if (texte.includes('ia') || texte.includes('auto')) return 'Système (IA)'
-  if (texte.includes('112')) return 'Appel 112'
-  if (texte.includes('dispatch')) return 'Dispatcher'
-  return 'Système (SSE)'
-}
-
 const synthesizeTime = (index: number) =>
   new Date(Date.now() - index * 4 * 60 * 1000).toISOString()
 
@@ -169,7 +160,6 @@ function HistoriquePage() {
           snapshot.description?.trim().length && snapshot.description !== snapshot.typeEvenement
             ? snapshot.description
             : `Création d’incident ${snapshot.typeEvenement ?? ''}`.trim(),
-        actor: source === 'snapshot' ? 'Système (snapshot)' : 'Système (SSE)',
         source,
       }
     },
@@ -196,7 +186,6 @@ function HistoriquePage() {
         new Date().toISOString()
       const statutTexte = snapshot.statusIntervention ?? ''
       const fingerprint = `${kind}-${snapshot.idEvenement}-${snapshot.idVehicule}-${statutTexte.toLowerCase()}-${snapshot.dateFinIntervention ?? snapshot.dateDebutIntervention ?? 'now'}`
-      const acteur = actorFromStatus(statutTexte)
       const description =
         kind === 'FIN'
           ? `Intervention close pour ${vehicule ?? 'véhicule inconnu'}.`
@@ -209,7 +198,6 @@ function HistoriquePage() {
         incidentId: snapshot.idEvenement,
         incidentLabel: incident?.typeEvenement ?? 'Incident',
         description,
-        actor: acteur,
         badgeNote:
           kind === 'DECISION' && statutTexte
             ? statutTexte
@@ -303,7 +291,6 @@ function HistoriquePage() {
               incidentId: snapshot.idEvenement,
               incidentLabel: snapshot.typeEvenement ?? 'Incident',
               description: `Statut mis à jour : ${snapshot.statutEvenement}`,
-              actor: 'Système (SSE)',
               source: 'live',
             })
           }
@@ -428,7 +415,6 @@ function HistoriquePage() {
       'Type',
       'Incident',
       'Description',
-      'Acteur',
       'Source',
     ]
     const rows = entriesTriees.map((entry) => [
@@ -436,7 +422,6 @@ function HistoriquePage() {
       kindLabel(entry.kind),
       entry.incidentId ?? '',
       entry.description.replace(/\s+/g, ' ').trim(),
-      entry.actor,
       entry.source,
     ])
     const contenu = [header, ...rows]
@@ -607,19 +592,18 @@ function HistoriquePage() {
         )}
 
         {etat === 'ready' && entriesTriees.length > 0 && (
-          <table className="history-table">
-            <thead>
-              <tr>
-                <th>Heure</th>
-                <th>ID incident</th>
-                <th>Type</th>
-                <th>Description</th>
-                <th>Acteur</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entriesTriees.map((entry) => (
-                <tr key={entry.id}>
+            <table className="history-table">
+              <thead>
+                <tr>
+                  <th>Heure</th>
+                  <th>ID incident</th>
+                  <th>Type</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                {entriesTriees.map((entry) => (
+                  <tr key={entry.id}>
                   <td className="muted">{toHour(entry.at)}</td>
                   <td>
                     {entry.incidentId ? (
@@ -643,9 +627,6 @@ function HistoriquePage() {
                         {entry.badgeNote ? ` • ${entry.badgeNote}` : ''}
                       </p>
                     </div>
-                  </td>
-                  <td>
-                    <span className="actor-chip">{entry.actor}</span>
                   </td>
                 </tr>
               ))}

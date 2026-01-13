@@ -476,11 +476,6 @@ const synchroniserRoutes = useCallback(() => {
     }
   }, [isAdmin, vehiculeSuiviId, vehicules])
 
-  const evenementsCarte = useMemo(
-    () => evenements.filter((evt) => evt.statut !== 'CLOTURE'),
-    [evenements],
-  )
-
   const interventionsActives = useMemo(
     () => interventions.filter(interventionEstActive),
     [interventions],
@@ -655,7 +650,7 @@ const synchroniserRoutes = useCallback(() => {
   const onSelectEvenement = (id: string) => {
     setPopupEvenementId(id)
     setPopupVehiculeId(null)
-    const evt = evenementsCarte.find((evenement) => evenement.id === id)
+    const evt = evenements.find((evenement) => evenement.id === id)
     if (evt) {
       setVue((prev) => ({
         ...prev,
@@ -788,7 +783,7 @@ const synchroniserRoutes = useCallback(() => {
           </div>
           <div className="terrain-map">
             <MapView
-              evenements={evenementsCarte}
+              evenements={evenements}
               ressources={ressourcesPourCarte}
               routes={routesPourCarte}
               evenementSelectionneId={popupEvenementId ?? undefined}
